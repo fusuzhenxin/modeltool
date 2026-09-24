@@ -173,12 +173,26 @@ function hero(opts) {
     : `<h1>${opts.title}</h1>`;
   return `<section class="hero"><div class="hero-copy">${head}<p class="sub">${opts.sub}</p>${opts.bar ? '<div class="accent"></div>' : ""}</div>${art}</section>`;
 }
+function featureMark(name) {
+  const pen = "fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"";
+  const marks = {
+    detect: `<path fill="currentColor" d="M12 2.6 19.2 5.6v5.4c0 4.2-2.8 7.2-7.2 8.8-4.4-1.6-7.2-4.6-7.2-8.8V5.6L12 2.6z"/><path ${pen} stroke="#fff" d="m8.6 11.7 2.3 2.3 4.6-4.8"/>`,
+    basic: `<path fill="currentColor" d="M7 3.2h7.2L18.4 7.4V20a1.4 1.4 0 0 1-1.4 1.4H7A1.4 1.4 0 0 1 5.6 20V4.6A1.4 1.4 0 0 1 7 3.2z"/><path ${pen} stroke="#fff" d="M8.4 11.2h6.4M8.4 14.4h6.4M8.4 17.4h4"/>`,
+    candy: `<path fill="currentColor" d="M9.2 8.6c-2.2.5-3.4 2.4-2.6 4.3.7 1.6 2.6 2.4 4.4 1.8 1.8-.6 2.9-2.4 2.4-4.2-.4-1.6-1.9-2.6-3.5-2.4-.2 0-.5.2-.7.5z"/><path fill="currentColor" d="M8.6 9.2 4.8 7.4c-.5 1.3.1 2.4 1.1 3.1L4.6 14.2c1 .4 2.2.1 2.9-.7l1.1-1.2-1-1.6c.4-.6.7-1 .9-1.5zM15.4 9.4l3.6-2c.6 1.2 0 2.4-.9 3.2l1.3 3.6c-1 .5-2.3.2-3-.6l-1.2-1.1.9-1.7c-.3-.5-.6-.9-.7-1.4z"/>`,
+    pelican: `<circle cx="6.4" cy="17.6" r="2.35" ${pen}/><circle cx="17.3" cy="17.6" r="2.35" ${pen}/><path ${pen} d="M6.4 17.6 10.4 12h4.2l2.7 5.6M10.4 12 12.6 17.6"/><path fill="currentColor" d="M13.1 11.2c.3-1.7 1.5-2.9 3-3.2-.7 1.3-.4 2.3.6 2.9 1.1.5 1.7 1.5 1.4 2.6-.4 1.5-1.9 2.3-3.5 1.9-1-.2-1.8-.9-2.1-1.8.2-.8.4-1.6.6-2.4z"/><path fill="currentColor" d="M16.6 8.2c1.6-.1 2.9.6 3.1 1.4-1 .2-1.9-.1-2.5-.7-.2-.3-.4-.6-.6-.7z"/>`,
+    prompts: `<rect x="4.2" y="6.4" width="11.2" height="13.2" rx="2" fill="currentColor" opacity=".35"/><rect x="7.4" y="3.6" width="12.2" height="14.2" rx="2.2" fill="currentColor"/><path ${pen} stroke="#fff" d="M10.2 8.2h6.2M10.2 11.2h6.2M10.2 14.2h4"/>`,
+    works: `<rect x="3.4" y="4.2" width="17.2" height="15.6" rx="2.2" fill="currentColor"/><path ${pen} stroke="#fff" d="M3.4 8.2h17.2M8.6 12.4 6.4 14.6l2.2 2.2M15.4 12.4l2.2 2.2-2.2 2.2"/>`,
+    relay: `<circle cx="6.2" cy="12" r="2.3" fill="currentColor"/><circle cx="17.8" cy="6.6" r="2.3" fill="currentColor"/><circle cx="17.8" cy="17.4" r="2.3" fill="currentColor"/><path ${pen} d="M8.3 11.2 15.6 7.4M8.4 12.8l7.2 3.8"/>`
+  };
+  const body = marks[name] || marks.detect;
+  return `<svg class="mark" viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
+}
 function featureGrid(cards) {
   return `<section class="grid-4">${cards.map((card) => {
     const external = /^https?:\/\//i.test(card.href);
     const extra = external ? ' target="_blank" rel="noopener noreferrer"' : "";
     return `<article class="card feature">
-    <span class="ico-box">${UI.icon(card.icon)}</span>
+    <span class="ico-box tone-${card.mark}">${featureMark(card.mark)}</span>
     <h3>${card.title}</h3>
     <p>${card.desc}</p>
     <a class="btn btn-block ${card.primary ? "btn-primary" : "btn-ghost"}" href="${card.href}"${extra}>${card.cta}</a>
@@ -497,13 +511,13 @@ const Pages = {
         <p>开始测试时，页面在本地解开密钥，${UI.forwardNote()}转发时用一下，不另存一份。换一个浏览器、换一个网址，或清掉本站数据之后，需要重新填写。</p>
       </article>
       ${featureGrid([
-        { icon: "shield", title: "模型检测页", desc: "综合多项测试结果，评估模型是否存在降智问题。", href: "detect.html", cta: "进入检测 →", primary: true },
-        { icon: "doc", title: "基础测试页", desc: "通过基础能力测试，评估模型的核心能力表现。", href: "basic.html", cta: "开始测试 →" },
-        { icon: "candy", title: "糖果测试页", desc: "使用更具迷惑性的测试题目，识别模型是否出现降智。", href: "candy.html", cta: "开始测试 →" },
-        { icon: "car", title: "鹈鹕骑车测试页", desc: "让模型写出一只鹈鹕骑自行车的 HTML，打开就能看到画面。", href: "pelican.html", cta: "开始测试 →" },
-        { icon: "list", title: "提示词库", desc: "按分类查看评测提示词，可以复制，也可以用当前接口试跑。", href: "prompts.html", cta: "打开提示词库 →" },
-        { icon: "code", title: "HTML 作品", desc: "公开的 HTML 作品目录。列表用静图，详情页再打开可玩页面。", href: "works.html", cta: "查看作品 →" },
-        { icon: "out", title: "中转导航", desc: "去 API 中转导航站挑选接口，再回到这里填写地址和密钥。", href: "https://www.veridrop.cn", cta: "打开导航 →" }
+        { mark: "detect", title: "模型检测页", desc: "综合多项测试结果，评估模型是否存在降智问题。", href: "detect.html", cta: "进入检测 →", primary: true },
+        { mark: "basic", title: "基础测试页", desc: "通过基础能力测试，评估模型的核心能力表现。", href: "basic.html", cta: "开始测试 →" },
+        { mark: "candy", title: "糖果测试页", desc: "使用更具迷惑性的测试题目，识别模型是否出现降智。", href: "candy.html", cta: "开始测试 →" },
+        { mark: "pelican", title: "鹈鹕骑车测试页", desc: "让模型写出一只鹈鹕骑自行车的 HTML，打开就能看到画面。", href: "pelican.html", cta: "开始测试 →" },
+        { mark: "prompts", title: "提示词库", desc: "按分类查看评测提示词，可以复制，也可以用当前接口试跑。", href: "prompts.html", cta: "打开提示词库 →" },
+        { mark: "works", title: "HTML 作品", desc: "公开的 HTML 作品目录。列表用静图，详情页再打开可玩页面。", href: "works.html", cta: "查看作品 →" },
+        { mark: "relay", title: "中转导航", desc: "去 API 中转导航站挑选接口，再回到这里填写地址和密钥。", href: "https://www.veridrop.cn", cta: "打开导航 →" }
       ])}
       <section class="grid-side">
         <article class="panel">
@@ -536,6 +550,9 @@ const Pages = {
     const cfg = Store.api();
     const configured = !!(cfg.baseUrl && cfg.apiKey);
     const anyPart = ["basic", "candy", "pelican"].some((key) => snap.parts[key] && snap.parts[key].score != null);
+    let title = info.title;
+    let sideTitle = info.title;
+    let sideTone = tone;
     let desc = info.desc;
     let side = info.side;
     if (info.level === "none") {
@@ -548,6 +565,25 @@ const Pages = {
       } else {
         desc = "已有部分测试结果。基础、糖果、鹈鹕三项都完成后，才会计算综合分。";
         side = "缺任何一项都不会当成 0 分，也不会写成降智。";
+      }
+    } else {
+      const names = { basic: "基础测试", candy: "糖果测试", pelican: "鹈鹕骑车" };
+      const weak = ["basic", "candy", "pelican"].flatMap((key) => {
+        const part = snap.parts[key];
+        if (!part || part.score == null) return [];
+        const level = Engine.judge(part.score);
+        if (level !== "bad" && level !== "warn") return [];
+        return [{ name: names[key], score: part.score, level }];
+      });
+      if (weak.length) {
+        const phrase = weak.map((item) => item.name + " " + item.score + " 分，" + (item.level === "bad" ? "明显异常" : "轻微异常")).join("；");
+        desc = "综合分 " + snap.score + " 按基础 0.4、糖果 0.35、鹈鹕 0.25 计算。单项里" + phrase + "。";
+        side = "综合分没有把偏低的单项说成正常。" + phrase + "。";
+        if (weak.some((item) => item.level === "bad")) {
+          sideTitle = "单项有明显异常";
+          sideTone = "bad";
+          if (info.level === "ok") title = "综合分正常";
+        }
       }
     }
     const parts = [
@@ -579,7 +615,7 @@ const Pages = {
         <div class="summary-main">
           ${UI.ring(snap.score)}
           <div class="summary-copy">
-            <h2>${info.level === "none" ? "" : `<span class="mini-${tone}">${UI.icon("mark")}</span>`}${UI.esc(info.title)}</h2>
+            <h2>${info.level === "none" ? "" : `<span class="mini-${tone}">${UI.icon("mark")}</span>`}${UI.esc(title)}</h2>
             <p>${UI.esc(desc)}</p>
             <div class="summary-meta"><span>${UI.icon("clock")} ${when}</span><span>${model}</span></div>
           </div>
@@ -597,8 +633,8 @@ const Pages = {
         <article class="panel">
           <div class="panel-hd"><h3>${UI.icon("target")} 综合评估结果</h3></div>
           <div class="panel-bd judge">
-            <span class="ico-box lg ${tone}">${UI.icon(info.level === "none" ? "info" : "mark")}</span>
-            <h3>${UI.esc(info.title)}</h3>
+            <span class="ico-box lg ${sideTone}">${UI.icon(info.level === "none" ? "info" : sideTone === "ok" ? "mark" : "info")}</span>
+            <h3>${UI.esc(sideTitle)}</h3>
             <p>${UI.esc(side)}</p>
             <button class="btn btn-primary btn-block" type="button" data-action="recheck">${UI.icon("refresh")} 重新检测</button>
           </div>
