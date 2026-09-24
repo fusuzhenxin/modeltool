@@ -419,7 +419,18 @@ const CANDY_TITLES = {
   "candy-rope": "不均匀的绳子烧 45 分钟",
   "candy-monty": "三扇门要不要换",
   "candy-soda": "空瓶能换几瓶汽水",
-  "candy-knight": "骑士和无赖"
+  "candy-knight": "骑士和无赖",
+  "candy-halfprice": "书价是一半再加一元",
+  "candy-daughters": "第五个女儿叫什么",
+  "candy-months": "几个月至少有 28 天",
+  "candy-survivors": "幸存者该埋在哪",
+  "candy-rooster": "公鸡下的蛋往哪滚",
+  "candy-divide": "除以二分之一再加十",
+  "candy-coins": "哪一枚不是五分硬币",
+  "candy-nines": "1 到 100 有几个 9",
+  "candy-strike": "钟敲十二下要几秒",
+  "candy-left": "牧场还剩几只羊",
+  "candy-peak": "测量前最高的山"
 };
 const HTML_WORKS = [
   ["qq-speed", "QQ飞车", "做一个可玩的网页竞速：能漂移、使用氮气，并有四条赛道。车辆和音效用代码生成，不要外链游戏素材。页面上标明这是同人演示，不是腾讯官方游戏。", ["3D", "竞速"], "同人演示，不是腾讯官方游戏。"],
