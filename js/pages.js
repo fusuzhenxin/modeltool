@@ -1497,6 +1497,22 @@ Actions["retry-run"] = () => {
   App.rush = false;
   if (!App.busy && App.liveLoop) App.liveLoop();
 };
+Actions["show-qq"] = () => {
+  document.querySelector(".modal-mask")?.remove();
+  const mask = document.createElement("div");
+  mask.className = "modal-mask";
+  mask.innerHTML = `<div class="modal qq-pop" role="dialog" aria-modal="true" aria-labelledby="qq-title">
+    <button type="button" class="qq-close" data-modal="cancel" aria-label="关闭">${UI.icon("close")}</button>
+    <h3 id="qq-title">工具群</h3>
+    <img src="assets/qq-group.jpg" alt="工具群二维码，群号 1082521332">
+    <p class="qq-meta">扫一扫二维码加入群聊，群号 <b>1082521332</b></p>
+  </div>`;
+  mask.addEventListener("click", (event) => {
+    if (event.target === mask || event.target.closest("[data-modal='cancel']")) mask.remove();
+  });
+  document.body.appendChild(mask);
+  mask.querySelector(".qq-close")?.focus();
+};
 Actions["open-api"] = () => {
   const cfg = Store.api();
   document.querySelector(".modal-mask")?.remove();

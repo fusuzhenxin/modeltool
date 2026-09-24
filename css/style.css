@@ -118,6 +118,13 @@ img { max-width: 100%; }
   font-size: 16px;
   justify-self: start;
   letter-spacing: 0.2px;
+  min-width: 0;
+}
+.brand span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .logo {
   width: 32px;
@@ -149,6 +156,20 @@ img { max-width: 100%; }
   background: var(--blue);
 }
 .account { justify-self: end; display: flex; justify-content: flex-end; align-items: center; gap: 8px; position: relative; }
+.marks { display: flex; align-items: center; gap: 6px; }
+.mark-btn {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: #f3f6ff;
+  color: #1b2744;
+  padding: 0;
+}
+.mark-btn:hover { background: #e7edff; color: var(--blue); }
+.mark-btn .ico { width: 18px; height: 18px; display: block; }
 .modal.wide { width: min(560px, 100%); }
 .api-grid { display: flex; flex-direction: column; gap: 8px; }
 .api-grid .text-input { width: 100%; }
@@ -722,7 +743,7 @@ table.grid tbody tr:hover td { background: #fcfdff; }
   min-width: 0;
 }
 .search { min-width: 220px; flex: 1; }
-.text-input:focus, .search:focus, .select-btn:focus-visible, .btn:focus-visible, .nav a:focus-visible {
+.text-input:focus, .search:focus, .select-btn:focus-visible, .btn:focus-visible, .nav a:focus-visible, .mark-btn:focus-visible, .qq-close:focus-visible {
   border-color: #b9cbff;
   box-shadow: 0 0 0 3px rgba(59, 95, 250, 0.15);
   outline: none;
@@ -987,6 +1008,36 @@ pre.code {
 .modal h3 { margin: 0 0 8px; font-size: 18px; }
 .modal p { margin: 0 0 16px; color: var(--ink-2); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.modal.qq-pop {
+  position: relative;
+  width: min(420px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  padding: 16px 14px 14px;
+  background: #f7f8fa;
+}
+.qq-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
+  color: #5c6b88;
+  display: grid;
+  place-items: center;
+}
+.qq-pop h3 { padding-right: 36px; }
+.qq-pop img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  background: #f3f4f6;
+}
+.qq-pop .qq-meta { margin: 12px 0 0; text-align: center; color: #24324d; font-size: 14px; }
 
 .toast {
   position: fixed;
@@ -1030,9 +1081,9 @@ pre.code {
 }
 @media (max-width: 860px) {
   .container { width: min(100% - 28px, var(--container)); }
-  .topbar-inner { grid-template-columns: auto 1fr auto; }
-  .brand { grid-column: 1; }
-  .account { grid-column: 3; }
+  .topbar-inner { display: flex; justify-content: space-between; gap: 8px; }
+  .brand { flex: 1 1 auto; }
+  .account { flex: none; }
   .nav {
     display: none;
     position: absolute;
@@ -1059,7 +1110,36 @@ pre.code {
   .feature { min-height: 0; }
   .official-bar { flex-wrap: wrap; }
   .status-list { grid-template-columns: 1fr; }
-  .api-btn span { display: inline; }
+  .api-btn span {
+    display: inline;
+    max-width: 7em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+@media (max-width: 520px) {
+  .topbar-inner { gap: 6px; }
+  .account { gap: 4px; }
+  .marks { gap: 4px; }
+  .api-btn {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+    position: relative;
+  }
+  .api-btn span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+    max-width: none;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
