@@ -173,6 +173,7 @@ function hero(opts) {
     : `<h1>${opts.title}</h1>`;
   return `<section class="hero"><div class="hero-copy">${head}<p class="sub">${opts.sub}</p>${opts.bar ? '<div class="accent"></div>' : ""}</div>${art}</section>`;
 }
+const QUESTION_COUNTS = [3, 5, 10, 20, 30].map((n) => ({ value: String(n), label: n + " 题" }));
 function featureMark(name) {
   const pen = "fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"";
   const marks = {
@@ -719,7 +720,7 @@ const Pages = {
               <p class="lead">选择模型并设置测试参数，开始糖果测试。</p>
               <div class="form-row">
                 ${UI.field("选择模型", UI.select("candy-model", Form.get("candy-model"), modelOptions()))}
-                ${UI.field("测试题目数量", UI.select("candy-count", Form.get("candy-count"), [{ value: "10", label: "10 题" }, { value: "20", label: "20 题" }, { value: "30", label: "30 题" }]))}
+                ${UI.field("测试题目数量", UI.select("candy-count", Form.get("candy-count"), QUESTION_COUNTS))}
                 ${UI.field("难度等级", UI.select("candy-diff", Form.get("candy-diff"), [{ value: "easy", label: "简单" }, { value: "medium", label: "中等" }, { value: "hard", label: "困难" }]))}
                 <div class="field"><span>&nbsp;</span><button class="btn btn-primary" type="button" data-action="start-candy">${UI.icon("play")} 开始测试</button></div>
               </div>
@@ -1107,7 +1108,7 @@ const Pages = {
             <p class="lead">${pending ? "将开始列表中的未开始任务。" : "选择模型、题量和难度。开始后可以在进度页看到逐题作答。"}</p>
             <div class="form-row">
               ${UI.field("选择模型", UI.select("setup-model", Form.get("setup-model"), modelOptions()))}
-              ${UI.field("测试题目数量", UI.select("setup-count", Form.get("setup-count"), [{ value: "10", label: "10 题" }, { value: "20", label: "20 题" }, { value: "30", label: "30 题" }]))}
+              ${UI.field("测试题目数量", UI.select("setup-count", Form.get("setup-count"), QUESTION_COUNTS))}
               ${UI.field("难度等级", UI.select("setup-diff", Form.get("setup-diff"), [{ value: "easy", label: "简单" }, { value: "medium", label: "中等" }, { value: "hard", label: "困难" }]))}
               <div class="field"><span>&nbsp;</span><button class="btn btn-primary" type="button" data-action="start-setup" data-type="${type}" data-id="${UI.esc(pending || "")}">${UI.icon("play")} 开始测试</button></div>
             </div>
