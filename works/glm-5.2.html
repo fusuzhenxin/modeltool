@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>GLM-5.2 的鹈鹕骑车</title>
+  <style>
+    html, body { margin: 0; min-height: 100%; background: #f4f7fb; }
+    body { display: grid; place-items: center; }
+    svg { width: min(92vw, 760px); height: auto; }
+    footer { position: fixed; left: 0; right: 0; bottom: 0; padding: 8px 12px; text-align: center; font: 12px/1.5 "Segoe UI", "Microsoft YaHei", sans-serif; color: #5c6b88; background: rgba(255,255,255,.92); }
+    footer a { color: #3b5ffa; }
+  </style>
+</head>
+<body>
+<!--
+Copyright the contributors of the pelican-svg-drawings dataset.
+Licensed under the Apache License, Version 2.0.
+You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+Dataset: https://huggingface.co/datasets/sergiopaniego/pelican-svg-drawings
+This file is one SVG from that dataset, wrapped in HTML without changing the drawing.
+
+Model: GLM-5.2
+File: svg/zai-org__GLM-5.2__pelican_bicycle__000.svg
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 500" text-rendering="geometricPrecision">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#cfe8f5"/>
+      <stop offset="1" stop-color="#eaf6ec"/>
+    </linearGradient>
+    <linearGradient id="feather" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4f1e8"/>
+      <stop offset="1" stop-color="#d9d2c2"/>
+    </linearGradient>
+    <linearGradient id="beak" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f5b53d"/>
+      <stop offset="1" stop-color="#e08a16"/>
+    </linearGradient>
+    <linearGradient id="pouch" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3c969"/>
+      <stop offset="1" stop-color="#d98c2a"/>
+    </linearGradient>
+    <linearGradient id="frame" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d64545"/>
+      <stop offset="1" stop-color="#a82a2a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Sky background -->
+  <rect x="0" y="0" width="600" height="500" fill="url(#sky)"/>
+
+  <!-- Ground -->
+  <rect x="0" y="420" width="600" height="80" fill="#7a8d4e"/>
+  <line x1="0" y1="420" x2="600" y2="420" stroke="#5d6f3a" stroke-width="3"/>
+  <!-- motion dashes on ground -->
+  <g stroke="#5d6f3a" stroke-width="4" stroke-linecap="round">
+    <line x1="60" y1="450" x2="120" y2="450"/>
+    <line x1="180" y1="465" x2="240" y2="465"/>
+    <line x1="380" y1="455" x2="450" y2="455"/>
+    <line x1="500" y1="470" x2="560" y2="470"/>
+  </g>
+
+  <!-- Distant cloud -->
+  <g fill="#ffffff" opacity="0.85">
+    <ellipse cx="120" cy="80" rx="45" ry="18"/>
+    <ellipse cx="155" cy="75" rx="35" ry="20"/>
+    <ellipse cx="95" cy="85" rx="28" ry="14"/>
+  </g>
+  <g fill="#ffffff" opacity="0.7">
+    <ellipse cx="470" cy="60" rx="40" ry="15"/>
+    <ellipse cx="500" cy="55" rx="28" ry="16"/>
+  </g>
+
+  <!-- ============ BICYCLE ============ -->
+  <!-- Rear wheel -->
+  <g>
+    <circle cx="190" cy="370" r="58" fill="none" stroke="#2a2a2a" stroke-width="6"/>
+    <circle cx="190" cy="370" r="6" fill="#444"/>
+    <!-- spokes -->
+    <g stroke="#888" stroke-width="1.6">
+      <line x1="190" y1="313" x2="190" y2="427"/>
+      <line x1="133" y1="370" x2="247" y2="370"/>
+      <line x1="150" y1="330" x2="230" y2="410"/>
+      <line x1="150" y1="410" x2="230" y2="330"/>
+      <line x1="172" y1="316" x2="208" y2="424"/>
+      <line x1="208" y1="316" x2="172" y2="424"/>
+    </g>
+  </g>
+
+  <!-- Front wheel -->
+  <g>
+    <circle cx="420" cy="370" r="58" fill="none" stroke="#2a2a2a" stroke-width="6"/>
+    <circle cx="420" cy="370" r="6" fill="#444"/>
+    <g stroke="#888" stroke-width="1.6">
+      <line x1="420" y1="313" x2="420" y2="427"/>
+      <line x1="363" y1="370" x2="477" y2="370"/>
+      <line x1="380" y1="330" x2="460" y2="410"/>
+      <line x1="380" y1="410" x2="460" y2="330"/>
+      <line x1="402" y1="316" x2="438" y2="424"/>
+      <line x1="438" y1="316" x2="402" y2="424"/>
+    </g>
+  </g>
+
+  <!-- Frame -->
+  <g stroke="url(#frame)" stroke-width="9" stroke-linecap="round" fill="none">
+    <!-- top tube (seat to handle) -->
+    <line x1="220" y1="285" x2="370" y2="275"/>
+    <!-- seat tube -->
+    <line x1="220" y1="285" x2="190" y2="370"/>
+    <!-- down tube -->
+    <line x1="190" y1="370" x2="370" y2="275"/>
+    <!-- chain stay -->
+    <line x1="190" y1="370" x2="300" y2="370"/>
+    <!-- seat stay -->
+    <line x1="220" y1="285" x2="190" y2="370"/>
+    <!-- head tube to fork -->
+    <line x1="370" y1="275" x2="420" y2="370"/>
+  </g>
+
+  <!-- Handlebar -->
+  <g stroke="#222" stroke-width="6" stroke-linecap="round" fill="none">
+    <line x1="370" y1="275" x2="385" y2="240"/>
+    <line x1="385" y1="240" x2="410" y2="235"/>
+  </g>
+  <circle cx="370" cy="275" r="7" fill="#222"/>
+
+  <!-- Seat -->
+  <path d="M195 280 Q220 268 250 278 L248 288 Q220 296 198 290 Z" fill="#222"/>
+  <line x1="220" y1="285" x2="220" y2="300" stroke="#222" stroke-width="3"/>
+
+  <!-- Pedal crank -->
+  <circle cx="300" cy="370" r="10" fill="none" stroke="#222" stroke-width="3"/>
+  <line x1="300" y1="370" x2="320" y2="395" stroke="#222" stroke-width="4"/>
+  <line x1="300" y1="370" x2="280" y2="345" stroke="#222" stroke-width="4"/>
+  <rect x="313" y="392" width="18" height="8" rx="2" fill="#444"/>
+  <rect x="269" y="342" width="18" height="8" rx="2" fill="#444"/>
+
+  <!-- Chain -->
+  <path d="M190 372 Q245 372 300 372" fill="none" stroke="#555" stroke-width="2"/>
+  <path d="M190 368 Q245 360 300 368" fill="none" stroke="#555" stroke-width="2"/>
+
+  <!-- ============ PELICAN ============ -->
+  <!-- The pelican sits on the seat, leaning forward to handlebars -->
+
+  <!-- Tail feathers -->
+  <path d="M150 250 L120 245 L130 265 L115 270 L145 275 Z" fill="#c9c1b0"/>
+
+  <!-- Body -->
+  <ellipse cx="220" cy="240" rx="75" ry="55" fill="url(#feather)" stroke="#b8b0a0" stroke-width="2"/>
+  <!-- Belly highlight -->
+  <ellipse cx="225" cy="260" rx="55" ry="35" fill="#ffffff" opacity="0.5"/>
+
+  <!-- Wing (reaching to handlebar) -->
+  <path d="M255 225 Q330 215 380 240 Q360 250 320 248 Q300 250 275 245 Z" fill="#e3ddcc" stroke="#b8b0a0" stroke-width="1.5"/>
+  <!-- wing feather lines -->
+  <g stroke="#b8b0a0" stroke-width="1.2" fill="none">
+    <path d="M280 235 Q330 232 372 240"/>
+    <path d="M285 242 Q325 244 365 245"/>
+  </g>
+
+  <!-- Neck -->
+  <path d="M275 215 Q295 175 320 165 Q335 162 345 175 Q335 195 305 220 Z" fill="url(#feather)" stroke="#b8b0a0" stroke-width="2"/>
+
+  <!-- Head -->
+  <circle cx="345" cy="170" r="28" fill="url(#feather)" stroke="#b8b0a0" stroke-width="2"/>
+
+  <!-- Eye -->
+  <circle cx="358" cy="163" r="6" fill="#fff"/>
+  <circle cx="360" cy="164" r="3.5" fill="#1a1a1a"/>
+  <circle cx="361" cy="163" r="1" fill="#fff"/>
+
+  <!-- Beak top -->
+  <path d="M368 162 Q430 158 470 168 Q472 174 468 176 Q430 172 370 173 Z" fill="url(#beak)" stroke="#b97010" stroke-width="1.5"/>
+  <!-- Beak hook tip -->
+  <path d="M468 173 Q478 175 472 184 Q468 180 466 176 Z" fill="#c97717"/>
+
+  <!-- Pouch (under beak) -->
+  <path d="M370 173 Q395 215 425 215 Q455 215 468 178 Q440 190 400 188 Q380 185 370 173 Z" fill="url(#pouch)" stroke="#b97010" stroke-width="1.5"/>
+  <!-- pouch texture -->
+  <path d="M380 185 Q405 205 425 207" fill="none" stroke="#b97010" stroke-width="1" opacity="0.6"/>
+  <path d="M390 195 Q410 210 430 210" fill="none" stroke="#b97010" stroke-width="1" opacity="0.6"/>
+
+  <!-- Tuft of feathers on head -->
+  <path d="M335 145 Q340 132 346 142 Q352 132 356 145 Q350 150 345 150 Z" fill="#d9d2c2" stroke="#b8b0a0" stroke-width="1.2"/>
+
+  <!-- Legs pedaling -->
+  <!-- Left leg (back) -->
+  <g>
+    <path d="M250 295 Q255 330 280 345" fill="none" stroke="#e08a16" stroke-width="9" stroke-linecap="round"/>
+    <!-- webbed foot on pedal -->
+    <path d="M278 344 L295 350 L290 358 L275 354 Z" fill="#e08a16" stroke="#b97010" stroke-width="1"/>
+  </g>
+  <!-- Right leg (front, on front pedal) -->
+  <g>
+    <path d="M265 300 Q300 350 320 395" fill="none" stroke="#f5b53d" stroke-width="9" stroke-linecap="round"/>
+    <path d="M318 393 L338 398 L333 408 L315 404 Z" fill="#f5b53d" stroke="#b97010" stroke-width="1"/>
+  </g>
+
+  <!-- A small fish peeking from the pouch for charm -->
+  <g>
+    <path d="M412 200 Q425 195 432 202 Q428 208 418 206 Q414 204 412 200 Z" fill="#5b8fb0" stroke="#2c5a78" stroke-width="1"/>
+    <path d="M432 202 L438 198 L438 206 Z" fill="#5b8fb0" stroke="#2c5a78" stroke-width="1"/>
+    <circle cx="418" cy="201" r="1" fill="#1a1a1a"/>
+  </g>
+
+  <!-- Motion lines -->
+  <g stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.7">
+    <line x1="70" y1="240" x2="130" y2="240"/>
+    <line x1="50" y1="280" x2="110" y2="280"/>
+    <line x1="80" y1="320" x2="135" y2="320"/>
+  </g>
+</svg>
+<footer>GLM-5.2 画的鹈鹕骑车。数据集 <a href="https://huggingface.co/datasets/sergiopaniego/pelican-svg-drawings">pelican-svg-drawings</a>，Apache-2.0。</footer>
+</body>
+</html>
