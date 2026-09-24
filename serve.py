@@ -673,7 +673,7 @@ class Handler(SimpleHTTPRequestHandler):
         started = time.time()
         upstream_headers = {}
         try:
-            with urlopen(req, timeout=55 if os.environ.get("VERCEL") else None) as resp:
+            with urlopen(req, timeout=None) as resp:
                 body = resp.read()
                 status = resp.status
                 upstream_headers = dict(resp.headers)
