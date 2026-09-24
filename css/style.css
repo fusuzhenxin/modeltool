@@ -170,19 +170,6 @@ img { max-width: 100%; }
 }
 .mark-btn:hover { background: #e7edff; color: var(--blue); }
 .mark-btn .ico { width: 18px; height: 18px; display: block; }
-.site-link {
-  display: inline-flex;
-  align-items: center;
-  height: 36px;
-  padding: 0 10px;
-  border-radius: 10px;
-  background: #f3f6ff;
-  color: var(--blue);
-  font-size: 13px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-.site-link:hover { background: #e7edff; }
 .modal.wide { width: min(560px, 100%); }
 .api-grid { display: flex; flex-direction: column; gap: 8px; }
 .api-grid .text-input { width: 100%; }
@@ -1371,7 +1358,6 @@ pre.code {
   .topbar-inner { gap: 6px; }
   .account { gap: 4px; }
   .marks { gap: 4px; }
-  .site-link { display: none; }
   .api-btn {
     width: 36px;
     padding: 0;

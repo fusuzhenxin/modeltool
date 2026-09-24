@@ -30,7 +30,7 @@
 | 提示词库 | 浏览评测提示词，含糖果原题和 HTML 作品的生成要求。可复制，也可用自己的接口试跑 |
 | 官方状态 | 点首页上的厂商芯片进入，版式跟随各家公开状态页 |
 
-顶栏 GitHub 图标旁边是 [modeltool.cn](https://www.modeltool.cn)。QQ 图标在当前页弹出群二维码。中转导航打开 [www.veridrop.cn](https://www.veridrop.cn)。
+顶栏 GitHub 图标打开本仓库。QQ 图标在当前页弹出群二维码。中转导航打开 [www.veridrop.cn](https://www.veridrop.cn)。
 
 ## 分数
 
