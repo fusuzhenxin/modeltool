@@ -114,38 +114,84 @@ function ensureApi() {
   UI.toast("请先填写接口地址和密钥");
   return false;
 }
-function launchTask(kind, opts) {
-  if (!ensureApi()) return;
+function activeSuiteTask() {
+  const list = Store.tasks().filter((item) => item.suiteId && (item.status === "running" || item.status === "pending"));
+  if (!list.length) return null;
+  const running = list.find((item) => item.status === "running");
+  if (running) return running;
+  return list.slice().sort((a, b) => (b.suiteAt || 0) - (a.suiteAt || 0) || a.suiteStep - b.suiteStep)[0];
+}
+function suiteCount(id) {
+  const n = Number(Form.get(id, "3"));
+  return [3, 5, 10, 20, 30].includes(n) ? n : 3;
+}
+function suiteNote() {
+  const active = activeSuiteTask();
+  if (active) return "还有一套没测完（" + active.modelName + "）。点按钮会从第 " + active.suiteStep + " 项接着测，不会另开一套。";
+  const basic = suiteCount("detect-count");
+  const candy = suiteCount("detect-candy-count");
+  return "一次测完按顺序跑能力、逻辑、代码、问答（各 " + basic + " 题）、糖果（" + candy + " 题），最后生成一幅 2D 鹈鹕骑车。难度是中等。测完回到这一页汇总。";
+}
+function createLiveTask(kind, opts) {
+  if (!ensureApi()) return null;
   const cfg = Store.api();
   const model = DATA.model(opts.modelId);
   const requested = (cfg.modelOverride || model.id).trim();
-  const count = kind === "pelican" ? opts.rounds * 4 : opts.count;
-  let name = DATA.kinds[kind].label + "-" + UI.diffLabel(opts.difficulty);
+  const pelican = kind === "pelican";
+  const mode = pelican ? (DATA.pelicanModes.find((item) => item.id === (opts.variant || "html2d")) || DATA.pelicanModes[1]) : null;
+  let name = DATA.kinds[kind].label + "-" + UI.diffLabel(opts.difficulty || "medium");
   if (kind === "candy") {
     const n = Store.tasks().filter((item) => /^糖果测试-第\d+次$/.test(item.name)).length + 1;
     name = "糖果测试-第" + n + "次";
   }
-  if (kind === "pelican") {
-    const mode = DATA.pelicanModes.find((item) => item.id === opts.variant) || DATA.pelicanModes[1];
+  if (pelican) {
     const n = Store.tasks().filter((item) => item.kind === "pelican" && item.pelicanMode).length + 1;
     name = "鹈鹕骑车-" + mode.short + "-第" + n + "次";
-    opts.pelicanMode = mode.id;
-    opts.count = 1;
-    opts.rounds = 1;
   }
-  const task = Store.addTask({
+  return Store.addTask({
     kind,
     name,
     modelId: model.id,
     modelName: cfg.modelOverride ? model.name + "（" + requested + "）" : model.name,
     requestedModel: requested,
     source: "live",
-    pelicanMode: opts.pelicanMode || "",
-    difficulty: opts.difficulty,
-    count,
-    rounds: kind === "pelican" ? opts.rounds : null
+    pelicanMode: mode ? mode.id : "",
+    difficulty: opts.difficulty || "medium",
+    count: pelican ? 1 : opts.count,
+    rounds: pelican ? 1 : null,
+    status: opts.status || "running",
+    suiteId: opts.suiteId || "",
+    suiteAt: opts.suiteAt || 0,
+    suiteStep: opts.suiteStep || 0,
+    suiteTotal: opts.suiteTotal || 0
   });
+}
+function launchTask(kind, opts) {
+  const task = createLiveTask(kind, opts);
+  if (!task) return;
   location.href = "run.html?id=" + encodeURIComponent(task.id);
+}
+function discardPendingSuite(suiteId, keepId) {
+  const ids = Store.tasks()
+    .filter((item) => item.suiteId === suiteId && item.id !== keepId && item.status === "pending")
+    .map((item) => item.id);
+  ids.forEach((id) => Store.remove(id));
+}
+function suiteFollow(task) {
+  if (!task || !task.suiteId) return false;
+  const next = Store.tasks()
+    .filter((item) => item.suiteId === task.suiteId && item.status === "pending")
+    .sort((a, b) => a.suiteStep - b.suiteStep)[0];
+  if (next) {
+    location.href = "run.html?id=" + encodeURIComponent(next.id);
+    return true;
+  }
+  const open = Store.tasks().some((item) => item.suiteId === task.suiteId && (item.status === "running" || item.status === "pending"));
+  if (!open) {
+    location.href = "detect.html?suite=done";
+    return true;
+  }
+  return false;
 }
 function taskLink(task) {
   if (task.status === "running") return `run.html?id=${encodeURIComponent(task.id)}`;
@@ -153,6 +199,7 @@ function taskLink(task) {
   return `result.html?id=${encodeURIComponent(task.id)}`;
 }
 function opLabel(task) {
+  if (task.suiteId && task.status === "pending") return "排队中";
   if (task.status === "running") return "查看进度";
   if (task.status === "pending") return "开始测试";
   if (task.status === "stopped") return "查看记录";
@@ -545,6 +592,9 @@ const Pages = {
       <div id="official-detail"><div class="empty"><h3>正在读取官方状态</h3></div></div>`);
   },
   detect() {
+    ensureSelect("detect-model", defaultModelId());
+    ensureSelect("detect-count", "3");
+    ensureSelect("detect-candy-count", "3");
     const snap = Store.get().snapshot;
     const info = Engine.judgeText(snap.score, "detect");
     const tone = info.level === "ok" ? "ok" : info.level === "warn" ? "warn" : info.level === "bad" ? "bad" : "idle";
@@ -556,7 +606,7 @@ const Pages = {
     if (info.level === "none") {
       if (!configured && !anyPart) {
         desc = "接口还没配置，也没有已完成的测试。这里不会自己打分，也不会判定降智。";
-        side = "请先在右上角填写接口地址和密钥，再完成基础、糖果和鹈鹕测试。三项都有结果后才会汇总。";
+        side = "选好模型和题量后点一次测完。基础四项、糖果和鹈鹕会按顺序跑，三项都有结果后才会汇总。";
       } else if (!anyPart) {
         desc = "接口已保存，但还没有已完成的测试。完成后再来看综合结果。";
         side = "没有真实作答记录时，综合分保持未检测。";
@@ -615,7 +665,16 @@ const Pages = {
             <span class="ico-box lg ${tone}">${UI.icon(info.level === "none" ? "info" : "mark")}</span>
             <h3>${UI.esc(info.title)}</h3>
             <p>${UI.esc(side)}</p>
-            <button class="btn btn-primary btn-block" type="button" data-action="recheck">${UI.icon("refresh")} 重新检测</button>
+            <div class="suite-box">
+              ${UI.field("选择模型", UI.select("detect-model", Form.get("detect-model"), modelOptions()))}
+              ${activeSuiteTask() ? "" : `<div class="suite-counts">
+                ${UI.field("基础每项", UI.select("detect-count", Form.get("detect-count"), QUESTION_COUNTS))}
+                ${UI.field("糖果题量", UI.select("detect-candy-count", Form.get("detect-candy-count"), QUESTION_COUNTS))}
+              </div>`}
+              <p class="note">${suiteNote()}</p>
+              <button class="btn btn-primary btn-block" type="button" data-action="start-suite">${UI.icon("play")} ${activeSuiteTask() ? "继续未测完的项目" : "一次测完"}</button>
+            </div>
+            <button class="btn btn-ghost btn-block" type="button" data-action="recheck">${UI.icon("refresh")} 重新检测</button>
           </div>
         </article>
       </section>`);
@@ -924,7 +983,7 @@ const Pages = {
           <p>模型检测页的综合分 = 基础测试 × 0.4 + 糖果测试 × 0.35 + 鹈鹕骑车 × 0.25。基础、糖果、鹈鹕三项都有已完成记录才计算。缺一项时综合分是「—」，不会记成 0 分，也不会判定降智。「重新检测」只按已有记录重算，没有记录时不会访问模型，也不会编造分数。</p>
           <p>鹈鹕骑车的正确率再拆一层：综合正确率 = 题目正确率 × 90% + 稳定性 × 10%。稳定性看各轮正确率是否接近，波动越大扣得越多。</p>
           <h2 id="detect">模型检测</h2>
-          <p>检测页本身不单独出题，它汇总基础、糖果、鹈鹕三类结果。三项没齐时，综合分和「模型检测」都显示未检测。三项齐了之后，「模型检测」卡上的分数就是上面的综合分。</p>
+          <p>检测页汇总基础、糖果、鹈鹕三类结果。右侧选定模型后点「一次测完」，会按顺序跑能力、逻辑、代码、问答、糖果和一幅 2D 鹈鹕骑车，难度都是中等。基础四项共用一个题量，糖果单独选，都可以选 3、5、10、20 或 30 题，默认都是 3 题。一项结束后自动开始下一项，全部测完回到这一页。三项没齐时，综合分和「模型检测」都显示未检测。三项齐了之后，「模型检测」卡上的分数就是上面的综合分。</p>
           <h2 id="basic">基础测试</h2>
           <p>基础测试仍包含四项模型能力题：</p>
           <ul>
@@ -1124,14 +1183,17 @@ const Pages = {
   run() {
     const task = Store.task(qs().id || "");
     if (!task) return UI.shell("", `<div class="empty"><h3>找不到这场测试</h3><a href="index.html">回首页</a></div>`);
-    const parent = Engine.moduleOf(task.kind) === "basic" ? "basic.html" : task.kind + ".html";
-    const parentName = Engine.moduleOf(task.kind) === "basic" ? "基础测试页" : DATA.kinds[task.kind].label + "页";
-    const active = Engine.moduleOf(task.kind);
+    const parent = task.suiteId ? "detect.html" : (Engine.moduleOf(task.kind) === "basic" ? "basic.html" : task.kind + ".html");
+    const parentName = task.suiteId ? "模型检测页" : (Engine.moduleOf(task.kind) === "basic" ? "基础测试页" : DATA.kinds[task.kind].label + "页");
+    const active = task.suiteId ? "detect" : Engine.moduleOf(task.kind);
+    const amount = task.pelicanMode ? "生成 1 幅 HTML" : `共 ${task.items.length} 题`;
+    const suiteLine = task.suiteTotal ? `<p class="note">第 ${task.suiteStep} / ${task.suiteTotal} 项。这一项结束后自动开始下一项，全部测完回到模型检测页。</p>` : "";
     return UI.shell(active, `
       <div class="page-head">
-        <div class="crumb"><a href="${parent}">${parentName}</a> / 测试进行中</div>
+        <div class="crumb"><a href="${parent}">${parentName}</a> / ${task.suiteTotal ? "第 " + task.suiteStep + " 项" : "测试进行中"}</div>
         <h1>${UI.esc(task.name)}</h1>
-        <p>${UI.modelChip(task.modelId, task.modelName)} · ${UI.diffLabel(task.difficulty)} · 共 ${task.items.length} 题</p>
+        <p>${UI.modelChip(task.modelId, task.modelName)} · ${UI.diffLabel(task.difficulty)} · ${amount}</p>
+        ${suiteLine}
         <div class="progress"><span id="run-bar" style="width:0"></span></div>
         <div id="run-meta" style="color:#8b97ad;font-size:13px"></div>
       </div>
@@ -1139,7 +1201,7 @@ const Pages = {
         <article class="panel"><div class="panel-bd" id="stage"></div>
           <div class="panel-bd" style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-ghost btn-sm" type="button" data-action="pause-run" id="pause-btn">暂停</button>
-            <button class="btn btn-primary btn-sm" type="button" data-action="finish-now" data-id="${task.id}">直接完成并出报告</button>
+            <button class="btn btn-primary btn-sm" type="button" data-action="finish-now" data-id="${task.id}">${task.suiteId ? "做完这一项并继续" : "直接完成并出报告"}</button>
             <button class="btn btn-ghost btn-sm" type="button" data-action="stop-run" data-id="${task.id}">终止测试</button>
           </div>
         </article>
@@ -1244,6 +1306,13 @@ const Pages = {
   },
   mount: {
     home() { if (typeof Official !== "undefined") Official.load(false); },
+    detect() {
+      if (qs().suite !== "done" || App.suiteNoted) return;
+      App.suiteNoted = true;
+      const score = Store.get().snapshot.score;
+      UI.toast(score == null ? "这套测试已结束，还有项目没有分数，综合分先留空" : "六项都测完了，综合得分 " + score);
+      history.replaceState(null, "", "detect.html");
+    },
     status() { if (typeof Official !== "undefined") Official.load(false); },
     works() { paintWorkFrames(); },
     prompts() {
@@ -1303,8 +1372,9 @@ const Pages = {
         if (meta) meta.textContent = `进度 ${shown} / ${current.items.length}`;
       };
       const finishLive = () => {
-        Store.finish(id);
+        const finished = Store.finish(id);
         paint();
+        if (suiteFollow(finished)) return;
         UI.toast("测试完成，正在打开报告");
         setTimeout(() => {
           if (App.runToken === token) location.href = "result.html?id=" + encodeURIComponent(id);
@@ -1356,8 +1426,8 @@ const Pages = {
               location.href = "result.html?id=" + encodeURIComponent(id);
               return;
             }
-            Store.finish(id);
-            location.href = "result.html?id=" + encodeURIComponent(id);
+            const finished = Store.finish(id);
+            if (!suiteFollow(finished)) location.href = "result.html?id=" + encodeURIComponent(id);
           } catch (err) {
             if (App.runToken !== token) return;
             App.busy = false;
@@ -1537,6 +1607,13 @@ Actions["open-task"] = (el) => {
   if (!task) return;
   if (task.status === "pending") {
     if (!ensureApi()) return;
+    if (task.suiteId) {
+      const active = Store.tasks()
+        .filter((item) => item.suiteId === task.suiteId && (item.status === "running" || item.status === "pending"))
+        .sort((a, b) => (a.status === "running" ? 0 : 1) - (b.status === "running" ? 0 : 1) || a.suiteStep - b.suiteStep)[0];
+      location.href = "run.html?id=" + encodeURIComponent((active || task).id);
+      return;
+    }
     if (!task.items.length && Engine.moduleOf(task.kind) === "basic") {
       location.href = "setup.html?type=" + task.kind + "&task=" + encodeURIComponent(task.id);
       return;
@@ -1555,7 +1632,7 @@ Actions.more = (el, event) => {
   const rect = el.getBoundingClientRect();
   const menu = document.createElement("div");
   menu.className = "menu-pop";
-  const primary = task.status === "running" ? "查看进度" : "查看结果";
+  const primary = task.status === "running" ? "查看进度" : task.status === "pending" ? "开始测试" : "查看结果";
   menu.innerHTML = `<button type="button" data-action="open-task" data-id="${task.id}">${primary}</button>
     <button type="button" data-action="rerun" data-id="${task.id}">再测一次</button>
     <button type="button" data-action="export" data-id="${task.id}">导出报告</button>
@@ -1720,18 +1797,62 @@ Actions["test-api"] = async (el) => {
   }
   el.disabled = false;
 };
+Actions["start-suite"] = () => {
+  if (App.suiteStarting) return;
+  const active = activeSuiteTask();
+  if (active) {
+    location.href = "run.html?id=" + encodeURIComponent(active.id);
+    return;
+  }
+  if (!ensureApi()) return;
+  App.suiteStarting = true;
+  const modelId = Form.get("detect-model", defaultModelId());
+  const basicCount = suiteCount("detect-count");
+  const candyCount = suiteCount("detect-candy-count");
+  const suiteId = "s" + Date.now().toString(36);
+  const suiteAt = Date.now();
+  const steps = [
+    { kind: "ability", count: basicCount, difficulty: "medium" },
+    { kind: "logic", count: basicCount, difficulty: "medium" },
+    { kind: "code", count: basicCount, difficulty: "medium" },
+    { kind: "qa", count: basicCount, difficulty: "medium" },
+    { kind: "candy", count: candyCount, difficulty: "medium" },
+    { kind: "pelican", variant: "html2d", count: 1, difficulty: "medium" }
+  ];
+  const tasks = steps.map((step, index) => createLiveTask(step.kind, Object.assign({}, step, {
+    modelId,
+    status: "pending",
+    suiteId,
+    suiteAt,
+    suiteStep: index + 1,
+    suiteTotal: steps.length
+  })));
+  if (!tasks[0] || tasks.some((item) => !item)) {
+    App.suiteStarting = false;
+    return;
+  }
+  location.href = "run.html?id=" + encodeURIComponent(tasks[0].id);
+};
 Actions["stop-run"] = (el) => {
+  const task = Store.task(el.dataset.id);
   UI.modal({
     title: "终止这次测试",
-    body: "未完成的部分不会进入模型检测汇总。已揭示的题目会留在记录里。",
+    body: task && task.suiteId
+      ? "这一项停在这里。后面还没开始的项目会去掉，已经测完的成绩保留。综合分仍只取各项最近一次完成的记录。"
+      : "未完成的部分不会进入模型检测汇总。已揭示的题目会留在记录里。",
     okText: "终止",
     onOk() {
       App.runToken = {};
       App.paused = true;
       if (App.timer) clearInterval(App.timer);
+      const current = Store.task(el.dataset.id);
+      if (current && current.suiteId) discardPendingSuite(current.suiteId, current.id);
       Store.stop(el.dataset.id);
-      const task = Store.task(el.dataset.id);
-      location.href = Engine.moduleOf(task.kind) === "basic" ? "basic.html" : task.kind + ".html";
+      if (current && current.suiteId) {
+        location.href = "detect.html";
+        return;
+      }
+      location.href = Engine.moduleOf(current.kind) === "basic" ? "basic.html" : current.kind + ".html";
     }
   });
 };

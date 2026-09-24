@@ -196,7 +196,7 @@ const Store = (() => {
   }
 
   function syncRecent() {
-    const rows = state.tasks.filter((item) => item.source !== "demo").map((item) => {
+    const rows = state.tasks.filter((item) => item.source !== "demo" && !(item.suiteId && item.status === "pending")).map((item) => {
       const meta = typeof DATA !== "undefined" && DATA.kinds ? DATA.kinds[item.kind] : null;
       const status = item.status === "running" || item.status === "pending" || item.status === "stopped" ? item.status : "done";
       return {
@@ -237,7 +237,7 @@ const Store = (() => {
   }
 
   function addTask(partial) {
-    const id = "t" + Date.now().toString(36) + Math.floor(Engine.hash(partial.name) * 1000);
+    const id = "t" + Date.now().toString(36) + Math.floor(Engine.hash(String(partial.suiteStep || 0) + ":" + (partial.name || "")) * 1000);
     const task = Object.assign({
       id,
       items: [],
@@ -272,7 +272,7 @@ const Store = (() => {
   function startPending(id) {
     const item = task(id);
     if (!item) return null;
-    if (!item.items.length) {
+    if (!item.items.length && !item.pelicanMode) {
       item.source = "live";
       item.items = Engine.makeItems({
         kind: item.kind,

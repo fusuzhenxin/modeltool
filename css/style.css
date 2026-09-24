@@ -574,6 +574,12 @@ table.grid tbody tr:hover td { background: #fcfdff; }
 .judge h3 { margin: 12px 0 8px; font-size: 18px; }
 .judge p { margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 1.7; }
 .judge .btn { width: 100%; }
+.judge .suite-box { width: 100%; text-align: left; margin-bottom: 8px; }
+.judge .suite-counts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.judge .suite-box .note { margin: 8px 0 12px; text-align: left; }
+.judge .suite-box .btn { margin-bottom: 8px; }
+.judge .select-btn { overflow: hidden; }
+.judge .select-label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 .form-row {
   display: grid;
