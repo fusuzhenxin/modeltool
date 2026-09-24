@@ -88,7 +88,7 @@ function modelOptions() {
   return DATA.models.map((model) => ({
     value: model.id,
     label: model.name + " · " + model.id,
-    icon: `<span class="m-dot" style="background:${model.color}">${UI.esc(model.short)}</span>`
+    icon: UI.modelMark(model)
   }));
 }
 function kindIcon(kind) {
@@ -375,6 +375,97 @@ function paintWorkFrames() {
     if (!task || !task.html) return;
     frame.src = URL.createObjectURL(new Blob([task.html], { type: "text/html" }));
   });
+}
+function promptDiffLabel(key) {
+  return { easy: "简单", medium: "中等", hard: "困难" }[key] || "";
+}
+function promptModelLabel(key) {
+  return { general: "通用大模型", code: "代码模型", vision: "多模态模型" }[key] || "";
+}
+function promptCatLabel(key) {
+  const row = PROMPT_CATS.find((item) => item[0] === key);
+  return row ? row[1] : "";
+}
+function promptCatShort(key) {
+  return { general: "通用", reason: "推理", code: "代码", math: "数学", doc: "文档", vision: "多模态", candy: "糖果", html: "HTML" }[key] || "";
+}
+function setPromptQuery(patch) {
+  const params = new URLSearchParams(location.search);
+  Object.keys(patch).forEach((key) => {
+    if (patch[key]) params.set(key, patch[key]);
+    else params.delete(key);
+  });
+  const text = params.toString();
+  history.replaceState(null, "", "prompts.html" + (text ? "?" + text : ""));
+}
+function promptFiltered() {
+  const query = qs();
+  const text = (query.q || "").trim().toLowerCase();
+  return PROMPTS.filter((item) => {
+    if (query.cat && item.category !== query.cat) return false;
+    if (query.diff && item.difficulty !== query.diff) return false;
+    if (query.type && item.model !== query.type) return false;
+    if (query.tag && !item.tags.includes(query.tag)) return false;
+    if (query.pick === "featured" && !item.featured) return false;
+    if (!text) return true;
+    const hay = (item.title + " " + item.summary + " " + item.prompt + " " + item.tags.join(" ")).toLowerCase();
+    return hay.includes(text);
+  });
+}
+function promptCard(item) {
+  const tone = PROMPT_TONES[item.category] || ["#3b5ffa", "#eef2ff"];
+  const tags = item.tags.map((tag) => `<button type="button" class="prompt-tag" data-action="prompt-filter" data-key="tag" data-value="${UI.esc(tag)}" style="color:${tone[0]};background:${tone[1]}">${UI.esc(tag)}</button>`).join("");
+  return `<article class="prompt-card" data-action="prompt-open" data-id="${UI.esc(item.id)}" style="--tone:${tone[0]};--tone-bg:${tone[1]}">
+    <span class="prompt-ico">${promptIcon(item.category)}</span>
+    <div class="prompt-body">
+      <h2>${UI.esc(item.title)}</h2>
+      <p>${UI.esc(item.summary)}</p>
+      <div class="prompt-tags">${tags}</div>
+    </div>
+    <button type="button" class="prompt-go" data-action="prompt-open" data-id="${UI.esc(item.id)}" aria-label="查看${UI.esc(item.title)}">${UI.icon("chevron")}</button>
+  </article>`;
+}
+function promptBoard() {
+  const list = promptFiltered();
+  const query = qs();
+  const bits = [];
+  if (query.cat) bits.push(promptCatLabel(query.cat));
+  if (query.diff) bits.push(promptDiffLabel(query.diff));
+  if (query.type) bits.push(promptModelLabel(query.type));
+  if (query.tag) bits.push(query.tag);
+  if (query.pick === "featured") bits.push("精选");
+  if ((query.q || "").trim()) bits.push(query.q.trim());
+  const summary = bits.length ? bits.map((bit) => UI.esc(bit)).join(" · ") + " · " + list.length + " 条" : "全部 " + PROMPTS.length + " 条";
+  const clear = bits.length ? `<button type="button" class="linkish" data-action="prompt-reset">清除筛选</button>` : "";
+  if (!list.length) {
+    return `<div class="prompt-count"><span>${summary}</span>${clear}</div><div class="card"><div class="empty"><h3>没有符合这些条件的提示词</h3><p>换一个分类、难度或关键词。</p></div></div>`;
+  }
+  return `<div class="prompt-count"><span>${summary}</span>${clear}</div><div class="prompt-grid">${list.map(promptCard).join("")}</div>`;
+}
+function promptSide() {
+  const query = qs();
+  const counts = {};
+  PROMPTS.forEach((item) => { counts[item.category] = (counts[item.category] || 0) + 1; });
+  const cats = PROMPT_CATS.map(([id, name]) => `<button type="button" class="prompt-cat${query.cat === id ? " active" : ""}" data-action="prompt-filter" data-key="cat" data-value="${id}"><span>${promptIcon(id)}<b>${name}</b></span><em>${counts[id] || 0}</em></button>`).join("");
+  const pills = (rows, key, current) => rows.map(([id, name]) => `<button type="button" class="prompt-pill${(current || "") === id ? " active" : ""}" data-action="prompt-filter" data-key="${key}" data-value="${id}">${name}</button>`).join("");
+  return `<aside class="prompt-side">
+    <section><h2>分类筛选</h2><div class="prompt-cats">${cats}</div></section>
+    <section><h2>难度等级</h2><div class="prompt-pills">${pills(PROMPT_DIFFS, "diff", query.diff)}</div></section>
+    <section><h2>模型类型</h2><div class="prompt-pills">${pills(PROMPT_MODELS, "type", query.type)}</div></section>
+  </aside>`;
+}
+function promptHot() {
+  const query = qs();
+  const hot = PROMPTS.filter((item) => item.hot).sort((a, b) => a.hot - b.hot).map((item) => `<button type="button" class="hot-row" data-action="prompt-open" data-id="${UI.esc(item.id)}"><i class="rank r${item.hot}">${item.hot}</i><span>${UI.esc(item.title)}</span><em>${promptCatShort(item.category)}</em></button>`).join("");
+  const tags = PROMPT_TAGS.map((tag) => `<button type="button" class="hot-tag${query.tag === tag ? " active" : ""}" data-action="prompt-filter" data-key="tag" data-value="${UI.esc(tag)}">${UI.esc(tag)}</button>`).join("");
+  const flame = `<svg class="hot-glyph" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="#ef5d5d" d="M12 2s.8 3.2-.6 5.2C10 9 9 8.6 9 7.2 7.2 8.6 6 11 6 13.4 6 17.2 8.8 20 12 20s6-2.8 6-6.6c0-3.2-1.6-5.2-3.2-6.6.2 1.6-.6 2.6-1.6 2.6C14.6 6.6 13.4 4 12 2z"/></svg>`;
+  const ticket = `<svg class="hot-glyph" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="#3b5ffa" d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V8z"/></svg>`;
+  const star = `<svg class="hot-glyph" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="#3b5ffa" d="m12 3.2 2.2 4.8 5.2.5-4 3.4 1.2 5.1L12 14.6 7.4 17l1.2-5.1-4-3.4 5.2-.5z"/></svg>`;
+  return `<aside class="prompt-hot">
+    <section><h2>${flame}热门提示词</h2><div class="hot-list">${hot}</div></section>
+    <section><h2>${ticket}热门标签</h2><div class="hot-tags">${tags}</div></section>
+    <button type="button" class="hot-feature${query.pick === "featured" ? " active" : ""}" data-action="prompt-filter" data-key="pick" data-value="featured">${star}<span><b>精选推荐</b><small>从库里挑出的一组提示词，点开可以复制或试跑</small></span>${UI.icon("chevron")}</button>
+  </aside>`;
 }
 const Pages = {
   home() {
@@ -795,7 +886,7 @@ const Pages = {
         <article class="panel article">
           <h2 id="intro">平台做什么</h2>
           <p>大模型降智检测把同一套题目发给 GPT、Claude、DeepSeek、Kimi、通义千问等模型，看能力、迷惑题和绘图有没有变差。检测、基础能力、糖果题、鹈鹕骑车和中转站检测的入口都在首页。</p>
-          <p>新开的测试会把题目发给你填写的接口。请先双击 <code>start.bat</code>，用 <code>http://127.0.0.1:8766/index.html</code> 打开。网页只访问本机，由本机转发到你的接口，这样不会被浏览器跨域拦住。地址仍是 OpenAI 兼容根路径，模型 ID 放进 <code>model</code> 字段。网关名字不一样时，在接口设置里覆盖模型 ID。</p>
+          <p>新开的测试会把题目发给你填写的接口。本机双击 <code>start.bat</code>，打开 <code>http://127.0.0.1:8766/index.html</code>。线上打开 <code>https://www.modeltool.cn</code>。请求由当前网站转发到你的接口，这样不会被浏览器跨域拦住。地址仍是 OpenAI 兼容根路径，模型 ID 放进 <code>model</code> 字段。网关名字不一样时，在接口设置里覆盖模型 ID。</p>
           <p>密钥只写在这台浏览器的本地存储里，不会放进导出的报告。</p>
           <p>打开页面时没有预置分数。只有接口返回并完成的测试才会记入记录，检测页才据此汇总。</p>
           <h2 id="score">分数和降智判定</h2>
@@ -1105,10 +1196,40 @@ const Pages = {
         <div class="table-wrap"><table class="grid"><thead><tr><th>记录</th><th>模型</th><th>得分</th><th>判定</th><th>难度</th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="6"><div class="empty">没有可对比的已完成记录</div></td></tr>`}</tbody></table></div>
       </article>`);
   },
+  prompts() {
+    const query = qs();
+    const art = `<div class="prompt-art" aria-hidden="true"><svg viewBox="0 0 320 180"><rect x="150" y="28" width="132" height="92" rx="18" fill="#eef3ff" stroke="#d5e2ff"/><rect x="168" y="48" width="78" height="8" rx="4" fill="#c9d7ff"/><rect x="168" y="66" width="96" height="8" rx="4" fill="#dbe4ff"/><rect x="168" y="84" width="58" height="8" rx="4" fill="#dbe4ff"/><rect x="196" y="62" width="86" height="78" rx="16" fill="#fff" stroke="#d5e2ff"/><circle cx="226" cy="88" r="10" fill="#fff6d8" stroke="#f0a03a" stroke-width="2"/><path d="M222 100h8M223 104h6" stroke="#f0a03a" stroke-width="2" stroke-linecap="round"/><rect x="214" y="112" width="52" height="8" rx="4" fill="#e4ebff"/><path d="M78 46l4 8 8 2-8 2-4 8-4-8-8-2 8-2z" fill="#8eabff"/><path d="M118 34l2 5 5 1-5 1-2 5-2-5-5-1 5-1z" fill="#b9cbff"/><rect x="40" y="108" width="46" height="28" rx="8" fill="#fff" stroke="#d5e2ff"/><path d="M52 122h22M58 116v12" stroke="#3b5ffa" stroke-width="2" stroke-linecap="round"/></svg></div>`;
+    return UI.shell("prompts", `
+      <section class="prompt-hero">
+        <div>
+          <h1>测试模型质量的提示词</h1>
+          <p class="sub">从多维度设计提示词，全面评估大模型在理解、生成、推理等方面的表现。</p>
+          <div class="accent"></div>
+        </div>
+        ${art}
+      </section>
+      <div class="prompt-layout">
+        ${promptSide()}
+        <div class="prompt-main">
+          <label class="prompt-search">${UI.icon("search")}<input id="prompt-q" type="search" value="${UI.esc(query.q || "")}" placeholder="搜索提示词..." aria-label="搜索提示词"></label>
+          <div id="prompt-board">${promptBoard()}</div>
+        </div>
+        ${promptHot()}
+      </div>`);
+  },
   mount: {
     home() { if (typeof Official !== "undefined") Official.load(false); },
     status() { if (typeof Official !== "undefined") Official.load(false); },
     works() { paintWorkFrames(); },
+    prompts() {
+      const input = document.getElementById("prompt-q");
+      if (!input) return;
+      input.addEventListener("input", () => {
+        setPromptQuery({ q: input.value });
+        const board = document.getElementById("prompt-board");
+        if (board) board.innerHTML = promptBoard();
+      });
+    },
     work() { paintWorkFrames(); },
     guide() {
       const id = location.hash;
@@ -1601,6 +1722,85 @@ Actions["login-submit"] = () => {
   if (account === "demo" && password !== "demo123") { error.textContent = "体验账号的密码是 demo123"; return; }
   Store.setUser(account, remember);
   location.href = UI.safeNext(document.getElementById("next").value);
+};
+Actions["prompt-filter"] = (el) => {
+  const key = el.dataset.key;
+  const value = el.dataset.value || "";
+  const current = qs()[key] || "";
+  setPromptQuery({ [key]: current === value ? "" : value });
+  App.refresh();
+};
+Actions["prompt-reset"] = () => {
+  history.replaceState(null, "", "prompts.html");
+  App.refresh();
+};
+Actions["prompt-open"] = (el) => {
+  const item = PROMPTS.find((row) => row.id === el.dataset.id);
+  if (!item) return;
+  document.querySelector(".modal-mask")?.remove();
+  const cfg = Store.api();
+  const model = (cfg.modelOverride || "").trim() || defaultModelId();
+  const mask = document.createElement("div");
+  mask.className = "modal-mask";
+  mask.innerHTML = `<div class="modal prompt-pop" role="dialog" aria-modal="true" aria-labelledby="prompt-title">
+    <button type="button" class="qq-close" data-modal="cancel" aria-label="关闭">${UI.icon("close")}</button>
+    <h3 id="prompt-title">${UI.esc(item.title)}</h3>
+    <p class="prompt-meta">${UI.esc(promptCatLabel(item.category))} · ${UI.esc(promptDiffLabel(item.difficulty))} · ${UI.esc(promptModelLabel(item.model))}</p>
+    <pre class="prompt-text">${UI.esc(item.prompt)}</pre>
+    <p class="note">核对要点：${UI.esc(item.check)} 试跑只把这段文字发给你自己的接口，不计入检测分数。当前模型 ${UI.esc(model)}。</p>
+    ${item.href ? `<p><a href="${UI.esc(item.href)}">${item.category === "candy" ? "去糖果测试" : item.category === "html" ? "打开对应页面" : "打开相关页面"}</a></p>` : ""}
+    <div class="prompt-reply" id="prompt-reply">试跑结果会出现在这里。</div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost btn-sm" data-action="prompt-copy" data-id="${UI.esc(item.id)}">复制提示词</button>
+      <button type="button" class="btn btn-primary btn-sm" data-action="prompt-run" data-id="${UI.esc(item.id)}">试跑</button>
+    </div>
+  </div>`;
+  mask.addEventListener("click", (event) => {
+    if (event.target === mask || event.target.closest("[data-modal='cancel']")) mask.remove();
+  });
+  document.body.appendChild(mask);
+  mask.querySelector(".qq-close")?.focus();
+};
+Actions["prompt-copy"] = async (el) => {
+  const item = PROMPTS.find((row) => row.id === el.dataset.id);
+  if (!item) return;
+  try {
+    await navigator.clipboard.writeText(item.prompt);
+  } catch (err) {
+    const area = document.createElement("textarea");
+    area.value = item.prompt;
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+  }
+  UI.toast("提示词已复制");
+};
+Actions["prompt-run"] = async (el) => {
+  const item = PROMPTS.find((row) => row.id === el.dataset.id);
+  const reply = document.getElementById("prompt-reply");
+  if (!item || !reply) return;
+  const cfg = Store.api();
+  if (!cfg.baseUrl || !cfg.apiKey) {
+    reply.textContent = "先在接口设置里填写地址和密钥。";
+    return;
+  }
+  el.disabled = true;
+  reply.textContent = "正在请求…";
+  try {
+    const content = await Api.complete({
+      baseUrl: cfg.baseUrl,
+      apiKey: cfg.apiKey,
+      model: (cfg.modelOverride || "").trim() || defaultModelId(),
+      system: item.system || "按用户给出的提示词作答。看不清图片或材料不足时直接说明，不要编造。",
+      user: item.user || item.prompt,
+      long: item.category === "html"
+    });
+    reply.textContent = content || "接口没有返回文字。";
+  } catch (err) {
+    reply.textContent = err.message || "请求失败";
+  }
+  el.disabled = false;
 };
 Actions["compare-go"] = (el) => {
   const ids = Array.from(document.querySelectorAll("[data-compare]:checked")).map((node) => node.value);

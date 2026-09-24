@@ -1,12 +1,15 @@
 # 本机站点加转发。浏览器只访问 127.0.0.1，由这里代为请求外部模型接口。
+import ipaddress
 import json
 import mimetypes
 import os
 import re
+import socket
 import threading
 import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlparse
 
 mimetypes.add_type("image/x-icon", ".ico")
 mimetypes.add_type("image/svg+xml", ".svg")
@@ -495,6 +498,22 @@ def _status_payload(fresh):
     return body
 
 
+def _reject_private_target(url):
+    if not os.environ.get("VERCEL"):
+        return
+    host = (urlparse(url).hostname or "").strip("[]").lower()
+    if not host or host == "localhost" or host.endswith(".local") or host.endswith(".internal"):
+        raise ValueError("不能转发到内网地址")
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror as exc:
+        raise ValueError("接口地址无法解析") from exc
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+            raise ValueError("不能转发到内网地址")
+
+
 def target_url(base):
     raw = str(base or "").strip().rstrip("/")
     if not raw.startswith("http://") and not raw.startswith("https://"):
@@ -510,6 +529,53 @@ def target_url(base):
     if path == "":
         raw = raw + "/v1"
     return raw + "/chat/completions"
+
+
+def api_status(query):
+    fresh = "fresh=1" in (query or "")
+    body = json.dumps(_status_payload(fresh), ensure_ascii=False).encode("utf-8")
+    return 200, body
+
+
+def api_post(path, raw):
+    try:
+        data = json.loads(raw.decode("utf-8"))
+        status, body, upstream_headers, elapsed = Handler._forward(Handler, data)
+    except (URLError, ValueError, json.JSONDecodeError, TimeoutError) as err:
+        reason = getattr(err, "reason", None) or err
+        if path == "/api/probe":
+            body = json.dumps({
+                "status": 0,
+                "text": "",
+                "json": None,
+                "headers": {},
+                "elapsedMs": 0,
+                "error": str(reason),
+            }, ensure_ascii=False).encode("utf-8")
+            return 200, body
+        body = json.dumps({"error": {"message": str(reason)}}, ensure_ascii=False).encode("utf-8")
+        return 502, body
+    if path == "/api/probe":
+        text = body.decode("utf-8", "replace")
+        parsed = None
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            parsed = None
+        kept = {}
+        for key, value in upstream_headers.items():
+            if key.lower() in ("content-type", "x-request-id", "openai-version", "openai-organization", "anthropic-request-id", "cf-ray"):
+                kept[key] = value
+        body = json.dumps({
+            "status": status,
+            "text": text[:20000],
+            "json": parsed,
+            "headers": kept,
+            "elapsedMs": elapsed,
+            "error": "",
+        }, ensure_ascii=False).encode("utf-8")
+        return 200, body
+    return status, body
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -570,9 +636,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _serve_status(self):
         query = self.path.split("?", 1)[1] if "?" in self.path else ""
-        fresh = "fresh=1" in query
-        body = json.dumps(_status_payload(fresh), ensure_ascii=False).encode("utf-8")
-        self.send_response(200)
+        status, body = api_status(query)
+        self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -590,6 +655,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _forward(self, data):
         url = target_url(data.get("baseUrl", ""))
+        _reject_private_target(url)
         key = str(data.get("apiKey") or "")
         payload = data.get("payload") or {}
         anthropic = "anthropic.com" in url or url.endswith("/messages")
@@ -607,7 +673,7 @@ class Handler(SimpleHTTPRequestHandler):
         started = time.time()
         upstream_headers = {}
         try:
-            with urlopen(req, timeout=None) as resp:
+            with urlopen(req, timeout=55 if os.environ.get("VERCEL") else None) as resp:
                 body = resp.read()
                 status = resp.status
                 upstream_headers = dict(resp.headers)
@@ -625,50 +691,7 @@ class Handler(SimpleHTTPRequestHandler):
             return
         length = int(self.headers.get("Content-Length", "0") or 0)
         raw = self.rfile.read(length)
-        try:
-            data = json.loads(raw.decode("utf-8"))
-            status, body, upstream_headers, elapsed = self._forward(data)
-        except (URLError, ValueError, json.JSONDecodeError) as err:
-            reason = getattr(err, "reason", None) or err
-            if path == "/api/probe":
-                body = json.dumps({
-                    "status": 0,
-                    "text": "",
-                    "json": None,
-                    "headers": {},
-                    "elapsedMs": 0,
-                    "error": str(reason),
-                }, ensure_ascii=False).encode("utf-8")
-                status = 200
-            else:
-                body = json.dumps({"error": {"message": str(reason)}}, ensure_ascii=False).encode("utf-8")
-                status = 502
-            self.send_response(status)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-            return
-        if path == "/api/probe":
-            text = body.decode("utf-8", "replace")
-            parsed = None
-            try:
-                parsed = json.loads(text)
-            except json.JSONDecodeError:
-                parsed = None
-            kept = {}
-            for key, value in upstream_headers.items():
-                if key.lower() in ("content-type", "x-request-id", "openai-version", "openai-organization", "anthropic-request-id", "cf-ray"):
-                    kept[key] = value
-            body = json.dumps({
-                "status": status,
-                "text": text[:20000],
-                "json": parsed,
-                "headers": kept,
-                "elapsedMs": elapsed,
-                "error": "",
-            }, ensure_ascii=False).encode("utf-8")
-            status = 200
+        status, body = api_post(path, raw)
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))

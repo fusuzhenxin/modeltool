@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-Sitemap: __SITE_ORIGIN__/sitemap.xml
+Sitemap: https://www.modeltool.cn/sitemap.xml
