@@ -297,6 +297,14 @@ img { max-width: 100%; }
 .feature h3 { margin: 16px 0 8px; font-size: 16px; font-weight: 800; }
 .feature p { margin: 0 0 18px; color: var(--muted); font-size: 13px; line-height: 1.75; }
 .feature .btn { margin-top: auto; }
+.feature .ico-box .mark { width: 22px; height: 22px; display: block; }
+.feature .ico-box.tone-detect { background: #eef2ff; color: #3b5ffa; }
+.feature .ico-box.tone-basic { background: #e7f8f0; color: #1faf73; }
+.feature .ico-box.tone-candy { background: #fff4e8; color: #e07a2f; }
+.feature .ico-box.tone-pelican { background: #f3efff; color: #7c5cff; }
+.feature .ico-box.tone-prompts { background: #ffeff4; color: #e85d88; }
+.feature .ico-box.tone-works { background: #e7f6fb; color: #1496b8; }
+.feature .ico-box.tone-relay { background: #fff6e8; color: #d4922a; }
 
 .ico-box {
   width: 44px;
@@ -554,12 +562,18 @@ table.grid tbody tr:hover td { background: #fcfdff; }
 }
 .ring .num small { font-size: 12px; color: var(--faint); font-weight: 650; margin-top: 4px; }
 
+.grid-side > .judge-card { align-self: start; }
 .judge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
-  padding: 8px 8px 4px;
+  padding: 18px 8px 8px;
 }
-.judge h3 { margin: 14px 0 8px; font-size: 18px; }
-.judge p { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
+.judge .ico-box { margin: 0; }
+.judge h3 { margin: 12px 0 8px; font-size: 18px; }
+.judge p { margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.judge .btn { width: 100%; }
 
 .form-row {
   display: grid;

@@ -550,9 +550,6 @@ const Pages = {
     const cfg = Store.api();
     const configured = !!(cfg.baseUrl && cfg.apiKey);
     const anyPart = ["basic", "candy", "pelican"].some((key) => snap.parts[key] && snap.parts[key].score != null);
-    let title = info.title;
-    let sideTitle = info.title;
-    let sideTone = tone;
     let desc = info.desc;
     let side = info.side;
     if (info.level === "none") {
@@ -565,25 +562,6 @@ const Pages = {
       } else {
         desc = "已有部分测试结果。基础、糖果、鹈鹕三项都完成后，才会计算综合分。";
         side = "缺任何一项都不会当成 0 分，也不会写成降智。";
-      }
-    } else {
-      const names = { basic: "基础测试", candy: "糖果测试", pelican: "鹈鹕骑车" };
-      const weak = ["basic", "candy", "pelican"].flatMap((key) => {
-        const part = snap.parts[key];
-        if (!part || part.score == null) return [];
-        const level = Engine.judge(part.score);
-        if (level !== "bad" && level !== "warn") return [];
-        return [{ name: names[key], score: part.score, level }];
-      });
-      if (weak.length) {
-        const phrase = weak.map((item) => item.name + " " + item.score + " 分，" + (item.level === "bad" ? "明显异常" : "轻微异常")).join("；");
-        desc = "综合分 " + snap.score + " 按基础 0.4、糖果 0.35、鹈鹕 0.25 计算。单项里" + phrase + "。";
-        side = "综合分没有把偏低的单项说成正常。" + phrase + "。";
-        if (weak.some((item) => item.level === "bad")) {
-          sideTitle = "单项有明显异常";
-          sideTone = "bad";
-          if (info.level === "ok") title = "综合分正常";
-        }
       }
     }
     const parts = [
@@ -615,7 +593,7 @@ const Pages = {
         <div class="summary-main">
           ${UI.ring(snap.score)}
           <div class="summary-copy">
-            <h2>${info.level === "none" ? "" : `<span class="mini-${tone}">${UI.icon("mark")}</span>`}${UI.esc(title)}</h2>
+            <h2>${info.level === "none" ? "" : `<span class="mini-${tone}">${UI.icon("mark")}</span>`}${UI.esc(info.title)}</h2>
             <p>${UI.esc(desc)}</p>
             <div class="summary-meta"><span>${UI.icon("clock")} ${when}</span><span>${model}</span></div>
           </div>
@@ -630,11 +608,11 @@ const Pages = {
             <tbody>${detail}</tbody>
           </table></div>
         </article>
-        <article class="panel">
+        <article class="panel judge-card">
           <div class="panel-hd"><h3>${UI.icon("target")} 综合评估结果</h3></div>
           <div class="panel-bd judge">
-            <span class="ico-box lg ${sideTone}">${UI.icon(info.level === "none" ? "info" : sideTone === "ok" ? "mark" : "info")}</span>
-            <h3>${UI.esc(sideTitle)}</h3>
+            <span class="ico-box lg ${tone}">${UI.icon(info.level === "none" ? "info" : "mark")}</span>
+            <h3>${UI.esc(info.title)}</h3>
             <p>${UI.esc(side)}</p>
             <button class="btn btn-primary btn-block" type="button" data-action="recheck">${UI.icon("refresh")} 重新检测</button>
           </div>
