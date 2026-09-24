@@ -41,11 +41,15 @@ const Probe = {
         body: JSON.stringify({ baseUrl: cfg.baseUrl, apiKey: cfg.apiKey, payload })
       });
     } catch (err) {
-      return { error: "连不上本机转发。请用 start.bat 打开 http://127.0.0.1:8766/index.html", status: 0, json: null, text: "", headers: {}, elapsedMs: 0 };
+      return { error: UI.offlineForward(), status: 0, json: null, text: "", headers: {}, elapsedMs: 0 };
     }
     let data = null;
     try { data = await response.json(); } catch (err) { data = null; }
-    if (!data) return { error: "转发没有返回结果", status: response.status, json: null, text: "", headers: {}, elapsedMs: 0 };
+    if (!data) {
+      const stopped = UI.platformStop(response.status, "");
+      if (stopped) return { error: stopped, status: response.status, json: null, text: "", headers: {}, elapsedMs: 0 };
+      return { error: "转发没有返回结果", status: response.status, json: null, text: "", headers: {}, elapsedMs: 0 };
+    }
     return data;
   },
   unsupported(result) {

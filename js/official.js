@@ -49,7 +49,22 @@ const Official = {
       detail.innerHTML = `<div class="empty"><h3>没有这家的官方状态</h3></div>`;
       return;
     }
-    const error = item.ok ? "" : `<p class="explain">这一家的官方状态页这次没有取到。${UI.esc(item.error || "")}</p>`;
+    if (!item.ok) {
+      const source = item.source || "#";
+      detail.innerHTML = `
+        <div class="page-head">
+          <div class="crumb"><a href="index.html">首页</a> / 官方状态</div>
+          <h1>${UI.esc(item.name || "")} 官方状态</h1>
+        </div>
+        <section class="status-official">
+          <div class="status-banner idle">
+            <strong>未获取</strong>
+            <p>官方状态页这次没有连上，所以不显示可用率，也不把缺数据当成 0。</p>
+          </div>
+          <p class="status-history"><a href="${UI.esc(source)}" target="_blank" rel="noreferrer">打开官方状态页</a></p>
+        </section>`;
+      return;
+    }
     const bannerTitle = item.bannerTitle || (item.level === "ok" ? "We're fully operational" : item.levelText || "");
     const bannerBody = item.bannerBody || item.description || "";
     const groups = item.groups || [];
@@ -60,7 +75,6 @@ const Official = {
         <h1>${UI.esc(item.name)} 官方状态</h1>
       </div>
       <section class="status-official">
-        ${error}
         <div class="status-banner ${UI.esc(item.level || "idle")}">
           <strong>${UI.esc(bannerTitle)}</strong>
           ${bannerBody ? `<p>${UI.esc(bannerBody)}</p>` : ""}

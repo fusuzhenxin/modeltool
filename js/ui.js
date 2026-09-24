@@ -179,6 +179,24 @@ const UI = {
   field(label, control) {
     return `<div class="field"><span>${label}</span>${control}</div>`;
   },
+  siteIsLocal() {
+    const host = (location.hostname || "").toLowerCase();
+    return location.protocol === "file:" || host === "127.0.0.1" || host === "localhost";
+  },
+  forwardNote() {
+    if (UI.siteIsLocal()) return "请求由你电脑上的 start.bat 转发到填写的接口。";
+    return "请求由当前网站转发到填写的接口。";
+  },
+  offlineForward() {
+    if (UI.siteIsLocal()) return "连不上本机转发。请先双击项目里的 start.bat，再用 http://127.0.0.1:8766/index.html 打开，不要直接双击 html。";
+    return "连不上网站转发。请稍后再试。";
+  },
+  platformStop(status, text) {
+    const raw = String(text || "");
+    const stopped = Number(status) === 504 || raw.indexOf("FUNCTION_INVOCATION_TIMEOUT") >= 0;
+    if (!stopped || UI.siteIsLocal()) return "";
+    return "这次请求超过了线上转发的 300 秒，被平台停掉了。这不是上游超时。需要一直等到上游返回时，用本机 start.bat 打开 http://127.0.0.1:8766 。";
+  },
   toast(message) {
     document.querySelectorAll(".toast").forEach((node) => node.remove());
     const el = document.createElement("div");

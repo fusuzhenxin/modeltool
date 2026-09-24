@@ -102,7 +102,10 @@ function apiHint() {
     const extra = cfg.modelOverride ? "，模型 ID 覆盖为 " + UI.esc(cfg.modelOverride) : "";
     return `<p class="note mt16">将请求 ${UI.esc(host)}${extra}。密钥只保存在这台浏览器。<button type="button" class="linkish" data-action="open-api">修改接口</button></p>`;
   }
-  return `<p class="note mt16">开始前要填写接口地址和密钥，并用 start.bat 打开本站。浏览器会把请求交给本机转发，再由本机去调接口。<button type="button" class="linkish" data-action="open-api">去填写</button></p>`;
+  const where = UI.siteIsLocal()
+    ? "并用 start.bat 打开本站。浏览器会把请求交给本机转发，再由本机去调接口。"
+    : "请求由当前网站转发到你填写的接口。";
+  return `<p class="note mt16">开始前要填写接口地址和密钥，${where}<button type="button" class="linkish" data-action="open-api">去填写</button></p>`;
 }
 function ensureApi() {
   const cfg = Store.api();
@@ -171,12 +174,16 @@ function hero(opts) {
   return `<section class="hero"><div class="hero-copy">${head}<p class="sub">${opts.sub}</p>${opts.bar ? '<div class="accent"></div>' : ""}</div>${art}</section>`;
 }
 function featureGrid(cards) {
-  return `<section class="grid-4">${cards.map((card) => `<article class="card feature">
+  return `<section class="grid-4">${cards.map((card) => {
+    const external = /^https?:\/\//i.test(card.href);
+    const extra = external ? ' target="_blank" rel="noopener noreferrer"' : "";
+    return `<article class="card feature">
     <span class="ico-box">${UI.icon(card.icon)}</span>
     <h3>${card.title}</h3>
     <p>${card.desc}</p>
-    <a class="btn btn-block ${card.primary ? "btn-primary" : "btn-ghost"}" href="${card.href}">${card.cta}</a>
-  </article>`).join("")}</section>`;
+    <a class="btn btn-block ${card.primary ? "btn-primary" : "btn-ghost"}" href="${card.href}"${extra}>${card.cta}</a>
+  </article>`;
+  }).join("")}</section>`;
 }
 function pager(page, pages, hrefFor) {
   if (pages <= 1) return "";
@@ -485,15 +492,18 @@ const Pages = {
       </section>
       <article class="panel key-note">
         <h2>${UI.icon("info")} 密钥只留在当前浏览器</h2>
-        <p>接口密钥填写后，只保存在你正在用的这个浏览器里。这个站没有后台，也没有服务器负责收集或存放密钥。</p>
-        <p>写入浏览器之前，密钥会用本机的 AES-GCM 加密。浏览器里留下的是密文，解开用的钥匙同样只在这台浏览器中，不会放进导出的报告。</p>
-        <p>开始测试时，页面在本地解开密钥，交给你电脑上的 start.bat 转发到你填写的接口。转发时用一下，不另存一份。换一个浏览器、换一个网址，或清掉本站数据之后，需要重新填写。</p>
+        <p>接口密钥填写后，只保存在你正在用的这个浏览器里。这个站没有后台账号，也不会把密钥存下来。</p>
+        <p>写入浏览器之前，密钥会用 AES-GCM 加密。浏览器里留下的是密文，解开用的钥匙同样只在这台浏览器中，不会放进导出的报告。</p>
+        <p>开始测试时，页面在本地解开密钥，${UI.forwardNote()}转发时用一下，不另存一份。换一个浏览器、换一个网址，或清掉本站数据之后，需要重新填写。</p>
       </article>
       ${featureGrid([
         { icon: "shield", title: "模型检测页", desc: "综合多项测试结果，评估模型是否存在降智问题。", href: "detect.html", cta: "进入检测 →", primary: true },
         { icon: "doc", title: "基础测试页", desc: "通过基础能力测试，评估模型的核心能力表现。", href: "basic.html", cta: "开始测试 →" },
         { icon: "candy", title: "糖果测试页", desc: "使用更具迷惑性的测试题目，识别模型是否出现降智。", href: "candy.html", cta: "开始测试 →" },
-        { icon: "car", title: "鹈鹕骑车测试页", desc: "让模型写出一只鹈鹕骑自行车的 HTML，打开就能看到画面。", href: "pelican.html", cta: "开始测试 →" }
+        { icon: "car", title: "鹈鹕骑车测试页", desc: "让模型写出一只鹈鹕骑自行车的 HTML，打开就能看到画面。", href: "pelican.html", cta: "开始测试 →" },
+        { icon: "list", title: "提示词库", desc: "按分类查看评测提示词，可以复制，也可以用当前接口试跑。", href: "prompts.html", cta: "打开提示词库 →" },
+        { icon: "code", title: "HTML 作品", desc: "公开的 HTML 作品目录。列表用静图，详情页再打开可玩页面。", href: "works.html", cta: "查看作品 →" },
+        { icon: "out", title: "中转导航", desc: "去 API 中转导航站挑选接口，再回到这里填写地址和密钥。", href: "https://www.veridrop.cn", cta: "打开导航 →" }
       ])}
       <section class="grid-side">
         <article class="panel">
@@ -886,7 +896,7 @@ const Pages = {
         <article class="panel article">
           <h2 id="intro">平台做什么</h2>
           <p>大模型降智检测把同一套题目发给 GPT、Claude、DeepSeek、Kimi、通义千问等模型，看能力、迷惑题和绘图有没有变差。检测、基础能力、糖果题、鹈鹕骑车和中转站检测的入口都在首页。</p>
-          <p>新开的测试会把题目发给你填写的接口。本机双击 <code>start.bat</code>，打开 <code>http://127.0.0.1:8766/index.html</code>。线上打开 <code>https://www.modeltool.cn</code>。请求由当前网站转发到你的接口，这样不会被浏览器跨域拦住。地址仍是 OpenAI 兼容根路径，模型 ID 放进 <code>model</code> 字段。网关名字不一样时，在接口设置里覆盖模型 ID。</p>
+          <p>新开的测试会把题目发给你填写的接口。${UI.siteIsLocal() ? "本机双击 <code>start.bat</code>，打开 <code>http://127.0.0.1:8766/index.html</code>。请求由这台电脑转发。" : "请求由当前网站转发。生成特别长、超过 300 秒时，线上这次函数会被平台停掉，那不是上游超时；需要一直等到上游返回，再用本机 start.bat。"}这样不会被浏览器跨域拦住。地址仍是 OpenAI 兼容根路径，模型 ID 放进 <code>model</code> 字段。网关名字不一样时，在接口设置里覆盖模型 ID。</p>
           <p>密钥只写在这台浏览器的本地存储里，不会放进导出的报告。</p>
           <p>打开页面时没有预置分数。只有接口返回并完成的测试才会记入记录，检测页才据此汇总。</p>
           <h2 id="score">分数和降智判定</h2>
@@ -1641,7 +1651,7 @@ Actions["open-api"] = () => {
   mask.className = "modal-mask";
   mask.innerHTML = `<div class="modal wide" role="dialog" aria-modal="true">
     <h3>接口设置</h3>
-    <p>填写 OpenAI 兼容接口。请求由本机 start.bat 转发，模型 ID 会作为 model 发送。密钥会加密后只留在当前浏览器，本站没有后台存放它。</p>
+    <p>填写 OpenAI 兼容接口。${UI.forwardNote()}模型 ID 会作为 model 发送。密钥会加密后只留在当前浏览器，本站没有后台存放它。</p>
     <div class="api-grid">
       <label class="field"><span>接口地址</span><input class="text-input" id="api-url" placeholder="https://api.openai.com/v1" value="${UI.esc(cfg.baseUrl)}"></label>
       <label class="field"><span>密钥</span><input class="text-input" id="api-key" type="password" autocomplete="off" placeholder="sk-..." value="${UI.esc(cfg.apiKey)}"></label>

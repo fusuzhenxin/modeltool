@@ -262,15 +262,18 @@ const Api = {
         body: JSON.stringify({ baseUrl, apiKey, payload })
       });
     } catch (err) {
-      throw new Error("连不上本机转发。请先双击项目里的 start.bat，再用 http://127.0.0.1:8766/index.html 打开，不要直接双击 html。");
+      throw new Error(UI.offlineForward());
     }
     const text = await response.text();
     let data = null;
     try { data = JSON.parse(text); } catch (err) { data = null; }
     if (!response.ok) {
+      const stopped = UI.platformStop(response.status, text);
+      if (stopped) throw new Error(stopped);
       const message = (data && data.error && (data.error.message || data.error)) || (data && data.message) || text.slice(0, 180) || ("HTTP " + response.status);
       if (String(message).indexOf("1010") >= 0) {
-        throw new Error("接口被 Cloudflare 拦截（1010）。请关掉本机转发窗口后重新双击 start.bat，再测一次。地址建议写成 https://域名/v1 。");
+        const local = UI.siteIsLocal() ? "请关掉本机转发窗口后重新双击 start.bat，再测一次。" : "";
+        throw new Error("接口被 Cloudflare 拦截（1010）。" + local + "地址建议写成 https://域名/v1 。");
       }
       throw new Error("接口返回 " + response.status + "：" + message);
     }
