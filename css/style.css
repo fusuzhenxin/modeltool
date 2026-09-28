@@ -580,6 +580,10 @@ table.grid tbody tr:hover td { background: #fcfdff; }
 .judge .suite-box .btn { margin-bottom: 8px; }
 .judge .select-btn { overflow: hidden; }
 .judge .select-label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.wrong-note { margin: 4px 20px 12px; color: #9b3b3b; font-size: 13px; line-height: 1.7; }
+.wrong-note ul { margin: 6px 0 0; padding-left: 18px; }
+.wrong-note li { margin: 3px 0; }
+.compare-q td:first-child { min-width: 220px; }
 
 .form-row {
   display: grid;

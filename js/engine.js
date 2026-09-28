@@ -129,24 +129,20 @@ const Engine = {
     return null;
   },
   pool(kind, difficulty) {
-    const rank = { easy: 0, medium: 1, hard: 2 };
-    const target = rank[difficulty] ?? 1;
-    const all = DATA.bank.filter((q) => q.kind === kind);
+    const all = DATA.bank.filter((q) => q.kind === kind && (!difficulty || q.difficulty === difficulty));
     const pins = all.filter((q) => q.pin);
     const rest = all.filter((q) => !q.pin);
-    rest.sort((a, b) => Math.abs(rank[a.difficulty] - target) - Math.abs(rank[b.difficulty] - target));
     return pins.concat(rest);
   },
   makeItems({ kind, difficulty, count, modelId, seed, live }) {
     const source = Engine.pool(kind, difficulty);
     const items = [];
     let guard = 0;
-    while (items.length < count && guard < count * 8) {
-      const repeat = Math.floor(guard / Math.max(source.length, 1));
-      const base = source[guard % Math.max(source.length, 1)];
+    while (items.length < count && guard < source.length) {
+      const base = source[guard];
       guard += 1;
       if (!base) break;
-      const raw = Engine.materialize(base, repeat);
+      const raw = Engine.materialize(base, 0);
       if (!raw || !raw.options || new Set(raw.options).size < raw.options.length) continue;
       const item = Engine.shuffle(raw, seed + ":" + items.length + ":" + raw.id);
       if (live) {

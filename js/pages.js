@@ -130,7 +130,7 @@ function suiteNote() {
   if (active) return "还有一套没测完（" + active.modelName + "）。点按钮会从第 " + active.suiteStep + " 项接着测，不会另开一套。";
   const basic = suiteCount("detect-count");
   const candy = suiteCount("detect-candy-count");
-  return "一次测完按顺序跑能力、逻辑、代码、问答（各 " + basic + " 题）、糖果（" + candy + " 题），最后生成一幅 2D 鹈鹕骑车。难度是中等。测完回到这一页汇总。";
+  return "一次测完按顺序跑能力、逻辑、代码、问答（各 " + basic + " 题）、糖果（" + candy + " 题），最后生成一幅 2D 鹈鹕骑车。只出中等题。这一档不够时做到用完为止。测完回到这一页汇总。";
 }
 function createLiveTask(kind, opts) {
   if (!ensureApi()) return null;
@@ -257,6 +257,64 @@ function pager(page, pages, hrefFor) {
 }
 function specTable() {
   return `<table class="spec">${DATA.spec.map((row) => `<tr><th>${UI.esc(row[0])}</th><td>${UI.esc(row[1])}</td></tr>`).join("")}</table>`;
+}
+function diffStock(kind) {
+  const all = DATA.bank.filter((item) => item.kind === kind);
+  const n = (level) => all.filter((item) => item.difficulty === level).length;
+  return `简单 ${n("easy")} 题，中等 ${n("medium")} 题，困难 ${n("hard")} 题。只出选中的那一档。这一档不够时，做到用完为止，不会拿其他难度来凑，也不会重复出题。`;
+}
+function wrongSummary(items) {
+  const list = items || [];
+  const wrong = list.filter((item) => item.correct === false);
+  const unread = list.filter((item) => item.choice == null && item.correct !== true);
+  if (!list.length) return "";
+  if (!wrong.length && !unread.length) return `<p class="note">这 ${list.length} 题都答对了。</p>`;
+  const lines = wrong.map((item) => {
+    const stem = item.stem.length > 46 ? item.stem.slice(0, 46) + "…" : item.stem;
+    return `<li>第 ${list.indexOf(item) + 1} 题 ${UI.esc(stem)}</li>`;
+  }).join("");
+  const extra = unread.length ? `<p class="note">另有 ${unread.length} 题没有识别出 A、B、C、D。</p>` : "";
+  return `<div class="wrong-note"><p>答错 ${wrong.length} 题，答对 ${list.filter((item) => item.correct).length} 题。</p>${lines ? `<ul>${lines}</ul>` : ""}${extra}</div>`;
+}
+function compareMark(item) {
+  if (!item) return `<span class="badge idle"><i></i>没出这题</span>`;
+  if (item.correct === true) return `<span class="badge ok"><i></i>答对</span>`;
+  if (item.choice == null) return `<span class="badge idle"><i></i>未识别</span>`;
+  return `<span class="badge bad"><i></i>答错</span>`;
+}
+function compareTable(tasks) {
+  const map = new Map();
+  tasks.forEach((task, index) => {
+    (task.items || []).forEach((item) => {
+      const key = item.qid || item.stem;
+      if (!map.has(key)) map.set(key, { stem: item.stem || "这一题", cells: tasks.map(() => null) });
+      map.get(key).cells[index] = item;
+    });
+  });
+  const rows = Array.from(map.values());
+  const splitRank = (row) => {
+    const present = row.cells.filter(Boolean);
+    const wrong = present.filter((item) => item.correct !== true).length;
+    const right = present.filter((item) => item.correct === true).length;
+    if (wrong && right) return 0;
+    if (present.length > 1 && wrong === present.length) return 1;
+    if (wrong) return 2;
+    return 3;
+  };
+  rows.sort((a, b) => splitRank(a) - splitRank(b));
+  let split = 0;
+  let allWrong = 0;
+  rows.forEach((row) => {
+    const rank = splitRank(row);
+    if (rank === 0) split += 1;
+    if (rank === 1) allWrong += 1;
+  });
+  const summary = rows.length
+    ? `结果不一致的有 ${split} 道，都答错的有 ${allWrong} 道。`
+    : "这几条记录没有可对照的选择题。";
+  const head = tasks.map((task) => `<th>${UI.esc(task.modelName)}<br>${task.score == null ? "—" : task.score}</th>`).join("");
+  const body = rows.map((row) => `<tr><td>${UI.esc(row.stem)}</td>${row.cells.map((item) => `<td>${compareMark(item)}</td>`).join("")}</tr>`).join("");
+  return `<p class="note">${summary}</p><div class="table-wrap"><table class="grid compare-q"><thead><tr><th>题目</th>${head}</tr></thead><tbody>${body || `<tr><td colspan="${tasks.length + 1}">没有可对照的题目</td></tr>`}</tbody></table></div>`;
 }
 function questionBlock(item, index, opened) {
   const letters = "ABCD";
@@ -600,18 +658,21 @@ const Pages = {
     const tone = info.level === "ok" ? "ok" : info.level === "warn" ? "warn" : info.level === "bad" ? "bad" : "idle";
     const cfg = Store.api();
     const configured = !!(cfg.baseUrl && cfg.apiKey);
-    const anyPart = ["basic", "candy", "pelican"].some((key) => snap.parts[key] && snap.parts[key].score != null);
+    const anyPart = Store.tasks().some((item) => item.status === "done" && item.source !== "demo" && Number.isFinite(Number(item.score)));
     let desc = info.desc;
     let side = info.side;
     if (info.level === "none") {
       if (!configured && !anyPart) {
         desc = "接口还没配置，也没有已完成的测试。这里不会自己打分，也不会判定降智。";
         side = "选好模型和题量后点一次测完。基础四项、糖果和鹈鹕会按顺序跑，三项都有结果后才会汇总。";
+      } else if (snap.hold === "mixed") {
+        desc = "能力、逻辑、代码、问答、糖果和鹈鹕最近一次不是同一个模型。综合分先留空。";
+        side = "用同一个模型把这几项都测完，再点重新检测。缺的项不会记成 0。";
       } else if (!anyPart) {
         desc = "接口已保存，但还没有已完成的测试。完成后再来看综合结果。";
         side = "没有真实作答记录时，综合分保持未检测。";
       } else {
-        desc = "已有部分测试结果。基础、糖果、鹈鹕三项都完成后，才会计算综合分。";
+        desc = "已有部分测试结果。能力、逻辑、代码、问答四项都完成，并且和糖果、鹈鹕是同一个模型，才会计算综合分。";
         side = "缺任何一项都不会当成 0 分，也不会写成降智。";
       }
     }
@@ -777,6 +838,7 @@ const Pages = {
             <div class="panel-hd"><h3>${UI.icon("doc")} 测试任务</h3></div>
             <div class="panel-bd">
               <p class="lead">选择模型并设置测试参数，开始糖果测试。</p>
+              <p class="note">${diffStock("candy")}</p>
               <div class="form-row">
                 ${UI.field("选择模型", UI.select("candy-model", Form.get("candy-model"), modelOptions()))}
                 ${UI.field("测试题目数量", UI.select("candy-count", Form.get("candy-count"), QUESTION_COUNTS))}
@@ -980,10 +1042,10 @@ const Pages = {
             <li>70 到 84 分：轻微异常 / 轻微降智</li>
             <li>70 分以下：明显异常 / 明显降智</li>
           </ul>
-          <p>模型检测页的综合分 = 基础测试 × 0.4 + 糖果测试 × 0.35 + 鹈鹕骑车 × 0.25。基础、糖果、鹈鹕三项都有已完成记录才计算。缺一项时综合分是「—」，不会记成 0 分，也不会判定降智。「重新检测」只按已有记录重算，没有记录时不会访问模型，也不会编造分数。</p>
+          <p>模型检测页的综合分 = 基础测试 × 0.4 + 糖果测试 × 0.35 + 鹈鹕骑车 × 0.25。基础分要能力、逻辑、代码、问答四项都完成，而且这四项是同一个模型。再加上糖果和鹈鹕，六项最近一次也必须是这个模型，才写出综合分。缺一项，或者最近一次换成了另一个模型，综合分是「—」，不会记成 0 分，也不会把两个模型的名字拼在一起。「重新检测」只按已有记录重算，没有记录时不会访问模型，也不会编造分数。</p>
           <p>鹈鹕骑车的正确率再拆一层：综合正确率 = 题目正确率 × 90% + 稳定性 × 10%。稳定性看各轮正确率是否接近，波动越大扣得越多。</p>
           <h2 id="detect">模型检测</h2>
-          <p>检测页汇总基础、糖果、鹈鹕三类结果。右侧选定模型后点「一次测完」，会按顺序跑能力、逻辑、代码、问答、糖果和一幅 2D 鹈鹕骑车，难度都是中等。基础四项共用一个题量，糖果单独选，都可以选 3、5、10、20 或 30 题，默认都是 3 题。一项结束后自动开始下一项，全部测完回到这一页。三项没齐时，综合分和「模型检测」都显示未检测。三项齐了之后，「模型检测」卡上的分数就是上面的综合分。</p>
+          <p>检测页汇总基础、糖果、鹈鹕三类结果。右侧选定模型后点「一次测完」，会按顺序跑能力、逻辑、代码、问答、糖果和一幅 2D 鹈鹕骑车，难度都是中等。基础四项共用一个题量，糖果单独选，都可以选 3、5、10、20 或 30 题，默认都是 3 题。一项结束后自动开始下一项，全部测完回到这一页。四项基础、糖果、鹈鹕都完成且是同一个模型之后，「模型检测」卡上的分数就是上面的综合分。</p>
           <h2 id="basic">基础测试</h2>
           <p>基础测试仍包含四项模型能力题：</p>
           <ul>
@@ -1053,6 +1115,7 @@ const Pages = {
     const current = Math.min(page, pages);
     const slice = list.slice((current - 1) * size, current * size);
     const rows = slice.map((task) => `<tr>
+      <td><input type="checkbox" data-compare value="${task.id}" ${task.status === "done" ? "" : "disabled"}></td>
       <td><div class="td-title"><span class="ico-box sm">${UI.icon(kindIcon(task.kind))}</span>${UI.esc(task.name)}</div></td>
       <td>${DATA.kinds[task.kind].typeName}</td>
       <td>${UI.modelChip(task.modelId, task.modelName)}</td>
@@ -1065,7 +1128,7 @@ const Pages = {
     </tr>`).join("");
     const hrefFor = (i) => `tasks.html?${new URLSearchParams({ kind, status, q, page: String(i) })}`;
     return UI.shell("basic", `
-      <div class="page-head"><div class="crumb"><a href="basic.html">基础测试页</a> / 全部任务</div><h1>全部任务</h1><p>筛选基础测试里的能力、推理、代码和问答记录。</p></div>
+      <div class="page-head"><div class="crumb"><a href="basic.html">基础测试页</a> / 全部任务</div><h1>全部任务</h1><p>筛选基础测试记录。勾选同一种测试里 2 到 4 条已完成记录，可以对照各自错了哪几题。</p></div>
       <article class="panel">
         <form class="filters" style="padding:16px 16px 0" method="get" action="tasks.html">
           <input class="search" name="q" value="${UI.esc(q)}" placeholder="搜索任务或模型">
@@ -1078,11 +1141,12 @@ const Pages = {
             ${[["done", "已完成"], ["running", "进行中"], ["pending", "未开始"], ["stopped", "已终止"]].map(([key, label]) => `<option value="${key}" ${status === key ? "selected" : ""}>${label}</option>`).join("")}
           </select>
           <button class="btn btn-primary btn-sm" type="submit">筛选</button>
+          <button class="btn btn-ghost btn-sm" type="button" data-action="compare-go" data-kind="${UI.esc(kind || "ability")}">对比所选</button>
           <a class="btn btn-ghost btn-sm" href="setup.html?type=ability">新建测试</a>
         </form>
         <div class="table-wrap"><table class="grid">
-          <thead><tr><th>任务名称</th><th>类型</th><th>模型</th><th>难度</th><th>题量</th><th>状态</th><th>得分</th><th>时间</th><th>操作</th></tr></thead>
-          <tbody>${rows || `<tr><td colspan="9"><div class="empty"><h3>没有匹配的任务</h3><p>换一个筛选条件，或新建一次基础测试。</p></div></td></tr>`}</tbody>
+          <thead><tr><th></th><th>任务名称</th><th>类型</th><th>模型</th><th>难度</th><th>题量</th><th>状态</th><th>得分</th><th>时间</th><th>操作</th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="10"><div class="empty"><h3>没有匹配的任务</h3><p>换一个筛选条件，或新建一次基础测试。</p></div></td></tr>`}</tbody>
         </table></div>
         ${pager(current, pages, hrefFor)}
       </article>`);
@@ -1128,7 +1192,7 @@ const Pages = {
     const back = kind === "candy" ? "candy.html" : "pelican.html";
     const hrefFor = (i) => `records.html?${new URLSearchParams({ kind, status, q, page: String(i) })}`;
     return UI.shell(kind, `
-      <div class="page-head"><div class="crumb"><a href="${back}">${kind === "candy" ? "糖果测试页" : "鹈鹕骑车测试页"}</a> / 全部记录</div><h1>${kind === "candy" ? "全部糖果测试记录" : "全部鹈鹕骑车记录"}</h1><p>勾选 2 到 4 条已完成记录，可以对比得分。</p></div>
+      <div class="page-head"><div class="crumb"><a href="${back}">${kind === "candy" ? "糖果测试页" : "鹈鹕骑车测试页"}</a> / 全部记录</div><h1>${kind === "candy" ? "全部糖果测试记录" : "全部鹈鹕骑车记录"}</h1><p>勾选 2 到 4 条已完成记录，可以对照各自错了哪几题。</p></div>
       <article class="panel">
         <form class="filters" style="padding:16px 16px 0" method="get" action="records.html">
           <input type="hidden" name="kind" value="${kind}">
@@ -1165,6 +1229,7 @@ const Pages = {
           <div class="panel-hd"><h3>${UI.icon(kindIcon(type))} 测试设置</h3></div>
           <div class="panel-bd">
             <p class="lead">${pending ? "将开始列表中的未开始任务。" : "选择模型、题量和难度。开始后可以在进度页看到逐题作答。"}</p>
+            <p class="note">${diffStock(type)}</p>
             <div class="form-row">
               ${UI.field("选择模型", UI.select("setup-model", Form.get("setup-model"), modelOptions()))}
               ${UI.field("测试题目数量", UI.select("setup-count", Form.get("setup-count"), QUESTION_COUNTS))}
@@ -1248,6 +1313,7 @@ const Pages = {
               <button type="button" class="chip ${App.show === "right" ? "active" : ""}" data-action="filter-q" data-show="right">只看答对</button>
             </div>
           </div>
+          ${wrongSummary(items)}
           <div id="q-list">${list || `<div class="empty">这一组里没有题目</div>`}</div>
         </article>
         <div class="stack">
@@ -1271,16 +1337,21 @@ const Pages = {
   },
   compare() {
     const query = qs();
-    const kind = query.kind === "pelican" ? "pelican" : "candy";
     const ids = (query.ids || "").split(",").filter(Boolean).slice(0, 4);
     const tasks = ids.map((id) => Store.task(id)).filter((task) => task && task.status === "done");
+    const kind = tasks[0] ? tasks[0].kind : (query.kind || "candy");
+    const active = Engine.moduleOf(kind);
+    const back = active === "basic" ? `tasks.html?kind=${encodeURIComponent(kind)}` : `records.html?kind=${kind === "pelican" ? "pelican" : "candy"}`;
     const max = 100;
-    const cols = tasks.map((task) => `<div class="col"><i style="height:${Math.max(8, (task.score || 0) / max * 120)}px"></i><span>${UI.esc(task.modelName)}<br>${task.score}</span></div>`).join("");
-    const rows = tasks.map((task) => `<tr><td>${UI.esc(task.name)}</td><td>${UI.esc(task.modelName)}</td><td>${task.score}</td><td>${UI.levelBadge(task.score, kind === "pelican" ? "pelican" : "detect")}</td><td>${UI.diffLabel(task.difficulty)}</td><td><a href="result.html?id=${task.id}">查看报告</a></td></tr>`).join("");
-    return UI.shell(kind, `
-      <div class="page-head"><div class="crumb"><a href="records.html?kind=${kind}">全部记录</a> / 对比</div><h1>模型对比</h1><p>同一题库下，最近这些已完成记录的得分。</p></div>
+    const cols = tasks.map((task) => `<div class="col"><i style="height:${Math.max(8, (task.score || 0) / max * 120)}px"></i><span>${UI.esc(task.modelName)}<br>${task.score == null ? "—" : task.score}</span></div>`).join("");
+    const rows = tasks.map((task) => `<tr><td>${UI.esc(task.name)}</td><td>${UI.esc(task.modelName)}</td><td>${task.score == null ? "—" : task.score}</td><td>${UI.levelBadge(task.score, kind === "pelican" ? "pelican" : "detect")}</td><td>${UI.diffLabel(task.difficulty)}</td><td><a href="result.html?id=${task.id}">查看报告</a></td></tr>`).join("");
+    const pelicanNote = tasks.some((task) => task.pelicanMode) ? `<p class="note">鹈鹕骑车比的是生成出来的画面。下面的表只对照记录里的题目，画面要打开各自的报告看。</p>` : "";
+    return UI.shell(active, `
+      <div class="page-head"><div class="crumb"><a href="${back}">全部记录</a> / 对比</div><h1>模型对比</h1><p>同一道题并排列出谁答对、谁答错。结果不一致的排在前面。</p></div>
       <article class="panel"><div class="hbar">${cols || ""}</div>
         <div class="table-wrap"><table class="grid"><thead><tr><th>记录</th><th>模型</th><th>得分</th><th>判定</th><th>难度</th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="6"><div class="empty">没有可对比的已完成记录</div></td></tr>`}</tbody></table></div>
+        ${pelicanNote}
+        ${tasks.length ? compareTable(tasks) : ""}
       </article>`);
   },
   prompts() {
@@ -1666,10 +1737,11 @@ Actions.recheck = () => {
   App.refresh();
   if (snap.score == null) {
     const cfg = Store.api();
-    const any = ["basic", "candy", "pelican"].some((key) => snap.parts[key] && snap.parts[key].score != null);
-    if (!(cfg.baseUrl && cfg.apiKey) && !any) UI.toast("还没配置接口，不能凭空给出检测结果");
-    else if (!any) UI.toast("还没有已完成的测试");
-    else UI.toast("三项还没测完，暂不判定降智");
+    const done = Store.tasks().some((item) => item.status === "done" && item.source !== "demo" && Number.isFinite(Number(item.score)));
+    if (!(cfg.baseUrl && cfg.apiKey) && !done) UI.toast("还没配置接口，不能凭空给出检测结果");
+    else if (snap.hold === "mixed") UI.toast("最近一次不是同一个模型，综合分先留空");
+    else if (!done) UI.toast("还没有已完成的测试");
+    else UI.toast("四项基础、糖果和鹈鹕还没到齐，暂不判定降智");
     return;
   }
   UI.toast("已根据完成记录汇总，综合得分 " + snap.score);
@@ -1952,5 +2024,8 @@ Actions["compare-go"] = (el) => {
   const ids = Array.from(document.querySelectorAll("[data-compare]:checked")).map((node) => node.value);
   if (ids.length < 2) { UI.toast("至少选择 2 条已完成记录"); return; }
   if (ids.length > 4) { UI.toast("最多对比 4 条记录"); return; }
-  location.href = `compare.html?kind=${el.dataset.kind}&ids=${ids.join(",")}`;
+  const picked = ids.map((id) => Store.task(id)).filter(Boolean);
+  const kinds = new Set(picked.map((task) => task.kind));
+  if (kinds.size > 1) { UI.toast("请选择同一种测试再对比"); return; }
+  location.href = `compare.html?kind=${picked[0].kind}&ids=${ids.join(",")}`;
 };

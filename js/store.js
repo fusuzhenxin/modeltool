@@ -16,6 +16,7 @@ const Store = (() => {
         score: null,
         time: "",
         modelName: "",
+        hold: "",
         parts: {
           meta: { score: null, time: "" },
           basic: { score: null, time: "" },
@@ -340,29 +341,37 @@ const Store = (() => {
       .sort((a, b) => Engine.parseTime(b.finishedAt || b.createdAt) - Engine.parseTime(a.finishedAt || a.createdAt))[0] || null;
   }
 
+  function modelKey(task) {
+    return String((task && (task.requestedModel || task.modelId)) || "").trim();
+  }
+
+  function newest(list) {
+    return list.filter(Boolean).sort((a, b) => Engine.parseTime(b.finishedAt || b.createdAt) - Engine.parseTime(a.finishedAt || a.createdAt))[0] || null;
+  }
+
   function recalc() {
     const subtypes = ["ability", "logic", "code", "qa"];
-    const subScores = subtypes.map((kind) => {
-      const found = latestDone((item) => item.kind === kind && isScored(item));
-      return found ? Number(found.score) : null;
-    }).filter((score) => score != null);
-    const basic = subScores.length ? Math.round(subScores.reduce((sum, score) => sum + score, 0) / subScores.length) : null;
-    const basicTask = latestDone((item) => Engine.moduleOf(item.kind) === "basic" && isScored(item));
+    const basicTasks = subtypes.map((kind) => latestDone((item) => item.kind === kind && isScored(item)));
     const candyTask = latestDone((item) => item.kind === "candy" && isScored(item));
     const pelicanTask = latestDone((item) => item.kind === "pelican" && isScored(item));
+    const basicKeys = basicTasks.map(modelKey);
+    const basicSame = basicTasks.every(Boolean) && basicKeys.every((key) => key && key === basicKeys[0]);
+    const basic = basicSame ? Math.round(basicTasks.reduce((sum, item) => sum + Number(item.score), 0) / basicTasks.length) : null;
+    const basicTask = basicSame ? newest(basicTasks) : null;
     const candy = candyTask ? Number(candyTask.score) : null;
     const pelican = pelicanTask ? Number(pelicanTask.score) : null;
-    const ready = basic != null && candy != null && pelican != null;
-    const overall = ready ? Math.round(basic * 0.4 + candy * 0.35 + pelican * 0.25) : null;
-    const latest = [basicTask, candyTask, pelicanTask].filter(Boolean).sort((a, b) => Engine.parseTime(b.finishedAt || b.createdAt) - Engine.parseTime(a.finishedAt || a.createdAt))[0] || null;
-    const names = [basicTask, candyTask, pelicanTask].filter(Boolean).map((item) => item.modelName).filter(Boolean);
-    const unique = Array.from(new Set(names));
+    const keys = basicSame ? [basicKeys[0], modelKey(candyTask), modelKey(pelicanTask)] : [];
+    const sameModel = basicSame && candyTask && pelicanTask && keys.every((key) => key && key === keys[0]);
+    const overall = sameModel ? Math.round(basic * 0.4 + candy * 0.35 + pelican * 0.25) : null;
+    const latest = newest([basicTask, candyTask, pelicanTask]);
     const when = overall == null || !latest ? "" : (latest.finishedAt || latest.createdAt || "");
+    const haveAll = basicTasks.every(Boolean) && candyTask && pelicanTask;
     state.snapshot = {
       frozen: false,
       score: overall,
+      hold: overall != null ? "" : (haveAll ? "mixed" : "incomplete"),
       time: when,
-      modelName: overall == null ? "" : (unique.length > 1 ? unique.join(" / ") : (unique[0] || "")),
+      modelName: overall == null ? "" : (latest.modelName || ""),
       parts: {
         meta: { score: overall, time: when },
         basic: { score: basic, time: basicTask ? (basicTask.finishedAt || "") : "" },
