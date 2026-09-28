@@ -537,10 +537,113 @@ def api_status(query):
     return 200, body
 
 
+def _text_parts(content):
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        bits = []
+        for item in content:
+            if isinstance(item, str):
+                bits.append(item)
+            elif isinstance(item, dict):
+                bits.append(str(item.get("text") or item.get("content") or ""))
+        return "".join(bits)
+    return ""
+
+
+def _sse_piece(event):
+    delta = event.get("delta") if isinstance(event, dict) else None
+    if isinstance(delta, dict) and delta.get("text"):
+        return str(delta.get("text") or "")
+    choices = event.get("choices") if isinstance(event, dict) else None
+    if not choices or not isinstance(choices[0], dict):
+        return ""
+    choice = choices[0]
+    delta = choice.get("delta") if isinstance(choice.get("delta"), dict) else {}
+    message = choice.get("message") if isinstance(choice.get("message"), dict) else {}
+    content = delta.get("content")
+    if content is None:
+        content = message.get("content")
+    return _text_parts(content)
+
+
+def _collect_sse(text):
+    parts = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line.startswith("data:"):
+            continue
+        data = line[5:].strip()
+        if not data or data == "[DONE]":
+            continue
+        try:
+            event = json.loads(data)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict) and event.get("error"):
+            err = event["error"]
+            message = err.get("message") if isinstance(err, dict) else str(err)
+            if message:
+                raise ValueError(message)
+        parts.append(_sse_piece(event))
+    return "".join(parts)
+
+
+def _collapse_stream(status, body, headers, anthropic):
+    ctype = ""
+    for key, value in (headers or {}).items():
+        if str(key).lower() == "content-type":
+            ctype = str(value).lower()
+    text = body.decode("utf-8", "replace")
+    stripped = text.lstrip()
+    if status >= 400 or not stripped or stripped.startswith("{") or stripped.startswith("["):
+        return status, body
+    if "text/event-stream" not in ctype and not stripped.startswith("data:"):
+        return status, body
+    content = _collect_sse(text)
+    if anthropic:
+        wrapped = {"content": [{"type": "text", "text": content}]}
+    else:
+        wrapped = {"choices": [{"message": {"role": "assistant", "content": content}}]}
+    return 200, json.dumps(wrapped, ensure_ascii=False).encode("utf-8")
+
+
+def _stream_rejected(status, body):
+    if status < 400 or status >= 500:
+        return False
+    return "stream" in body.decode("utf-8", "replace").lower()
+
+
+def _cloudflare_524(status, body):
+    text = body.decode("utf-8", "replace")
+    lowered = text.lower()
+    timed_out = status == 524 or ("cloudflare" in lowered and "524" in lowered)
+    if not timed_out:
+        return status, body
+    message = "接口前面的 Cloudflare 大约 125 秒没有等到回答，就返回了 524。这是所填接口的网关时限，本站改不了这个秒数。需要接口在这之前开始返回内容；用本机打开也绕不过对方的 Cloudflare。"
+    return 524, json.dumps({"error": {"message": message}}, ensure_ascii=False).encode("utf-8")
+
+
 def api_post(path, raw):
     try:
         data = json.loads(raw.decode("utf-8"))
+        payload = dict(data.get("payload") or {})
+        if path == "/api/chat":
+            streamed = dict(payload)
+            streamed["stream"] = True
+            data["payload"] = streamed
         status, body, upstream_headers, elapsed = Handler._forward(Handler, data)
+        if path == "/api/chat" and _stream_rejected(status, body):
+            data["payload"] = payload
+            status, body, upstream_headers, elapsed = Handler._forward(Handler, data)
+        if path == "/api/chat":
+            status, body = _cloudflare_524(status, body)
+            if status < 400:
+                url = target_url(data.get("baseUrl", ""))
+                anthropic = "anthropic.com" in url or url.endswith("/messages")
+                status, body = _collapse_stream(status, body, upstream_headers, anthropic)
     except (URLError, ValueError, json.JSONDecodeError, TimeoutError) as err:
         reason = getattr(err, "reason", None) or err
         if path == "/api/probe":

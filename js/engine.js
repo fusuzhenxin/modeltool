@@ -264,6 +264,8 @@ const Api = {
     let data = null;
     try { data = JSON.parse(text); } catch (err) { data = null; }
     if (!response.ok) {
+      const waited = UI.gatewayWait(response.status, text);
+      if (waited) throw new Error(waited);
       const stopped = UI.platformStop(response.status, text);
       if (stopped) throw new Error(stopped);
       const message = (data && data.error && (data.error.message || data.error)) || (data && data.message) || text.slice(0, 180) || ("HTTP " + response.status);

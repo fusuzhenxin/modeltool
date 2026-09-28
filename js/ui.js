@@ -197,6 +197,12 @@ const UI = {
     if (!stopped || UI.siteIsLocal()) return "";
     return "这次请求超过了线上转发的 300 秒，被平台停掉了。这不是上游超时。需要一直等到上游返回时，用本机 start.bat 打开 http://127.0.0.1:8766 。";
   },
+  gatewayWait(status, text) {
+    const raw = String(text || "");
+    const cloudflare = Number(status) === 524 || (/cloudflare/i.test(raw) && /524/.test(raw));
+    if (!cloudflare) return "";
+    return "接口前面的 Cloudflare 大约 125 秒没有等到回答，就返回了 524。这是所填接口的网关时限，本站改不了这个秒数。需要接口在这之前开始返回内容；用本机打开也绕不过对方的 Cloudflare。";
+  },
   toast(message) {
     document.querySelectorAll(".toast").forEach((node) => node.remove());
     const el = document.createElement("div");

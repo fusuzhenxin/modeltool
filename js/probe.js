@@ -46,10 +46,14 @@ const Probe = {
     let data = null;
     try { data = await response.json(); } catch (err) { data = null; }
     if (!data) {
+      const waited = UI.gatewayWait(response.status, "");
+      if (waited) return { error: waited, status: response.status, json: null, text: "", headers: {}, elapsedMs: 0 };
       const stopped = UI.platformStop(response.status, "");
       if (stopped) return { error: stopped, status: response.status, json: null, text: "", headers: {}, elapsedMs: 0 };
       return { error: "转发没有返回结果", status: response.status, json: null, text: "", headers: {}, elapsedMs: 0 };
     }
+    const waited = UI.gatewayWait(data.status, data.text || "");
+    if (waited) data.error = data.error || waited;
     return data;
   },
   unsupported(result) {
