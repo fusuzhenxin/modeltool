@@ -447,7 +447,7 @@ def _status_one(vendor_id):
     spec = {
         "openai": ("OpenAI", "https://status.openai.com/api/v2/summary.json", "https://status.openai.com/api/v2/incidents.json", "https://status.openai.com/"),
         "anthropic": ("Claude", "https://status.claude.com/api/v2/summary.json", "https://status.claude.com/api/v2/incidents.json", "https://status.claude.com/"),
-        "deepseek": ("DeepSeek", "https://status.deepseek.com/api/v2/summary.json", "https://status.deepseek.com/api/v2/incidents.json", "https://status.deepseek.com/"),
+        "deepseek": ("DeepSeek", "https://deepseek.statuspage.io/api/v2/summary.json", "https://deepseek.statuspage.io/api/v2/incidents.json", "https://deepseek.statuspage.io"),
         "moonshot": ("Kimi", "https://status.moonshot.cn/api/v2/summary.json", "https://status.moonshot.cn/api/v2/incidents.json", "https://status.moonshot.cn/"),
     }
     try:
@@ -458,6 +458,9 @@ def _status_one(vendor_id):
         else:
             name, summary_url, incident_url, page = spec[vendor_id]
             row = _statuspage_vendor(name, summary_url, incident_url, page)
+        if vendor_id == "deepseek":
+            row["source"] = "https://status.deepseek.com/"
+            row["history"] = "https://status.deepseek.com/history"
     except (URLError, HTTPError, json.JSONDecodeError, TimeoutError, ET.ParseError, ValueError, OSError) as err:
         reason = getattr(err, "reason", None) or err
         names = {"openai": "OpenAI", "anthropic": "Claude", "gemini": "Gemini", "deepseek": "DeepSeek", "moonshot": "Kimi", "xai": "Grok"}
