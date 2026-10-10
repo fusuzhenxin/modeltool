@@ -241,15 +241,30 @@ const Api = {
     if (location.protocol === "http:" || location.protocol === "https:") return location.origin + "/api/chat";
     return "http://127.0.0.1:8766/api/chat";
   },
+  messageText(content) {
+    if (content == null) return "";
+    if (typeof content === "string") return content;
+    if (Array.isArray(content)) {
+      return content.map((part) => {
+        if (typeof part === "string") return part;
+        if (part && typeof part === "object") return part.text || part.content || "";
+        return "";
+      }).join("");
+    }
+    return String(content);
+  },
   async complete({ baseUrl, apiKey, model, system, user }) {
     if (!String(apiKey || "").trim()) throw new Error("请填写密钥");
     if (!String(model || "").trim()) throw new Error("请选择模型，或填写模型 ID");
     const url = Api.endpoint(baseUrl);
     const anthropic = Api.isAnthropic(url);
-    const limit = arguments[0].long ? 8192 : 256;
-    const payload = anthropic
-      ? { model: model.trim(), max_tokens: limit, temperature: arguments[0].long ? 0.4 : 0, system, messages: [{ role: "user", content: user }] }
-      : { model: model.trim(), temperature: arguments[0].long ? 0.4 : 0, max_tokens: limit, messages: [{ role: "system", content: system }, { role: "user", content: user }] };
+    const bare = !!arguments[0].bare;
+    const limit = bare || arguments[0].long ? 8192 : 256;
+    const payload = bare
+      ? { model: model.trim(), max_tokens: limit, messages: [{ role: "user", content: user }] }
+      : anthropic
+        ? { model: model.trim(), max_tokens: limit, temperature: arguments[0].long ? 0.4 : 0, system, messages: [{ role: "user", content: user }] }
+        : { model: model.trim(), temperature: arguments[0].long ? 0.4 : 0, max_tokens: limit, messages: [{ role: "system", content: system }, { role: "user", content: user }] };
     let response;
     try {
       response = await fetch(Api.proxyUrl(), {
@@ -276,8 +291,8 @@ const Api = {
       throw new Error("接口返回 " + response.status + "：" + message);
     }
     const content = anthropic
-      ? ((data && data.content) || []).map((part) => part.text || "").join("")
-      : ((data && data.choices && data.choices[0] && ((data.choices[0].message && data.choices[0].message.content) || data.choices[0].text)) || "");
+      ? Api.messageText((data && data.content) || [])
+      : Api.messageText((data && data.choices && data.choices[0] && ((data.choices[0].message && data.choices[0].message.content) || data.choices[0].text)) || "");
     if (!String(content).trim()) throw new Error("接口没有返回回答");
     return String(content).trim();
   },

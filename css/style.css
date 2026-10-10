@@ -305,6 +305,7 @@ img { max-width: 100%; }
 .feature .ico-box.tone-prompts { background: #ffeff4; color: #e85d88; }
 .feature .ico-box.tone-works { background: #e7f6fb; color: #1496b8; }
 .feature .ico-box.tone-relay { background: #fff6e8; color: #d4922a; }
+.feature .ico-box.tone-target { background: #eef2ff; color: #3b5ffa; }
 
 .ico-box {
   width: 44px;
@@ -1401,6 +1402,19 @@ pre.code {
     max-width: none;
   }
 }
+.trace-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding: 16px 20px 0; }
+.trace-summary div { background: #f6f8fc; border-radius: 12px; padding: 12px 14px; }
+.trace-summary span { display: block; color: #8b97ad; font-size: 12px; }
+.trace-summary strong { display: block; margin-top: 4px; font-size: 18px; color: #24324d; }
+.trace-note { margin: 0; padding: 12px 20px; color: #52627f; font-size: 13px; line-height: 1.6; }
+.trace-steps { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 20px 12px; }
+.trace-step { font-size: 12px; padding: 4px 8px; border-radius: 999px; background: #f3f6fb; color: #5c6b88; }
+.trace-step.done { background: #e7f8f0; color: #1faf73; }
+.trace-step.bad { background: #fff1f1; color: #ef5d5d; }
+.trace-prob { display: flex; align-items: center; gap: 8px; }
+.trace-prob i { display: block; height: 8px; width: 120px; border-radius: 99px; background: #e8eef8; overflow: hidden; }
+.trace-prob i span { display: block; height: 100%; background: #3b5ffa; }
+tr.winner { background: #f4f7ff; }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }

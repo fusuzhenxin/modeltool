@@ -123,6 +123,7 @@ const UI = {
     const nav = [
       ["home", "index.html", "首页"],
       ["detect", "detect.html", "模型检测页"],
+      ["trace", "trace.html", "指纹检测"],
       ["basic", "basic.html", "基础测试页"],
       ["candy", "candy.html", "糖果测试页"],
       ["pelican", "pelican.html", "鹈鹕骑车测试页"],

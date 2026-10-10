@@ -230,7 +230,8 @@ function featureMark(name) {
     pelican: `<circle cx="6.4" cy="17.6" r="2.35" ${pen}/><circle cx="17.3" cy="17.6" r="2.35" ${pen}/><path ${pen} d="M6.4 17.6 10.4 12h4.2l2.7 5.6M10.4 12 12.6 17.6"/><path fill="currentColor" d="M13.1 11.2c.3-1.7 1.5-2.9 3-3.2-.7 1.3-.4 2.3.6 2.9 1.1.5 1.7 1.5 1.4 2.6-.4 1.5-1.9 2.3-3.5 1.9-1-.2-1.8-.9-2.1-1.8.2-.8.4-1.6.6-2.4z"/><path fill="currentColor" d="M16.6 8.2c1.6-.1 2.9.6 3.1 1.4-1 .2-1.9-.1-2.5-.7-.2-.3-.4-.6-.6-.7z"/>`,
     prompts: `<rect x="4.2" y="6.4" width="11.2" height="13.2" rx="2" fill="currentColor" opacity=".35"/><rect x="7.4" y="3.6" width="12.2" height="14.2" rx="2.2" fill="currentColor"/><path ${pen} stroke="#fff" d="M10.2 8.2h6.2M10.2 11.2h6.2M10.2 14.2h4"/>`,
     works: `<rect x="3.4" y="4.2" width="17.2" height="15.6" rx="2.2" fill="currentColor"/><path ${pen} stroke="#fff" d="M3.4 8.2h17.2M8.6 12.4 6.4 14.6l2.2 2.2M15.4 12.4l2.2 2.2-2.2 2.2"/>`,
-    relay: `<circle cx="6.2" cy="12" r="2.3" fill="currentColor"/><circle cx="17.8" cy="6.6" r="2.3" fill="currentColor"/><circle cx="17.8" cy="17.4" r="2.3" fill="currentColor"/><path ${pen} d="M8.3 11.2 15.6 7.4M8.4 12.8l7.2 3.8"/>`
+    relay: `<circle cx="6.2" cy="12" r="2.3" fill="currentColor"/><circle cx="17.8" cy="6.6" r="2.3" fill="currentColor"/><circle cx="17.8" cy="17.4" r="2.3" fill="currentColor"/><path ${pen} d="M8.3 11.2 15.6 7.4M8.4 12.8l7.2 3.8"/>`,
+    target: `<circle cx="12" cy="12" r="7" ${pen}/><circle cx="12" cy="12" r="3" ${pen}/><path ${pen} d="M12 3.2v2.2M12 18.6v2.2M3.2 12h2.2M18.6 12h2.2"/>`
   };
   const body = marks[name] || marks.detect;
   return `<svg class="mark" viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
@@ -618,6 +619,7 @@ const Pages = {
       </article>
       ${featureGrid([
         { mark: "detect", title: "模型检测页", desc: "综合多项测试结果，评估模型是否存在降智问题。", href: "detect.html", cta: "进入检测 →", primary: true },
+        { mark: "target", title: "模型指纹检测", desc: "自动发送三道数字题，对照指纹库看回答更像哪一个 GPT 或 Claude。", href: "trace.html", cta: "开始检测 →" },
         { mark: "basic", title: "基础测试页", desc: "通过基础能力测试，评估模型的核心能力表现。", href: "basic.html", cta: "开始测试 →" },
         { mark: "candy", title: "糖果测试页", desc: "使用更具迷惑性的测试题目，识别模型是否出现降智。", href: "candy.html", cta: "开始测试 →" },
         { mark: "pelican", title: "鹈鹕骑车测试页", desc: "让模型写出一只鹈鹕骑自行车的 HTML，打开就能看到画面。", href: "pelican.html", cta: "开始测试 →" },
@@ -701,6 +703,14 @@ const Pages = {
     const model = snap.modelName ? `模型版本：${UI.esc(snap.modelName)}` : "模型版本：尚未检测";
     return UI.shell("detect", `
       ${hero({ icon: "shield", title: "模型检测页", sub: "汇总各项测试结果，评估模型是否存在降智问题。", art: "assets/hero-detect.png" })}
+      <a class="relay-entry" href="trace.html">
+        <div>
+          <div class="relay-kicker">不用复制题目</div>
+          <h3>模型指纹检测</h3>
+          <p>用当前接口直接答三道数字题，再对照指纹库看更像哪一个 GPT 或 Claude。适合在怀疑中转站掉包时先看一眼。</p>
+        </div>
+        <span class="btn btn-primary">开始检测 →</span>
+      </a>
       <section class="panel summary">
         <div class="summary-main">
           ${UI.ring(snap.score)}
@@ -796,7 +806,7 @@ const Pages = {
       <div class="page-head">
         <div class="crumb"><a href="basic.html">基础测试页</a> / 中转站测试</div>
         <h1>中转站测试</h1>
-        <p>测的是中转站有没有把请求改掉、把模型换成更便宜的，或把协议能力弄丢。模型会不会做题，看上面的四项能力测试。</p>
+        <p>测的是中转站有没有把请求改掉、把模型换成更便宜的，或把协议能力弄丢。模型会不会做题，看上面的四项能力测试。想看回答更像哪一个 GPT 或 Claude，用<a href="trace.html">模型指纹检测</a>。</p>
       </div>
       <article class="panel">
         <div class="panel-bd">
@@ -1375,6 +1385,28 @@ const Pages = {
         ${promptHot()}
       </div>`);
   },
+  trace() {
+    ensureSelect("trace-model", defaultModelId());
+    const saved = typeof Trace === "undefined" ? null : Trace.remembered();
+    return UI.shell("trace", `
+      <div class="page-head">
+        <div class="crumb"><a href="index.html">首页</a> / 指纹检测</div>
+        <h1>模型指纹检测</h1>
+        <p>用已经保存的接口，自动向当前模型发送三道数字题，再在这台浏览器里对照指纹库。不用把题目复制出去，也不用把回答贴回来。</p>
+      </div>
+      <article class="panel">
+        <div class="panel-bd">
+          <div class="form-row" style="grid-template-columns: 1.4fr auto">
+            ${UI.field("选择模型", UI.select("trace-model", Form.get("trace-model"), modelOptions()))}
+            <div class="field"><span>&nbsp;</span><button class="btn btn-primary" type="button" data-action="start-trace">${UI.icon("play")} 开始检测</button></div>
+          </div>
+          ${apiHint()}
+          <p class="note">指纹库目前有 18 个模型，分别是 GPT-5.4、GPT-5.5、GPT-5.6 的 luna / terra / sol、GPT-6 的 astra / sol / luna，以及 Claude Haiku、Sonnet、Opus 的一批版本。库外模型也会被归到最像的一项。请求不额外设置温度，也不加系统提示词。</p>
+        </div>
+      </article>
+      <div id="trace-live"></div>
+      <div id="trace-result">${saved ? Trace.resultHtml(saved) : ""}</div>`);
+  },
   mount: {
     home() { if (typeof Official !== "undefined") Official.load(false); },
     detect() {
@@ -1386,6 +1418,7 @@ const Pages = {
     },
     status() { if (typeof Official !== "undefined") Official.load(false); },
     works() { paintWorkFrames(); },
+    trace() { if (typeof Trace !== "undefined") Trace.loadBank().catch(() => {}); },
     prompts() {
       const input = document.getElementById("prompt-q");
       if (!input) return;
@@ -1634,6 +1667,35 @@ Actions.pick = (el, event) => {
   wrap.querySelector(".select-label").innerHTML = el.innerHTML;
   wrap.querySelectorAll("button").forEach((button) => button.classList.toggle("active", button === el));
   wrap.classList.remove("open");
+};
+Actions["start-trace"] = async (el) => {
+  if (!ensureApi()) return;
+  if (typeof Trace === "undefined") { UI.toast("指纹脚本没有加载"); return; }
+  const live = document.getElementById("trace-live");
+  const result = document.getElementById("trace-result");
+  el.disabled = true;
+  const old = el.innerHTML;
+  el.textContent = "检测中…";
+  const paint = (progress) => {
+    if (!live) return;
+    const width = Math.round((progress.valid / progress.target) * 100);
+    live.innerHTML = `<article class="panel mt16"><div class="panel-bd">
+      <p class="think"><span class="dots">正在请求第 ${progress.index + 1} 题</span></p>
+      <div class="progress"><span style="width:${width}%"></span></div>
+      <p class="note">有效回答 ${progress.valid}/${progress.target}。数字不够会自动再出一题，最多 6 次。</p>
+    </div></article>`;
+  };
+  try {
+    const payload = await Trace.run(Form.get("trace-model", defaultModelId()), paint);
+    if (live) live.innerHTML = "";
+    if (result) result.innerHTML = Trace.resultHtml(payload);
+    UI.toast("指纹检测完成");
+  } catch (error) {
+    if (live) live.innerHTML = `<article class="panel mt16"><div class="panel-bd"><p class="note">${UI.esc(error && error.message ? error.message : "检测失败")}</p></div></article>`;
+  } finally {
+    el.disabled = false;
+    el.innerHTML = old;
+  }
 };
 Actions["start-basic-probe"] = async (el) => {
   if (!ensureApi()) return;
