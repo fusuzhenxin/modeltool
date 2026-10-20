@@ -765,11 +765,14 @@ class Handler(SimpleHTTPRequestHandler):
         key = str(data.get("apiKey") or "")
         payload = data.get("payload") or {}
         anthropic = "anthropic.com" in url or url.endswith("/messages")
+        streaming = bool(payload.get("stream"))
         headers = {
             "Content-Type": "application/json",
-            "Accept": "*/*",
+            "Accept": "text/event-stream" if streaming else "*/*",
             "User-Agent": BROWSER_UA,
         }
+        if streaming:
+            headers["X-Accel-Buffering"] = "no"
         if anthropic:
             headers["x-api-key"] = key
             headers["anthropic-version"] = "2023-06-01"

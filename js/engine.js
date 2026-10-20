@@ -253,18 +253,33 @@ const Api = {
     }
     return String(content);
   },
-  async complete({ baseUrl, apiKey, model, system, user }) {
+  async complete(options) {
+    try {
+      return await Api.finish(options);
+    } catch (err) {
+      if (!options.long || options.retried) throw err;
+      if (err.gateway524) return Api.finish(Object.assign({}, options, { quick: true, retried: true }));
+      if (err.reasoningRejected) return Api.finish(Object.assign({}, options, { noReasoning: true, retried: true }));
+      throw err;
+    }
+  },
+  async finish({ baseUrl, apiKey, model, system, user }) {
     if (!String(apiKey || "").trim()) throw new Error("请填写密钥");
     if (!String(model || "").trim()) throw new Error("请选择模型，或填写模型 ID");
     const url = Api.endpoint(baseUrl);
     const anthropic = Api.isAnthropic(url);
     const bare = !!arguments[0].bare;
-    const limit = bare || arguments[0].long ? 8192 : 256;
+    const long = !!arguments[0].long;
+    const quick = !!arguments[0].quick;
+    const noReasoning = !!arguments[0].noReasoning;
+    const limit = bare || long ? 8192 : 256;
+    const asked = quick ? "请直接从作品本身开始输出，不要先长时间思考。\n\n" + user : user;
     const payload = bare
       ? { model: model.trim(), max_tokens: limit, messages: [{ role: "user", content: user }] }
       : anthropic
-        ? { model: model.trim(), max_tokens: limit, temperature: arguments[0].long ? 0.4 : 0, system, messages: [{ role: "user", content: user }] }
-        : { model: model.trim(), temperature: arguments[0].long ? 0.4 : 0, max_tokens: limit, messages: [{ role: "system", content: system }, { role: "user", content: user }] };
+        ? { model: model.trim(), max_tokens: limit, temperature: long ? 0.4 : 0, system, messages: [{ role: "user", content: asked }] }
+        : { model: model.trim(), temperature: long ? 0.4 : 0, max_tokens: limit, messages: [{ role: "system", content: system }, { role: "user", content: asked }] };
+    if (!bare && !anthropic && long && !noReasoning) payload.reasoning_effort = quick ? "none" : "low";
     let response;
     try {
       response = await fetch(Api.proxyUrl(), {
@@ -280,7 +295,11 @@ const Api = {
     try { data = JSON.parse(text); } catch (err) { data = null; }
     if (!response.ok) {
       const waited = UI.gatewayWait(response.status, text);
-      if (waited) throw new Error(waited);
+      if (waited) throw Object.assign(new Error(arguments[0].retried ? "已经用更短的思考重试过一次，对方 Cloudflare 仍在约 100 秒内没有收到任何数据。需要这条接口真正按流式立刻回传，或提供不经过 Cloudflare 的地址。" : waited), { gateway524: true });
+      const messageEarly = (data && data.error && (data.error.message || data.error)) || (data && data.message) || text.slice(0, 180) || ("HTTP " + response.status);
+      if (response.status === 400 && /reasoning/i.test(String(messageEarly)) && payload.reasoning_effort) {
+        throw Object.assign(new Error(String(messageEarly)), { reasoningRejected: true });
+      }
       const stopped = UI.platformStop(response.status, text);
       if (stopped) throw new Error(stopped);
       const message = (data && data.error && (data.error.message || data.error)) || (data && data.message) || text.slice(0, 180) || ("HTTP " + response.status);
