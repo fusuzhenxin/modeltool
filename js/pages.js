@@ -1,3 +1,12 @@
+(function () {
+  if (window.__vdVisit) return;
+  var s = document.createElement("script");
+  s.src = "https://www.veridrop.cn/js/visit.js?v=20261020a";
+  s.setAttribute("data-site", "modeltool");
+  s.setAttribute("data-endpoint", "https://www.veridrop.cn/api/visit");
+  document.head.appendChild(s);
+})();
+
 const Actions = {};
 
 const App = {
