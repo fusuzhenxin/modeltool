@@ -328,6 +328,7 @@ const Trace = (() => {
     return `
       <article class="panel mt16">
         <div class="panel-hd"><h3>${UI.icon("target")} 归因结果</h3></div>
+        ${payload.shared ? `<p class="trace-note">这是一份分享结果。链接和海报里没有密钥，也没有原始回答，候选只保留前几名。</p>` : ""}
         <div class="trace-summary">
           <div><span>判断</span><strong>${UI.esc(headline)}</strong></div>
           <div><span>最接近</span><strong>${UI.esc(payload.prediction_name)} · ${percent(payload.probability)}</strong></div>
@@ -386,6 +387,7 @@ const Trace = (() => {
       errors,
       diagnostics: attempts
     });
+    payload.at = Engine.now();
     remember(payload);
     return payload;
   }

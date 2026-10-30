@@ -84,7 +84,18 @@ const Probe = {
   async run(modelId) {
     const cfg = Store.api();
     const model = (cfg.modelOverride || modelId).trim();
-    const report = { modelId: model, modelName: DATA.model(modelId).name, time: Engine.now(), items: {} };
+    const report = {
+      modelId: model,
+      modelName: DATA.model(modelId).name,
+      time: Engine.now(),
+      items: {},
+      stats: { requests: 0, elapsedMs: 0, firstMs: null, inputTokens: 0, outputTokens: 0, host: Poster.hostOf(cfg.baseUrl) }
+    };
+    const call = async (payload) => {
+      const result = await Probe.call(payload);
+      Poster.note(report, result);
+      return result;
+    };
     const put = (id, status, detail) => {
       report.items[id] = { status, detail };
       Probe.paint(id, status, detail);
@@ -92,7 +103,7 @@ const Probe = {
     };
     Probe.checks.forEach((item) => put(item.id, "run", ""));
 
-    const hello = await Probe.call({
+    const hello = await call({
       model,
       temperature: 0,
       max_tokens: 16,
@@ -112,6 +123,8 @@ const Probe = {
       report.summary = verdict.summary;
       report.findings = verdict.findings;
       Store.saveBasicReport(report);
+      Poster.live = report;
+      Poster.ensureButtons();
       const box = document.getElementById("relay-report");
       if (box) {
         box.innerHTML = Probe.reportHtml(report);
@@ -146,11 +159,11 @@ const Probe = {
     const completionTokens = usage && (usage.completion_tokens != null ? usage.completion_tokens : usage.output_tokens);
     put("usage", promptTokens != null && completionTokens != null ? "pass" : "fail", usage ? "输入 " + promptTokens + "，输出 " + completionTokens : "响应没有 usage");
 
-    const stream = await Probe.call({ model, temperature: 0, max_tokens: 16, stream: true, messages: [{ role: "user", content: "只回复 OK" }] });
+    const stream = await call({ model, temperature: 0, max_tokens: 16, stream: true, messages: [{ role: "user", content: "只回复 OK" }] });
     const streamOk = stream.status < 400 && /data:\s*\{/.test(stream.text || "") && (/\[DONE\]/.test(stream.text || "") || /delta|content_block_delta/.test(stream.text || ""));
     put("stream", stream.error ? "fail" : streamOk ? "pass" : (Probe.unsupported(stream) ? "skip" : "fail"), streamOk ? "收到 SSE 分片" : (stream.error || "没有解析到流式分片"));
 
-    const limited = await Probe.call({
+    const limited = await call({
       model,
       temperature: 0,
       max_tokens: 1,
@@ -161,7 +174,7 @@ const Probe = {
     const limitedOk = limited.status < 400 && (finish === "length" || limitedText.length <= 24);
     put("limit", limited.error ? "fail" : limitedOk ? "pass" : (Probe.unsupported(limited) ? "skip" : "fail"), limitedOk ? "max_tokens=1 已截断" + (finish ? "，finish_reason=" + finish : "") : (limited.error || "输出没有被 max_tokens 限制住"));
 
-    const memory = await Probe.call({
+    const memory = await call({
       model,
       temperature: 0,
       max_tokens: 16,
@@ -174,7 +187,7 @@ const Probe = {
     const memoryText = Probe.textOf(memory.json);
     put("memory", memory.status < 400 && memoryText.indexOf("青鸟") >= 0 ? "pass" : "fail", memoryText ? "模型回复：" + memoryText.slice(0, 40) : (memory.error || "没有复述暗号"));
 
-    const system = await Probe.call({
+    const system = await call({
       model,
       temperature: 0,
       max_tokens: 16,
@@ -186,7 +199,7 @@ const Probe = {
     const systemText = Probe.textOf(system.json).trim();
     put("system", system.status < 400 && systemText.indexOf("苹果") >= 0 ? "pass" : "fail", systemText ? "模型回复：" + systemText.slice(0, 40) : (system.error || "没有遵守系统指令"));
 
-    const tools = await Probe.call({
+    const tools = await call({
       model,
       temperature: 0,
       max_tokens: 64,
@@ -198,7 +211,7 @@ const Probe = {
     const toolName = toolCalls && toolCalls[0] && toolCalls[0].function && toolCalls[0].function.name;
     put("tools", toolName === "get_code" ? "pass" : (Probe.unsupported(tools) ? "skip" : "fail"), toolName ? "调用了 " + toolName : (tools.status >= 400 ? "接口拒绝了 tools" : "没有返回 tool_calls"));
 
-    const vision = await Probe.call({
+    const vision = await call({
       model,
       temperature: 0,
       max_tokens: 16,
@@ -210,7 +223,7 @@ const Probe = {
     const visionText = Probe.textOf(vision.json);
     put("vision", vision.status < 400 && visionText ? "pass" : (Probe.unsupported(vision) ? "skip" : "fail"), vision.status < 400 ? "已接受图片输入" + (visionText ? "：" + visionText.slice(0, 20) : "") : "接口不接受图片输入");
 
-    const reasoning = await Probe.call({
+    const reasoning = await call({
       model,
       temperature: 0,
       max_tokens: 16,
@@ -221,8 +234,8 @@ const Probe = {
 
     const pad = "请忽略这段重复前缀。".repeat(80);
     const cachePayload = { model, temperature: 0, max_tokens: 8, messages: [{ role: "system", content: pad }, { role: "user", content: "只回复 OK" }] };
-    const first = await Probe.call(cachePayload);
-    const second = await Probe.call(cachePayload);
+    const first = await call(cachePayload);
+    const second = await call(cachePayload);
     const cached = (second.json && second.json.usage && ((second.json.usage.prompt_tokens_details && second.json.usage.prompt_tokens_details.cached_tokens) || second.json.usage.cache_read_input_tokens || second.json.usage.cached_tokens)) || 0;
     if (second.status >= 400 || first.status >= 400) put("cache", "fail", "重复请求没有成功");
     else if (cached > 0) put("cache", "pass", "第二次 cached_tokens=" + cached);
@@ -240,6 +253,8 @@ const Probe = {
     report.summary = verdict.summary;
     report.findings = verdict.findings;
     Store.saveBasicReport(report);
+    Poster.live = report;
+    Poster.ensureButtons();
     const box = document.getElementById("relay-report");
     if (box) {
       box.innerHTML = Probe.reportHtml(report);
@@ -295,6 +310,9 @@ const Probe = {
     if (!report || report.score == null) return "";
     const tone = report.level === "bad" ? "bad" : report.level === "warn" ? "warn" : "ok";
     const findings = (report.findings || []).map((item) => `<div class="finding ${item.level}"><b>${UI.esc(item.title)}</b><p>${UI.esc(item.text)}</p></div>`).join("");
+    const stats = report.stats || {};
+    const cell = (label, value) => `<div class="relay-stat"><span>${label}</span><b>${UI.esc(value)}</b></div>`;
+    const shared = report.shared ? `<p class="note relay-shared">这是一份分享结果。链接和海报里没有密钥，也没有原始响应。</p>` : "";
     return `<article class="panel mt16 relay-report">
       <div class="panel-hd"><h3>掺水报告</h3><span class="badge ${tone}"><i></i>${UI.esc(report.title)}</span></div>
       <div class="relay-score">
@@ -302,9 +320,17 @@ const Probe = {
         <div>
           <h3>${UI.esc(report.title)}</h3>
           <p>${UI.esc(report.summary)}</p>
-          <p class="note">${UI.esc(report.modelName || report.modelId || "")} · ${UI.esc(report.time || "")} · 诚信分 ${report.score}/100</p>
+          <p class="note">${UI.esc(stats.host || "未记录接口")} · ${UI.esc(report.modelName || report.modelId || "")} · ${UI.esc(report.time || "")}</p>
         </div>
       </div>
+      <div class="relay-stats">
+        ${cell("首个请求", Poster.seconds(stats.firstMs))}
+        ${cell("总耗时", Poster.seconds(stats.elapsedMs))}
+        ${cell("输入 tokens", Poster.count(stats.inputTokens))}
+        ${cell("输出 tokens", Poster.count(stats.outputTokens))}
+        ${cell("检测请求数", Poster.count(stats.requests))}
+      </div>
+      ${shared}
       <div class="findings">${findings}</div>
     </article>`;
   }

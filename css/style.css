@@ -440,7 +440,29 @@ img { max-width: 100%; }
 .relay-entry h3 { margin: 4px 0 6px; font-size: 20px; }
 .relay-entry p { margin: 0; color: var(--muted); max-width: 640px; }
 .relay-entry .btn { flex: none; width: auto; padding: 0 18px; }
+.relay-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.share-actions { display: flex; gap: 8px; flex: none; padding-top: 28px; }
+.panel-hd .share-actions, .share-bar .share-actions { padding-top: 0; }
+.share-bar { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin: 0 0 12px; }
+.share-bar .hint { margin-right: auto; color: var(--faint); font-size: 13px; }
+.share-actions svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.share-actions .btn { display: inline-flex; align-items: center; gap: 6px; }
+.relay-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; padding: 0 20px 16px; }
+.relay-stat { background: #f6f8fb; border-radius: 12px; padding: 12px 8px; text-align: center; }
+.relay-stat span { display: block; color: #98a2b3; font-size: 12px; }
+.relay-stat b { display: block; margin-top: 6px; font-size: 20px; color: #1c2744; }
+.relay-shared { margin: 0 20px 12px; }
 .relay-score { display: flex; gap: 18px; align-items: center; padding: 8px 20px 16px; }
+.poster-mask { position: fixed; inset: 0; z-index: 70; background: rgba(22, 32, 58, 0.45); display: grid; place-items: center; padding: 24px; }
+.poster-dialog { position: relative; width: min(440px, 100%); max-height: calc(100vh - 48px); overflow: auto; background: #f6f7fb; border-radius: 18px; padding: 16px 16px 14px; box-shadow: 0 24px 60px rgba(20, 30, 60, 0.28); }
+.poster-dialog img { display: block; width: 100%; height: auto; border-radius: 14px; background: #fff; }
+.poster-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.poster-x { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border: 0; border-radius: 8px; background: #fff; color: #5c6b88; font-size: 20px; line-height: 1; }
+@media (max-width: 800px) {
+  .relay-head { flex-direction: column; }
+  .share-actions { padding-top: 12px; }
+  .relay-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .relay-score h3 { margin: 0 0 6px; font-size: 22px; }
 .relay-score p { margin: 0; color: #52627f; }
 .finding { padding: 12px 20px; border-top: 1px solid #f0f3f8; }

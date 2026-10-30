@@ -350,11 +350,16 @@ function artworkResult(task) {
   const active = "pelican";
   const mode = DATA.pelicanModes.find((item) => item.id === task.pelicanMode);
   const info = Engine.judgeText(task.score, "pelican");
+  const artReport = typeof Poster === "undefined" ? null : Poster.fromTask(task);
+  const artShare = shareHead(artReport);
   return UI.shell(active, `
-    <div class="page-head">
-      <div class="crumb"><a href="pelican.html">鹈鹕骑车测试页</a> / 作品</div>
-      <h1>${UI.esc(task.name)}</h1>
-      <p>${UI.modelChip(task.modelId, task.modelName)} · ${UI.esc(mode ? mode.name : "鹈鹕骑车")} · ${task.finishedAt || task.createdAt}</p>
+    <div class="${artShare[0]}" data-share>
+      <div>
+        <div class="crumb"><a href="pelican.html">鹈鹕骑车测试页</a> / 作品</div>
+        <h1>${UI.esc(task.name)}</h1>
+        <p>${UI.modelChip(task.modelId, task.modelName)} · ${UI.esc(mode ? mode.name : "鹈鹕骑车")} · ${task.finishedAt || task.createdAt}</p>
+      </div>
+      ${artShare[1]}
     </div>
     <section class="stat-row">
       <div class="stat" style="display:flex;justify-content:center">${UI.ring(task.score)}</div>
@@ -604,6 +609,52 @@ function promptHot() {
     <button type="button" class="hot-feature${query.pick === "featured" ? " active" : ""}" data-action="prompt-filter" data-key="pick" data-value="featured">${star}<span><b>精选推荐</b><small>从库里挑出的一组提示词，点开可以复制或试跑</small></span>${UI.icon("chevron")}</button>
   </aside>`;
 }
+function latestReport(pred) {
+  if (typeof Poster === "undefined") return null;
+  const task = Store.latestDone((item) => pred(item) && item.source !== "demo" && Number.isFinite(Number(item.score)));
+  return task ? Poster.fromTask(task) : null;
+}
+function placeShare(report, hint) {
+  if (!report || typeof Poster === "undefined") return "";
+  const shared = Poster.fromLocation();
+  Poster.live = shared && shared.kind === report.kind ? shared : report;
+  return `<div class="share-bar" data-share>${hint ? `<span class="hint">${hint}</span>` : ""}${Poster.buttons()}</div>`;
+}
+function sharedTaskPage(report) {
+  const meta = (DATA.kinds && DATA.kinds[report.test]) || { label: "测试" };
+  const active = meta.group === "basic" ? "basic" : (report.test || "basic");
+  const parent = active === "basic" ? "basic.html" : report.test + ".html";
+  Poster.live = report;
+  const correct = report.correct == null ? "—" : report.correct + " / " + (report.total == null ? "—" : report.total);
+  const rate = report.correct == null || !report.total ? "—" : Math.round(100 * report.correct / report.total) + "%";
+  const note = report.html
+    ? "这是一份分享结果。打开这条链接就能看到作品。海报上的二维码放不下整页 HTML，扫码只能看到分数。链接里没有密钥，也没有题目。"
+    : "这是一份分享结果。链接和海报里只有分数和结论，没有题目、作品和密钥。";
+  const art = report.html ? `<article class="panel mt16"><div class="panel-hd"><h3>${UI.icon("car")} 鹈鹕骑车</h3><div class="ops"><button class="btn btn-ghost btn-sm" type="button" data-action="open-shared-html">新标签页打开</button><button class="btn btn-primary btn-sm" type="button" data-action="download-shared-html">${UI.icon("download")} 下载 HTML</button></div></div><div class="panel-bd"><iframe id="art-frame" class="art-frame" sandbox="allow-scripts" title="鹈鹕骑车预览"></iframe></div></article>` : "";
+  return UI.shell(active, `
+    <div class="page-head relay-head" data-share>
+      <div>
+        <div class="crumb"><a href="${parent}">返回</a> / 分享结果</div>
+        <h1>${UI.esc(report.name || meta.label)}</h1>
+        <p>${UI.esc(report.modelName || report.modelId || "")} · ${UI.esc(report.time || "")}</p>
+      </div>
+      ${Poster.buttons()}
+    </div>
+    <p class="note">${note}</p>
+    <section class="stat-row">
+      <div class="stat" style="display:flex;justify-content:center">${UI.ring(report.score)}</div>
+      <div class="stat"><div class="k">判定</div><div class="v">${UI.levelBadge(report.score, report.test === "pelican" ? "pelican" : "detect")}</div></div>
+      <div class="stat"><div class="k">答对</div><div class="v">${correct}</div></div>
+      <div class="stat"><div class="k">题目正确率</div><div class="v">${rate}</div></div>
+    </section>
+    <article class="panel"><div class="panel-bd"><p class="lead">${UI.esc(report.summary || "")}</p></div></article>
+    ${art}`);
+}
+function shareHead(report) {
+  if (!report || typeof Poster === "undefined") return ["page-head", ""];
+  Poster.live = report;
+  return ["page-head relay-head", Poster.buttons()];
+}
 const Pages = {
   home() {
     const recentIcons = { detect: "shield", basic: "doc", candy: "candy", pelican: "car", relay: "target" };
@@ -664,7 +715,12 @@ const Pages = {
     ensureSelect("detect-model", defaultModelId());
     ensureSelect("detect-count", "3");
     ensureSelect("detect-candy-count", "3");
-    const snap = Store.get().snapshot;
+    const sharedDetect = typeof Poster === "undefined" ? null : Poster.fromLocation();
+    const localSnap = Store.get().snapshot;
+    const localReport = typeof Poster === "undefined" ? null : Poster.fromDetect(localSnap);
+    const report = sharedDetect && sharedDetect.kind === "detect" ? sharedDetect : localReport;
+    if (report) Poster.live = report;
+    const snap = report && report.snap ? report.snap : localSnap;
     const info = Engine.judgeText(snap.score, "detect");
     const tone = info.level === "ok" ? "ok" : info.level === "warn" ? "warn" : info.level === "bad" ? "bad" : "idle";
     const cfg = Store.api();
@@ -687,6 +743,11 @@ const Pages = {
         side = "缺任何一项都不会当成 0 分，也不会写成降智。";
       }
     }
+    if (sharedDetect && sharedDetect.kind === "detect") {
+      desc = (snap.score == null ? "分享的是一项还没汇总完的检测。" : info.desc) + " 这是一份分享结果，链接和海报里没有密钥。";
+      side = "链接里只有各项分数和结论。";
+    }
+    const shareHead = report ? `<div class="panel-hd" data-share><h3>${sharedDetect && sharedDetect.kind === "detect" ? "分享的检测结果" : "检测结果"}</h3>${Poster.buttons()}</div>` : "";
     const parts = [
       ["meta", "detect", "模型检测", "综合多项测试结果，评估模型是否存在降智问题。", "guide.html#score"],
       ["basic", "basic", "基础测试", "通过基础能力测试，评估模型的核心能力表现。", "basic.html"],
@@ -720,7 +781,9 @@ const Pages = {
         </div>
         <span class="btn btn-primary">开始检测 →</span>
       </a>
-      <section class="panel summary">
+      <section class="panel">
+        ${shareHead}
+        <div class="summary">
         <div class="summary-main">
           ${UI.ring(snap.score)}
           <div class="summary-copy">
@@ -730,6 +793,7 @@ const Pages = {
           </div>
         </div>
         <div class="summary-metrics">${metrics}</div>
+        </div>
       </section>
       <section class="grid-side">
         <article class="panel">
@@ -771,6 +835,7 @@ const Pages = {
     </tr>`).join("") || `<tr><td colspan="6"><div class="empty">还没有能力测试记录</div></td></tr>`;
     return UI.shell("basic", `
       ${hero({ title: "基础测试页", sub: "通过基础能力测试，评估模型的核心能力表现。", bar: true, art: "assets/hero-basic.png" })}
+      ${placeShare(latestReport((item) => Engine.moduleOf(item.kind) === "basic"), "分享最近一次基础测试。链接和海报里没有密钥。")}
       <a class="relay-entry" href="relay.html">
         <div>
           <div class="relay-kicker">优先测试</div>
@@ -810,12 +875,19 @@ const Pages = {
   },
   relay() {
     ensureSelect("basic-model", defaultModelId());
-    const report = Store.basicReport();
+    const shared = typeof Poster === "undefined" ? null : Poster.fromLocation();
+    const relayShared = shared && (!shared.kind || shared.kind === "relay") ? shared : null;
+    const report = relayShared || Store.basicReport();
+    if (typeof Poster !== "undefined" && report && report.score != null) Poster.live = report;
+    const share = report && report.score != null && typeof Poster !== "undefined" ? Poster.buttons() : "";
     return UI.shell("basic", `
-      <div class="page-head">
-        <div class="crumb"><a href="basic.html">基础测试页</a> / 中转站测试</div>
-        <h1>中转站测试</h1>
-        <p>测的是中转站有没有把请求改掉、把模型换成更便宜的，或把协议能力弄丢。模型会不会做题，看上面的四项能力测试。想看回答更像哪一个 GPT 或 Claude，用<a href="trace.html">模型指纹检测</a>。</p>
+      <div class="page-head relay-head">
+        <div>
+          <div class="crumb"><a href="basic.html">基础测试页</a> / 中转站测试</div>
+          <h1>中转站测试</h1>
+          <p>测的是中转站有没有把请求改掉、把模型换成更便宜的，或把协议能力弄丢。模型会不会做题，看上面的四项能力测试。想看回答更像哪一个 GPT 或 Claude，用<a href="trace.html">模型指纹检测</a>。测完可以生成分享海报和链接，里面没有密钥。</p>
+        </div>
+        ${share}
       </div>
       <article class="panel">
         <div class="panel-bd">
@@ -851,6 +923,7 @@ const Pages = {
     </tr>`).join("");
     return UI.shell("candy", `
       ${hero({ icon: "candy", title: "糖果测试页", sub: "使用更具迷惑性的测试题目，识别模型是否出现降智。", art: "assets/hero-candy.png" })}
+      ${placeShare(latestReport((item) => item.kind === "candy"), "分享最近一次糖果测试。链接和海报里没有密钥。")}
       <section class="grid-side">
         <div class="stack">
           <article class="panel">
@@ -912,6 +985,7 @@ const Pages = {
     const back = `<a class="back-btn" href="index.html" aria-label="返回首页">${UI.icon("back")}</a>`;
     return UI.shell("pelican", `
       ${hero({ back, title: "鹈鹕骑车测试页", sub: "让模型写一只正在骑自行车的鹈鹕，测完直接看画面，并下载 HTML。", bar: true, art: "assets/hero-pelican.png" })}
+      ${placeShare(latestReport((item) => item.kind === "pelican"), "分享最近一次鹈鹕骑车。有作品时，打开链接就能看到画面；海报二维码只放分数。链接里没有密钥。")}
       <section class="grid-side">
         <article class="panel">
           <div class="panel-hd"><h3>${UI.icon("doc")} 测试设置</h3></div>
@@ -1296,6 +1370,8 @@ const Pages = {
       </section>`);
   },
   result() {
+    const sharedTask = typeof Poster === "undefined" ? null : Poster.fromLocation();
+    if (sharedTask && sharedTask.kind === "task" && !qs().id) return sharedTaskPage(sharedTask);
     const task = Store.task(qs().id || "");
     if (!task) return UI.shell("", `<div class="empty"><h3>找不到这份报告</h3><a href="index.html">回首页</a></div>`);
     if (task.status === "running") {
@@ -1310,11 +1386,16 @@ const Pages = {
     const shown = items.filter((item) => App.show === "all" || (App.show === "right" ? item.correct : !item.correct));
     const list = shown.map((item, index) => questionBlock(item, items.indexOf(item), !item.correct && App.show !== "right")).join("");
     const stability = task.kind === "pelican" ? `<div class="stat"><div class="k">稳定性</div><div class="v">${task.stability}</div></div>` : "";
+    const taskReport = typeof Poster === "undefined" ? null : Poster.fromTask(task);
+    const taskShare = shareHead(taskReport);
     return UI.shell(active, `
-      <div class="page-head">
-        <div class="crumb"><a href="${parent}">返回列表</a> / 测试报告</div>
-        <h1>${UI.esc(task.name)}</h1>
-        <p>${UI.modelChip(task.modelId, task.modelName)} · ${UI.diffLabel(task.difficulty)} · ${task.finishedAt || task.createdAt}</p>
+      <div class="${taskShare[0]}" data-share>
+        <div>
+          <div class="crumb"><a href="${parent}">返回列表</a> / 测试报告</div>
+          <h1>${UI.esc(task.name)}</h1>
+          <p>${UI.modelChip(task.modelId, task.modelName)} · ${UI.diffLabel(task.difficulty)} · ${task.finishedAt || task.createdAt}</p>
+        </div>
+        ${taskShare[1]}
       </div>
       <section class="stat-row">
         <div class="stat" style="display:flex;justify-content:center">${UI.ring(task.score)}</div>
@@ -1396,12 +1477,20 @@ const Pages = {
   },
   trace() {
     ensureSelect("trace-model", defaultModelId());
-    const saved = typeof Trace === "undefined" ? null : Trace.remembered();
+    const sharedTrace = typeof Poster === "undefined" ? null : Poster.fromLocation();
+    const remembered = typeof Trace === "undefined" ? null : Trace.remembered();
+    const opened = sharedTrace && sharedTrace.kind === "trace" ? sharedTrace : null;
+    const report = opened || (remembered && typeof Poster !== "undefined" ? Poster.fromTrace(remembered) : null);
+    if (report) Poster.live = report;
+    const shown = opened ? opened.view : remembered;
     return UI.shell("trace", `
-      <div class="page-head">
-        <div class="crumb"><a href="index.html">首页</a> / 指纹检测</div>
-        <h1>模型指纹检测</h1>
-        <p>用已经保存的接口，自动向当前模型发送三道数字题，再在这台浏览器里对照指纹库。不用把题目复制出去，也不用把回答贴回来。</p>
+      <div class="page-head relay-head" data-share>
+        <div>
+          <div class="crumb"><a href="index.html">首页</a> / 指纹检测</div>
+          <h1>模型指纹检测</h1>
+          <p>用已经保存的接口，自动向当前模型发送三道数字题，再在这台浏览器里对照指纹库。不用把题目复制出去，也不用把回答贴回来。测完可以生成分享海报和链接，里面没有密钥。</p>
+        </div>
+        ${report ? Poster.buttons() : ""}
       </div>
       <article class="panel">
         <div class="panel-bd">
@@ -1414,11 +1503,17 @@ const Pages = {
         </div>
       </article>
       <div id="trace-live"></div>
-      <div id="trace-result">${saved ? Trace.resultHtml(saved) : ""}</div>`);
+      <div id="trace-result">${shown && typeof Trace !== "undefined" ? Trace.resultHtml(shown) : ""}</div>`);
   },
   mount: {
     home() { if (typeof Official !== "undefined") Official.load(false); },
+    relay() {
+      if (location.hash.indexOf("preview=1") < 0 || typeof Poster === "undefined") return;
+      const report = Poster.current();
+      if (report) Poster.open(report);
+    },
     detect() {
+      if (location.hash.indexOf("preview=1") >= 0 && typeof Poster !== "undefined" && Poster.live && Poster.live.kind === "detect") Poster.open(Poster.live);
       if (qs().suite !== "done" || App.suiteNoted) return;
       App.suiteNoted = true;
       const score = Store.get().snapshot.score;
@@ -1427,7 +1522,10 @@ const Pages = {
     },
     status() { if (typeof Official !== "undefined") Official.load(false); },
     works() { paintWorkFrames(); },
-    trace() { if (typeof Trace !== "undefined") Trace.loadBank().catch(() => {}); },
+    trace() {
+      if (typeof Trace !== "undefined") Trace.loadBank().catch(() => {});
+      if (location.hash.indexOf("preview=1") >= 0 && typeof Poster !== "undefined" && Poster.live && Poster.live.kind === "trace") Poster.open(Poster.live);
+    },
     prompts() {
       const input = document.getElementById("prompt-q");
       if (!input) return;
@@ -1443,10 +1541,12 @@ const Pages = {
       if (id) document.querySelector(id)?.scrollIntoView();
     },
     result() {
+      if (location.hash.indexOf("preview=1") >= 0 && typeof Poster !== "undefined" && Poster.live && Poster.live.kind === "task") Poster.open(Poster.live);
       const task = Store.task(qs().id || "");
       const frame = document.getElementById("art-frame");
-      if (!task || !task.html || !frame) return;
-      frame.src = URL.createObjectURL(new Blob([task.html], { type: "text/html" }));
+      const html = (task && task.html) || (typeof Poster !== "undefined" && Poster.live && Poster.live.html) || "";
+      if (!html || !frame) return;
+      frame.src = URL.createObjectURL(new Blob([html], { type: "text/html" }));
     },
     login() {
       const submit = () => Actions["login-submit"]();
@@ -1698,6 +1798,11 @@ Actions["start-trace"] = async (el) => {
     const payload = await Trace.run(Form.get("trace-model", defaultModelId()), paint);
     if (live) live.innerHTML = "";
     if (result) result.innerHTML = Trace.resultHtml(payload);
+    if (typeof Poster !== "undefined") {
+      Poster.live = Poster.fromTrace(payload);
+      if (location.hash.indexOf("r=") >= 0) history.replaceState(null, "", "trace.html");
+      Poster.ensureButtons();
+    }
     UI.toast("指纹检测完成");
   } catch (error) {
     if (live) live.innerHTML = `<article class="panel mt16"><div class="panel-bd"><p class="note">${UI.esc(error && error.message ? error.message : "检测失败")}</p></div></article>`;
@@ -1705,6 +1810,16 @@ Actions["start-trace"] = async (el) => {
     el.disabled = false;
     el.innerHTML = old;
   }
+};
+Actions["share-poster"] = () => {
+  const report = typeof Poster === "undefined" ? null : Poster.current();
+  if (!report) { UI.toast("还没有可分享的检测结果"); return; }
+  Poster.open(report);
+};
+Actions["share-link"] = () => {
+  const report = typeof Poster === "undefined" ? null : Poster.current();
+  if (!report) { UI.toast("还没有可分享的检测结果"); return; }
+  Poster.copy(report);
 };
 Actions["start-basic-probe"] = async (el) => {
   if (!ensureApi()) return;
@@ -1856,6 +1971,39 @@ Actions["download-html"] = (el) => {
   link.download = (task.name || "pelican") + ".html";
   link.click();
   URL.revokeObjectURL(link.href);
+};
+function sharedArtwork() {
+  const report = typeof Poster !== "undefined" ? Poster.live : null;
+  return report && report.html ? report : null;
+}
+function artworkFileName(report) {
+  const name = String(report.name || "pelican").replace(/[\\/:*?"<>|]/g, "").trim();
+  return (name || "pelican") + ".html";
+}
+Actions["open-shared-html"] = () => {
+  const report = sharedArtwork();
+  if (!report) { UI.toast("这次没有可打开的作品"); return; }
+  const url = URL.createObjectURL(new Blob([report.html], { type: "text/html;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+};
+Actions["download-shared-html"] = () => {
+  const report = sharedArtwork();
+  if (!report) { UI.toast("这次没有可下载的 HTML"); return; }
+  const url = URL.createObjectURL(new Blob([report.html], { type: "text/html;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = artworkFileName(report);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 Actions["retry-run"] = () => {
   App.paused = false;
