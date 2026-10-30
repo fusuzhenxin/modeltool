@@ -42,6 +42,46 @@ const LOCAL_WORKS = [
 ]);
 const WORKS = [
   {
+    id: "amagiri",
+    title: "雨切 · AMAGIRI",
+    description: "雨夜神社里的俯视刀战：斩击、弹反，攒满剑心放居合。作者说明由 GPT-6 Astra 写成单文件 Canvas。",
+    category: "互动",
+    tags: ["互动", "GPT-6 Astra", "动作"],
+    source: "mafeis",
+    sourceUrl: "https://github.com/mafeis/amagiri",
+    url: "https://mafeis.github.io/amagiri/"
+  },
+  {
+    id: "chalk-square",
+    title: "Chalk Square",
+    description: "后院粉笔格里的四方足球，下雨会把线冲掉。GPT-6 Astra 的单文件 Three.js，作者发在 X 上。",
+    category: "3D",
+    tags: ["3D", "GPT-6 Astra", "Three.js"],
+    source: "@vib3coded",
+    sourceUrl: "https://x.com/vib3coded/status/2113602050172785117",
+    url: "https://chalk-square.vercel.app/"
+  },
+  {
+    id: "within",
+    title: "入画 · WITHIN",
+    description: "十八个能走进去的三维画景，从清明上河到樱谷。作者说明用 GPT-6 Astra 迭代做成。",
+    category: "3D",
+    tags: ["3D", "GPT-6 Astra", "Three.js"],
+    source: "fatasia",
+    sourceUrl: "https://github.com/fatasia/within",
+    url: "https://fatasia.github.io/within/"
+  },
+  {
+    id: "pelican-rider",
+    title: "Pelican Rider",
+    description: "海岸小岛上的鹈鹕骑车，可切换昼夜。Codex 里用 GPT-6 Astra 反复改出的 Three.js。",
+    category: "3D",
+    tags: ["3D", "GPT-6 Astra", "鹈鹕骑车"],
+    source: "ToanKhonTech",
+    sourceUrl: "https://github.com/toankhontech/pelican-rider",
+    url: "https://toankhontech.github.io/pelican-rider/"
+  },
+  {
     id: "qq-speed",
     title: "QQ飞车",
     description: "Claude Opus 5.5 一句话做出的网页竞速：漂移、氮气和四条赛道，模型和音效都由代码生成。这是公开同人演示，不是腾讯官方游戏。",

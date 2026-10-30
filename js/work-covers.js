@@ -1,8 +1,10 @@
 const WORK_COVERS = {
+  "amagiri": "assets/work-covers/amagiri.jpg",
   "astra-100-html": "assets/work-covers/astra-100-html.jpg",
   "astra-globe": "assets/work-covers/astra-globe.jpg",
   "brandenburg-piano": "assets/work-covers/brandenburg-piano.jpg",
   "cf-ship": "assets/work-covers/cf-ship.jpg",
+  "chalk-square": "assets/work-covers/chalk-square.jpg",
   "chess-study": "assets/work-covers/chess-study.jpg",
   "claude-100-html": "assets/work-covers/claude-100-html.jpg",
   "duck-off": "assets/work-covers/duck-off.jpg",
@@ -17,6 +19,7 @@ const WORK_COVERS = {
   "navier-stokes": "assets/work-covers/navier-stokes.jpg",
   "pacman-sharks": "assets/work-covers/pacman-sharks.jpg",
   "pelican-bike-opus": "assets/work-covers/pelican-bike-opus.jpg",
+  "pelican-rider": "assets/work-covers/pelican-rider.jpg",
   "pelican-zoo": "assets/work-covers/pelican-zoo.jpg",
   "pocket-city": "assets/work-covers/pocket-city.jpg",
   "pvz-web": "assets/work-covers/pvz-web.jpg",
@@ -34,5 +37,6 @@ const WORK_COVERS = {
   "timber-atlas": "assets/work-covers/timber-atlas.jpg",
   "top-tennis": "assets/work-covers/top-tennis.jpg",
   "westward": "assets/work-covers/westward.jpg",
+  "within": "assets/work-covers/within.jpg",
   "wonderforge": "assets/work-covers/wonderforge.jpg",
 };

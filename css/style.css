@@ -297,15 +297,16 @@ img { max-width: 100%; }
 .feature h3 { margin: 16px 0 8px; font-size: 16px; font-weight: 800; }
 .feature p { margin: 0 0 18px; color: var(--muted); font-size: 13px; line-height: 1.75; }
 .feature .btn { margin-top: auto; }
-.feature .ico-box .mark { width: 22px; height: 22px; display: block; }
-.feature .ico-box.tone-detect { background: #eef2ff; color: #3b5ffa; }
-.feature .ico-box.tone-basic { background: #e7f8f0; color: #1faf73; }
-.feature .ico-box.tone-candy { background: #fff4e8; color: #e07a2f; }
-.feature .ico-box.tone-pelican { background: #f3efff; color: #7c5cff; }
-.feature .ico-box.tone-prompts { background: #ffeff4; color: #e85d88; }
-.feature .ico-box.tone-works { background: #e7f6fb; color: #1496b8; }
-.feature .ico-box.tone-relay { background: #fff6e8; color: #d4922a; }
-.feature .ico-box.tone-target { background: #eef2ff; color: #3b5ffa; }
+.feature .ico-box { width: 32px; height: 32px; background: transparent; border: 0; border-radius: 0; }
+.feature .ico-box .mark { width: 28px; height: 28px; display: block; }
+.feature .ico-box.tone-detect { background: transparent; color: #3b5ffa; }
+.feature .ico-box.tone-basic { background: transparent; color: #1faf73; }
+.feature .ico-box.tone-candy { background: transparent; color: #e07a2f; }
+.feature .ico-box.tone-pelican { background: transparent; color: #7c5cff; }
+.feature .ico-box.tone-prompts { background: transparent; color: #e85d88; }
+.feature .ico-box.tone-works { background: transparent; color: #1496b8; }
+.feature .ico-box.tone-relay { background: transparent; color: #d4922a; }
+.feature .ico-box.tone-target { background: transparent; color: #3b5ffa; }
 
 .ico-box {
   width: 44px;
@@ -543,6 +544,23 @@ table.grid tbody tr:hover td { background: #fcfdff; }
   border: 1px solid #f0f3fa;
 }
 .metric .ico-box { margin: 0 auto 8px; }
+.ico-box.line-ico,
+.ico-box.line-ico.tone-detect,
+.ico-box.line-ico.tone-basic,
+.ico-box.line-ico.tone-candy,
+.ico-box.line-ico.tone-pelican {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+.ico-box.line-ico.sm { width: 28px; height: 28px; }
+.ico-box.line-ico .mark { width: 26px; height: 26px; display: block; }
+.ico-box.line-ico.tone-detect { color: #3b5ffa; }
+.ico-box.line-ico.tone-basic { color: #1faf73; }
+.ico-box.line-ico.tone-candy { color: #e07a2f; }
+.ico-box.line-ico.tone-pelican { color: #7c5cff; }
 .metric .name { color: #607089; font-size: 13px; }
 .metric .score { color: var(--blue); font-size: 26px; font-weight: 800; line-height: 1.2; margin: 4px 0 8px; }
 .metric .score span { font-size: 14px; font-weight: 700; }
@@ -1205,14 +1223,15 @@ pre.code {
 }
 .prompt-card:hover { border-color: #d7e3ff; box-shadow: 0 8px 20px rgba(59, 95, 250, 0.06); }
 .prompt-ico {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 0;
   display: grid;
   place-items: center;
-  background: var(--tone-bg);
+  background: transparent;
   color: var(--tone);
 }
+.prompt-ico .ico { width: 22px; height: 22px; }
 .prompt-body h2 { margin: 0; font-size: 16px; line-height: 1.4; }
 .prompt-body p {
   margin: 6px 0 0;

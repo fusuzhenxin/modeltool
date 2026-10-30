@@ -233,14 +233,14 @@ const QUESTION_COUNTS = [3, 5, 10, 20, 30].map((n) => ({ value: String(n), label
 function featureMark(name) {
   const pen = "fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"";
   const marks = {
-    detect: `<path fill="currentColor" d="M12 2.6 19.2 5.6v5.4c0 4.2-2.8 7.2-7.2 8.8-4.4-1.6-7.2-4.6-7.2-8.8V5.6L12 2.6z"/><path ${pen} stroke="#fff" d="m8.6 11.7 2.3 2.3 4.6-4.8"/>`,
-    basic: `<path fill="currentColor" d="M7 3.2h7.2L18.4 7.4V20a1.4 1.4 0 0 1-1.4 1.4H7A1.4 1.4 0 0 1 5.6 20V4.6A1.4 1.4 0 0 1 7 3.2z"/><path ${pen} stroke="#fff" d="M8.4 11.2h6.4M8.4 14.4h6.4M8.4 17.4h4"/>`,
-    candy: `<path fill="currentColor" d="M9.2 8.6c-2.2.5-3.4 2.4-2.6 4.3.7 1.6 2.6 2.4 4.4 1.8 1.8-.6 2.9-2.4 2.4-4.2-.4-1.6-1.9-2.6-3.5-2.4-.2 0-.5.2-.7.5z"/><path fill="currentColor" d="M8.6 9.2 4.8 7.4c-.5 1.3.1 2.4 1.1 3.1L4.6 14.2c1 .4 2.2.1 2.9-.7l1.1-1.2-1-1.6c.4-.6.7-1 .9-1.5zM15.4 9.4l3.6-2c.6 1.2 0 2.4-.9 3.2l1.3 3.6c-1 .5-2.3.2-3-.6l-1.2-1.1.9-1.7c-.3-.5-.6-.9-.7-1.4z"/>`,
-    pelican: `<circle cx="6.4" cy="17.6" r="2.35" ${pen}/><circle cx="17.3" cy="17.6" r="2.35" ${pen}/><path ${pen} d="M6.4 17.6 10.4 12h4.2l2.7 5.6M10.4 12 12.6 17.6"/><path fill="currentColor" d="M13.1 11.2c.3-1.7 1.5-2.9 3-3.2-.7 1.3-.4 2.3.6 2.9 1.1.5 1.7 1.5 1.4 2.6-.4 1.5-1.9 2.3-3.5 1.9-1-.2-1.8-.9-2.1-1.8.2-.8.4-1.6.6-2.4z"/><path fill="currentColor" d="M16.6 8.2c1.6-.1 2.9.6 3.1 1.4-1 .2-1.9-.1-2.5-.7-.2-.3-.4-.6-.6-.7z"/>`,
-    prompts: `<rect x="4.2" y="6.4" width="11.2" height="13.2" rx="2" fill="currentColor" opacity=".35"/><rect x="7.4" y="3.6" width="12.2" height="14.2" rx="2.2" fill="currentColor"/><path ${pen} stroke="#fff" d="M10.2 8.2h6.2M10.2 11.2h6.2M10.2 14.2h4"/>`,
-    works: `<rect x="3.4" y="4.2" width="17.2" height="15.6" rx="2.2" fill="currentColor"/><path ${pen} stroke="#fff" d="M3.4 8.2h17.2M8.6 12.4 6.4 14.6l2.2 2.2M15.4 12.4l2.2 2.2-2.2 2.2"/>`,
-    relay: `<circle cx="6.2" cy="12" r="2.3" fill="currentColor"/><circle cx="17.8" cy="6.6" r="2.3" fill="currentColor"/><circle cx="17.8" cy="17.4" r="2.3" fill="currentColor"/><path ${pen} d="M8.3 11.2 15.6 7.4M8.4 12.8l7.2 3.8"/>`,
-    target: `<circle cx="12" cy="12" r="7" ${pen}/><circle cx="12" cy="12" r="3" ${pen}/><path ${pen} d="M12 3.2v2.2M12 18.6v2.2M3.2 12h2.2M18.6 12h2.2"/>`
+    detect: `<path ${pen} d="M12 3.2 18.6 5.8v5.2c0 3.8-2.6 6.4-6.6 8-4-1.6-6.6-4.2-6.6-8V5.8L12 3.2z"/><path ${pen} d="m8.7 11.7 2.2 2.2 4.3-4.5"/>`,
+    basic: `<path ${pen} d="M7.2 4.2h6.2L17.8 8.6V19.6a1.2 1.2 0 0 1-1.2 1.2H7.2A1.2 1.2 0 0 1 6 19.6V5.4a1.2 1.2 0 0 1 1.2-1.2z"/><path ${pen} d="M13.2 4.4V8.6h4.4M8.6 12.4h5.6M8.6 15.4h5.6M8.6 18.2h3"/>`,
+    candy: `<path ${pen} d="M8.1 12 4.2 9.5v5L8.1 12z"/><rect x="7.8" y="8.6" width="8.4" height="6.8" rx="3.4" ${pen}/><path ${pen} d="M15.9 12 19.8 9.5v5L15.9 12z"/>`,
+    pelican: `<circle cx="7.2" cy="17.2" r="2.25" ${pen}/><circle cx="16.8" cy="17.2" r="2.25" ${pen}/><path ${pen} d="M7.2 17.2 11 11.4h3.4L16.8 17.2M11 11.4 12.8 17.2"/><circle cx="14.8" cy="9.4" r="1.35" ${pen}/><path ${pen} d="M16.1 9.4h2.2"/>`,
+    prompts: `<rect x="4.4" y="7" width="9.6" height="11.6" rx="1.6" ${pen}/><rect x="8.4" y="3.6" width="11" height="12.6" rx="1.7" ${pen}/><path ${pen} d="M11.2 8h5.2M11.2 10.8h5.2M11.2 13.6h3"/>`,
+    works: `<path ${pen} d="M6.6 3.6h6.4l4.6 4.6v11.2a1.2 1.2 0 0 1-1.2 1.2H6.6a1.2 1.2 0 0 1-1.2-1.2V4.8a1.2 1.2 0 0 1 1.2-1.2z"/><path ${pen} d="M12.8 3.8V8.2h4.6M9.2 13.4 7.1 15.5l2.1 2.1M14.6 13.4l2.1 2.1-2.1 2.1"/>`,
+    relay: `<circle cx="12" cy="12" r="7.2" ${pen}/><path ${pen} d="m12 5.6 1.8 5.2L12 9.6 10.2 10.8Z"/><path ${pen} d="m12 18.4-1.8-5.2L12 14.4l1.8-1.2Z"/>`,
+    target: `<g ${pen}><path d="M12 16.4c.1-1.8-.2-3-.2-4.2"/><path d="M9.7 15.6c-.3-1.8.4-3.4 1.5-4.4"/><path d="M14.3 15.6c.3-1.8-.4-3.4-1.5-4.4"/><path d="M8.2 13.8c-.4-2 .5-3.8 2-5"/><path d="M15.8 13.8c.4-2-.5-3.8-2-5"/><path d="M10.6 7.8c.4-.3.9-.5 1.4-.5s1 .2 1.4.5"/></g>`
   };
   const body = marks[name] || marks.detect;
   return `<svg class="mark" viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
@@ -688,20 +688,20 @@ const Pages = {
       }
     }
     const parts = [
-      ["meta", "shield", "模型检测", "综合多项测试结果，评估模型是否存在降智问题。", "guide.html#score"],
-      ["basic", "doc", "基础测试", "通过基础能力测试，评估模型的核心能力表现。", "basic.html"],
+      ["meta", "detect", "模型检测", "综合多项测试结果，评估模型是否存在降智问题。", "guide.html#score"],
+      ["basic", "basic", "基础测试", "通过基础能力测试，评估模型的核心能力表现。", "basic.html"],
       ["candy", "candy", "糖果测试", "使用更具迷惑性的测试题目，识别模型是否出现降智。", "candy.html"],
-      ["pelican", "car", "鹈鹕骑车", "让模型生成鹈鹕骑自行车的 HTML，并直接预览画面。", "pelican.html"]
+      ["pelican", "pelican", "鹈鹕骑车", "让模型生成鹈鹕骑自行车的 HTML，并直接预览画面。", "pelican.html"]
     ];
-    const metrics = parts.map(([key, icon, name]) => {
+    const metrics = parts.map(([key, mark, name]) => {
       const part = snap.parts[key];
       const score = part.score == null ? "—" : part.score;
-      return `<article class="metric"><span class="ico-box">${UI.icon(icon)}</span><div class="name">${name}</div><div class="score">${score}<span>分</span></div>${UI.levelBadge(part.score, "detect")}</article>`;
+      return `<article class="metric"><span class="ico-box line-ico tone-${mark}">${featureMark(mark)}</span><div class="name">${name}</div><div class="score">${score}<span>分</span></div>${UI.levelBadge(part.score, "detect")}</article>`;
     }).join("");
-    const detail = parts.map(([key, icon, name, text, href]) => {
+    const detail = parts.map(([key, mark, name, text, href]) => {
       const part = snap.parts[key];
       return `<tr>
-        <td><div class="td-title"><span class="ico-box sm">${UI.icon(icon)}</span><span>${name}<span class="td-sub">${text}</span></span></div></td>
+        <td><div class="td-title"><span class="ico-box line-ico sm tone-${mark}">${featureMark(mark)}</span><span>${name}<span class="td-sub">${text}</span></span></div></td>
         <td><b>${part.score == null ? "—" : part.score + " /100"}</b></td>
         <td>${UI.levelBadge(part.score, "detect")}</td>
         <td>${part.time || "—"}</td>
