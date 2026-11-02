@@ -850,6 +850,95 @@ table.grid tbody tr:hover td { background: #fcfdff; }
 .page-head h1 { margin: 0; font-size: 28px; font-weight: 800; }
 .page-head p { margin: 8px 0 0; color: var(--muted); }
 
+.coop { width: min(1040px, 100%); margin: 28px auto 12px; }
+.coop-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(300px, 0.92fr);
+  gap: 18px;
+  align-items: stretch;
+}
+.coop-intro {
+  background: #fff;
+  border: 1px solid #e8eef7;
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  padding: 36px 36px 32px;
+}
+.coop-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 700;
+}
+.coop-kicker i { width: 16px; height: 2px; border-radius: 2px; background: currentColor; }
+.coop-intro h1 { margin: 0; font-size: 36px; font-weight: 800; letter-spacing: 0.2px; }
+.coop-intro p { margin: 16px 0 0; max-width: 36em; color: #4d5d7c; font-size: 14px; line-height: 1.85; }
+.coop-stage {
+  background: #f3f5f8;
+  border-radius: 22px;
+  padding: 16px;
+  display: flex;
+}
+.coop-card {
+  width: 100%;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 10px 28px rgba(36, 50, 80, 0.06);
+  padding: 18px 18px 8px;
+}
+.coop-card-hd { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.coop-card-hd h2 { margin: 0; font-size: 22px; line-height: 1.25; font-weight: 800; }
+.coop-card-hd span { color: var(--muted); font-size: 13px; padding-top: 2px; }
+.coop-card ul { list-style: none; margin: 10px 0 0; padding: 0; }
+.coop-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+.coop-ico {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #e6ebf3;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: #5c6b88;
+}
+.coop-ico .ico { width: 16px; height: 16px; }
+.coop-id { min-width: 0; }
+.coop-id small { display: block; color: var(--muted); font-size: 12px; line-height: 1.3; }
+.coop-id strong { display: block; font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+.coop-card .btn { font-weight: 650; }
+.coop-card .btn .ico { width: 14px; height: 14px; }
+.btn-quiet { background: #f3f5f8; color: #5c6b88; border-color: transparent; }
+.btn-quiet:hover { background: #e7ebf1; }
+.coop-ways { margin-top: 52px; }
+.coop-ways h2 { margin: 0 0 6px; font-size: 28px; font-weight: 800; }
+.coop-board {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  column-gap: 8px;
+}
+.coop-side { margin: 0; padding-top: 20px; color: var(--muted); font-size: 13px; }
+.coop-board ol { list-style: none; margin: 0; padding: 0; border-top: 1px solid #e7edf6; }
+.coop-board li {
+  display: grid;
+  grid-template-columns: 72px 108px minmax(0, 1fr);
+  gap: 8px 18px;
+  align-items: baseline;
+  padding: 18px 0;
+  border-bottom: 1px solid #e7edf6;
+}
+.coop-board li span { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.coop-board li strong { font-size: 15px; font-weight: 750; }
+.coop-board li p { margin: 0; color: #4d5d7c; font-size: 14px; line-height: 1.7; }
+
 .filters { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 12px; }
 .search, .text-input, .select-native {
   height: 40px;
@@ -1456,6 +1545,15 @@ pre.code {
   .hero-promo-foot { display: grid; grid-template-columns: minmax(0, 1fr); }
   .hero-promo-go { justify-self: start; margin-left: 0; }
   .hero h1 { font-size: 26px; }
+  .coop { margin-top: 16px; }
+  .coop-hero { grid-template-columns: 1fr; }
+  .coop-intro { padding: 24px 18px; }
+  .coop-intro h1 { font-size: 30px; }
+  .coop-ways h2 { font-size: 24px; }
+  .coop-board { grid-template-columns: 1fr; }
+  .coop-side { padding: 12px 0 0; }
+  .coop-board li { grid-template-columns: 68px minmax(0, 1fr); }
+  .coop-board li p { grid-column: 1 / -1; }
   .grid-4, .work-grid, .summary-metrics, .form-row, .compare-grid, .overview, .footer-grid { grid-template-columns: 1fr; }
   .works-bar, .works-tools { flex-direction: column; align-items: stretch; }
   .search-wrap .search, .works-tools .select-native { width: 100%; }
@@ -1472,6 +1570,8 @@ pre.code {
   }
 }
 @media (max-width: 520px) {
+  .coop-row { grid-template-columns: 36px minmax(0, 1fr); }
+  .coop-row .btn { grid-column: 2; justify-self: start; }
   .topbar-inner { gap: 6px; }
   .account { gap: 4px; }
   .marks { gap: 4px; }

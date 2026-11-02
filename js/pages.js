@@ -1205,6 +1205,48 @@ const Pages = {
         </article>
       </section>`);
   },
+  cooperate() {
+    const arrow = UI.icon("arrow");
+    const row = (icon, label, value, action) => `<li class="coop-row">
+      <span class="coop-ico">${UI.icon(icon)}</span>
+      <span class="coop-id"><small>${label}</small><strong>${value}</strong></span>
+      ${action}
+    </li>`;
+    return UI.shell("", `
+      <div class="coop">
+        <section class="coop-hero">
+          <div class="coop-intro">
+            <p class="coop-kicker"><i></i>合作与联系</p>
+            <h1>商务合作</h1>
+            <p>广告投放、内容合作、中转站收录，以及其他与大模型服务相关的合作。请通过以下任一方式联系我们，并附上品牌或站点名称、合作方向和相关链接。</p>
+          </div>
+          <div class="coop-stage">
+            <aside class="coop-card" aria-label="联系方式">
+              <div class="coop-card-hd">
+                <h2>联系<br>方式</h2>
+                <span>任选一种即可</span>
+              </div>
+              <ul>
+                ${row("mail", "邮箱", "2201219073@qq.com", `<a class="btn btn-primary btn-pill btn-sm" href="mailto:2201219073@qq.com">发邮件 ${arrow}</a>`)}
+                ${row("chat", "QQ", "2201219073", `<button type="button" class="btn btn-quiet btn-pill btn-sm" data-action="copy-text" data-copy="2201219073">复制</button>`)}
+                ${row("send", "Telegram", "@asAnnie1", `<a class="btn btn-primary btn-pill btn-sm" href="https://t.me/asAnnie1" target="_blank" rel="noopener noreferrer">打开 ${arrow}</a>`)}
+              </ul>
+            </aside>
+          </div>
+        </section>
+        <section class="coop-ways" aria-labelledby="coop-ways-title">
+          <h2 id="coop-ways-title">可以怎么合作</h2>
+          <div class="coop-board">
+            <p class="coop-side">合作方式</p>
+            <ol>
+              <li><span>01 / 03</span><strong>广告投放</strong><p>面向正在比较中转站、模型和 API 服务的用户进行品牌展示。广告内容会标明赞助。</p></li>
+              <li><span>02 / 03</span><strong>站点收录</strong><p>提交你的中转站，补充模型、价格和支付方式。收录不收取影响排名的费用。</p></li>
+              <li><span>03 / 03</span><strong>数据与内容</strong><p>方法说明、榜单摘录和模型监测，适合写进文档或社区帖。请保留出处。</p></li>
+            </ol>
+          </div>
+        </section>
+      </div>`);
+  },
   tasks() {
     const query = qs();
     const kind = query.kind || "";
@@ -2023,6 +2065,28 @@ Actions["retry-run"] = () => {
   App.runError = "";
   App.rush = false;
   if (!App.busy && App.liveLoop) App.liveLoop();
+};
+Actions["copy-text"] = async (el) => {
+  const text = el.dataset.copy || "";
+  if (!text) return;
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(text);
+    ok = true;
+  } catch (err) {
+    try {
+      const area = document.createElement("textarea");
+      area.value = text;
+      area.setAttribute("readonly", "");
+      document.body.appendChild(area);
+      area.select();
+      ok = document.execCommand("copy");
+      area.remove();
+    } catch (err2) {
+      ok = false;
+    }
+  }
+  UI.toast(ok ? "已复制" : "复制失败，请手动选择");
 };
 Actions["show-qq"] = () => {
   document.querySelector(".modal-mask")?.remove();
