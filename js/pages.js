@@ -221,8 +221,21 @@ function ensureSelect(id, value) {
 function checks(lines) {
   return `<ul class="checks">${lines.map((line) => `<li><span class="tick">${UI.icon("check")}</span><span>${line}</span></li>`).join("")}</ul>`;
 }
+function veridropCard() {
+  return `<a class="hero-promo" href="https://www.veridrop.cn" target="_blank" rel="noopener noreferrer">
+    <img class="hero-promo-logo" src="assets/veridrop-icon.png" alt="">
+    <span class="hero-promo-copy">
+      <strong>维渡 AI</strong>
+      <em>AI 中转站排行 · 实测与价格对比</em>
+      <span class="hero-promo-foot"><span class="hero-promo-pills"><span>3436 家站点</span><span>4672 模型</span><span>在线实测</span></span><span class="hero-promo-go">veridrop.cn</span></span>
+    </span>
+  </a>`;
+}
 function hero(opts) {
-  const art = opts.art ? `<div class="hero-art"><img src="${opts.art}" alt=""></div>` : "";
+  const img = opts.art ? `<img src="${opts.art}" alt="${UI.esc(opts.artAlt || "")}">` : "";
+  const art = opts.promo ? veridropCard() : (img && opts.artHref
+    ? `<a class="hero-art" href="${UI.esc(opts.artHref)}" target="_blank" rel="noopener noreferrer">${img}</a>`
+    : (img ? `<div class="hero-art">${img}</div>` : ""));
   const icon = opts.icon ? `<span class="ico-box">${UI.icon(opts.icon)}</span>` : "";
   const head = (opts.icon || opts.back)
     ? `<div class="hero-title">${opts.back || ""}${icon}<h1>${opts.title}</h1></div>`
@@ -664,7 +677,7 @@ const Pages = {
       <time>${UI.esc(row.time || "")}</time>
     </a>`).join("") || `<div class="empty">还没有使用记录</div>`;
     return UI.shell("home", `
-      ${hero({ title: "大模型降智检测", sub: "评测 GPT、Claude、DeepSeek、Kimi 等模型的能力、迷惑题和绘图表现", bar: true, art: "assets/hero-home.png" })}
+      ${hero({ title: "大模型降智检测", sub: "评测 GPT、Claude、DeepSeek、Kimi 等模型的能力、迷惑题和绘图表现", bar: true, promo: true })}
       <section class="official-bar" id="official-bar" aria-label="官方模型实况">
         <strong class="official-label">官方模型实况</strong>
         <span class="official-sync" id="official-sync">正在同步官方状态…</span>
