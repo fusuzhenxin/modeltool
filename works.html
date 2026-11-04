@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HTML作品列表 - 在线小游戏和鹈鹕骑车 | 大模型降智检测</title>
   <meta name="description" content="公开 HTML 作品：静态 SVG、2D、3D 和在线小游戏。本站文件可下载，外部页面在原网站打开。大家看到的是同一份列表。">

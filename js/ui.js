@@ -68,7 +68,9 @@ const UI = {
       logout: '<path d="M10 7V5.5A1.5 1.5 0 0 1 11.5 4h6A1.5 1.5 0 0 1 19 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 10 18.5V17"/><path d="M4 12h10"/><path d="m11 9 3 3-3 3"/>',
       out: '<path d="M14 5h5v5"/><path d="M19 5 10 14"/><path d="M16 13.5V19H5V8h5.5"/>',
       close: '<path d="m7 7 10 10M17 7 7 17"/>',
-      menu: '<path d="M5 7h14M5 12h14M5 17h14"/>'
+      menu: '<path d="M5 7h14M5 12h14M5 17h14"/>',
+      moon: '<path d="M16.2 14.8A6.4 6.4 0 0 1 9.4 6.6 6.6 6.6 0 1 0 16.2 14.8z"/>',
+      sun: '<circle cx="12" cy="12" r="3.4"/><path d="M12 3.2v2.1M12 18.7v2.1M3.2 12h2.1M18.7 12h2.1M5.8 5.8l1.5 1.5M16.7 16.7l1.5 1.5M18.2 5.8l-1.5 1.5M7.3 16.7 5.8 18.2"/>'
     };
     return `<svg class="ico" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || ""}</svg>`;
   },
@@ -116,7 +118,7 @@ const UI = {
       : "";
     return `<div class="ring" aria-label="得分 ${shown}">
       <svg viewBox="0 0 120 120">
-        <circle cx="60" cy="60" r="${r}" stroke="#e7eef8" stroke-width="10" fill="none"></circle>
+        <circle cx="60" cy="60" r="${r}" stroke="var(--line)" stroke-width="10" fill="none"></circle>
         ${arc}
       </svg>
       <div class="num">${shown}<small>/100</small></div>
@@ -157,7 +159,10 @@ const UI = {
     if (cfg.baseUrl && cfg.apiKey) {
       try { apiLabel = new URL(cfg.baseUrl).host; } catch (err) { apiLabel = "已配置接口"; }
     }
+    const dark = document.documentElement.getAttribute("data-theme") === "dark";
+    const themeLabel = dark ? "切换浅色" : "切换深色";
     const marks = `<div class="marks">
+      <button class="mark-btn" type="button" data-action="theme" aria-label="${themeLabel}" title="${themeLabel}">${UI.icon(dark ? "sun" : "moon")}</button>
       <button class="mark-btn" type="button" data-action="show-qq" aria-label="QQ群" title="QQ群">
         <svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M21.395 15.035a40 40 0 0 0-.803-2.264l-1.079-2.695c.001-.032.014-.562.014-.836C19.526 4.632 17.351 0 12 0S4.474 4.632 4.474 9.241c0 .274.013.804.014.836l-1.08 2.695a39 39 0 0 0-.802 2.264c-1.021 3.283-.69 4.643-.438 4.673.54.065 2.103-2.472 2.103-2.472 0 1.469.756 3.387 2.394 4.771-.612.188-1.363.479-1.845.835-.434.32-.379.646-.301.778.343.578 5.883.369 7.482.189 1.6.18 7.14.389 7.483-.189.078-.132.132-.458-.301-.778-.483-.356-1.233-.646-1.846-.836 1.637-1.384 2.393-3.302 2.393-4.771 0 0 1.563 2.537 2.103 2.472.251-.03.581-1.39-.438-4.673"/></svg>
       </button>

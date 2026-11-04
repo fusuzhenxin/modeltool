@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>在线查看 HTML 作品 | 大模型降智检测</title>
   <meta name="description" content="在页面里预览一件公开 HTML。本站文件可以下载，外部网站在原页面打开。预览读不到本站的接口密钥。">

@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>大模型评测说明 - 评分标准与常见问题 | 大模型降智检测</title>
   <meta name="description" content="说明大模型降智检测的评分标准、综合分算法、中转站掺水判定，以及 GPT、Claude、DeepSeek、Kimi、通义千问等模型怎么测。">

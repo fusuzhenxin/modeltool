@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>大模型测试设置 - 选择模型、题量和难度 | 大模型降智检测</title>
   <meta name="description" content="开始能力测试前选择 GPT、Claude、DeepSeek、Kimi 等模型，以及题目数量和难度。需要先填写 OpenAI 兼容接口地址和密钥。">

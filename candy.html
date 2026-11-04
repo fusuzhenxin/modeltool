@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>大模型迷惑题测试 - 识别降智和幻觉 | 大模型降智检测</title>
   <meta name="description" content="糖果测试使用改过数字和人名的熟题，识别大模型会不会被题干干扰，用来观察降智、幻觉和提示词遵循是否稳定。">

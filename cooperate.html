@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>商务合作 - 广告、收录与内容 | 大模型降智检测</title>
   <meta name="description" content="商务合作页面。广告投放、内容合作和中转站收录，可通过邮箱 2201219073@qq.com、QQ 2201219073 或 Telegram @asAnnie1 联系。">

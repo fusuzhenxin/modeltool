@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>大模型测试任务 - 能力、推理、代码与问答 | 大模型降智检测</title>
   <meta name="description" content="查看和管理大模型能力测试任务，包括阅读理解、逻辑推理、代码和知识问答。可以继续未完成的测试，或打开已完成的报告。">

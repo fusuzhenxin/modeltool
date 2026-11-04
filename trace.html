@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>模型指纹检测 - 自动出题并对照 GPT 与 Claude | 大模型降智检测</title>
   <meta name="description" content="用已保存的接口自动发送三道数字题，在浏览器里对照 ModelTrace 指纹库，判断回答更像哪一个 GPT 或 Claude。不用复制题目和回答。">

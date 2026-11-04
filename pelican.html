@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>鹈鹕骑车测试 - 大模型 SVG 与 HTML 绘图 | 大模型降智检测</title>
   <meta name="description" content="让大模型生成一只鹈鹕骑自行车的 SVG 或 HTML，在页面里直接预览和下载。用来检测绘图能力是否稳定，不是汽车问答。">

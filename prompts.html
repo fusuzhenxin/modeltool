@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>提示词库 - 测试模型质量的提示词 | 大模型降智检测</title>
   <meta name="description" content="按通用能力、推理、代码、数学、文档、多模态、糖果原题和 HTML 作品浏览提示词。可以筛选、复制，或用你自己的接口试跑。试跑不计入检测分数。">

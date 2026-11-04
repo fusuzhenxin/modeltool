@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OpenAI 官方状态 | 大模型降智检测</title>
   <meta name="description" content="首页的官方模型实况读取 OpenAI、Claude、Gemini、DeepSeek、Kimi 和 Grok 各自公开的状态页。点开一家可以看到组件和近期事件。OpenAI 这类页面按官方状态页的分组、可用率和每日色条展示。">

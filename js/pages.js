@@ -1777,6 +1777,17 @@ function dimensionBars(items) {
   }).join("") || `<div class="empty">完成后显示维度</div>`;
 }
 
+Actions.theme = (el) => {
+  const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("modeltool-theme", next); } catch (err) {}
+  const label = next === "dark" ? "切换浅色" : "切换深色";
+  el.setAttribute("aria-label", label);
+  el.setAttribute("title", label);
+  el.innerHTML = UI.icon(next === "dark" ? "sun" : "moon");
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", next === "dark" ? "#0c111b" : "#3B5FFA");
+};
 Actions.nav = () => document.getElementById("nav")?.classList.toggle("open");
 Actions["user-menu"] = (el, event) => {
   event.stopPropagation();

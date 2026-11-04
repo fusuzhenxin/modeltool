@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>无需登录 - 本地完成大模型降智检测 | 大模型降智检测</title>
   <meta name="description" content="大模型降智检测不需要注册或登录。测试记录、接口地址和密钥只保存在当前浏览器，导出的报告不含密钥。">

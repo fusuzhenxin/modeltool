@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>大模型对比 - 同一套题比较多个模型 | 大模型降智检测</title>
   <meta name="description" content="用同一套已完成的题目对比最多 4 个大模型的得分和降智判定，方便在 GPT、Claude、DeepSeek、Kimi 之间做模型对比。">

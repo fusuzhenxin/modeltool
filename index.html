@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>大模型降智检测 - GPT、Claude、DeepSeek、Kimi 评测</title>
   <meta name="description" content="免费的大模型降智检测和评测工具。用同一套能力题、迷惑题和鹈鹕骑车绘图，测试 GPT、Claude、DeepSeek、Kimi、通义千问是否降智，并检查 API 中转站有没有掺水。">

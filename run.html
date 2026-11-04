@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>大模型测试进行中 - 逐题调用接口 | 大模型降智检测</title>
   <meta name="description" content="测试进行页把题目逐题发给已配置的大模型接口，并显示作答进度。可以暂停、重试，完成后进入测试报告。">

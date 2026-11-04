@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>模型降智检测 - 能力、迷惑题与绘图综合分 | 大模型降智检测</title>
   <meta name="description" content="汇总能力、逻辑、代码、问答、糖果迷惑题和鹈鹕骑车的结果。四项基础都完成，并且和糖果、鹈鹕是同一个模型，才计算综合分。缺一项不会当成 0 分。">

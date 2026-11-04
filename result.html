@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>大模型测试报告 - 得分、错题与降智判定 | 大模型降智检测</title>
   <meta name="description" content="查看单次大模型测试报告，包含得分、降智判定、逐题对错和分维度成绩。报告只根据接口返回的真实作答生成。">

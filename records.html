@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>大模型测试记录 - 糖果题与鹈鹕骑车 | 大模型降智检测</title>
   <meta name="description" content="汇总糖果迷惑题和鹈鹕骑车绘图的测试记录，可按模型和状态筛选，并选择最多 4 条已完成记录做大模型对比。">

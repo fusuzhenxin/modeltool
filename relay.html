@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AI中转站检测 - 偷换模型与掺水报告 | 大模型降智检测</title>
   <meta name="description" content="检测 API 中转站有没有偷换模型、丢掉系统提示、截断上下文、假流式或缺少用量，并给出掺水报告。明确不支持的能力会单独标明。">

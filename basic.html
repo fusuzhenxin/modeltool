@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>大模型能力测试 - 推理、代码与知识问答 | 大模型降智检测</title>
   <meta name="description" content="用阅读理解、逻辑推理、代码和知识问答测试大模型的基础能力，支持 GPT、Claude、DeepSeek、Kimi 等模型，并单独提供 API 中转站检测。">
