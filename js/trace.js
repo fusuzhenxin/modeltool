@@ -341,7 +341,7 @@ const Trace = (() => {
           <thead><tr><th>排序</th><th>候选模型</th><th>家族</th><th>库内概率</th></tr></thead>
           <tbody>${rows}</tbody>
         </table></div>
-        <p class="trace-note">结果只供参考。系统提示词会改变数字偏好；如果中转站自己加了长提示词，偏差会变大。算法和指纹库来自 <a href="https://github.com/xqy2006/ModelTrace" target="_blank" rel="noopener noreferrer">ModelTrace</a>，库内共 18 个模型，建库时间 ${UI.esc(payload.built_at || "")}。</p>
+        <p class="trace-note">结果只供参考。系统提示词会改变数字偏好；如果中转站自己加了长提示词，偏差会变大。算法和指纹库来自 <a href="https://github.com/xqy2006/ModelTrace" target="_blank" rel="noopener noreferrer">ModelTrace</a>，库内共 19 个模型，建库时间 ${UI.esc(payload.built_at || "")}。</p>
       </article>`;
   }
 

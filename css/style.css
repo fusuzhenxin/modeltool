@@ -312,6 +312,63 @@ img { max-width: 100%; }
   font-weight: 700;
   line-height: 18px;
 }
+.page-promo {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 18px;
+}
+.page-promo .hero-promo { width: min(392px, 100%); }
+.veridrop-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 7px 10px 7px 8px;
+  background: #fff;
+  border: 1px solid #e8eef7;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  color: var(--ink);
+}
+.veridrop-banner:hover { border-color: var(--blue-line); }
+.veridrop-banner img {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: block;
+  border-radius: 8px;
+}
+.veridrop-banner strong { flex: none; font-size: 14px; line-height: 1.2; font-weight: 800; }
+.veridrop-banner-text {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.veridrop-banner-pills { display: flex; flex: none; gap: 4px; margin-left: auto; }
+.veridrop-banner-pills span {
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--blue-soft);
+  color: var(--blue-deep);
+  font-size: 12px;
+  line-height: 22px;
+  white-space: nowrap;
+}
+.veridrop-banner-go {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+}
+.veridrop-banner + .page-head { padding-top: 16px; }
+.veridrop-banner + .works-bar { margin-top: 14px; }
 
 .grid-4 {
   display: grid;
@@ -1541,6 +1598,11 @@ pre.code {
   .prompt-art { width: 100%; }
   .prompt-layout, .prompt-grid { grid-template-columns: 1fr; }
   .prompt-hero h1 { font-size: 26px; }
+  .page-promo { justify-content: stretch; }
+  .veridrop-banner { flex-wrap: wrap; row-gap: 6px; }
+  .veridrop-banner-text { flex: 1 1 80px; }
+  .veridrop-banner-pills { order: 2; flex: 1 1 100%; margin-left: 38px; }
+  .veridrop-banner-go { margin-left: auto; }
   .hero-art, .hero-promo { width: 100%; }
   .hero-promo-foot { display: grid; grid-template-columns: minmax(0, 1fr); }
   .hero-promo-go { justify-self: start; margin-left: 0; }

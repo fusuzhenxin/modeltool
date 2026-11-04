@@ -221,21 +221,8 @@ function ensureSelect(id, value) {
 function checks(lines) {
   return `<ul class="checks">${lines.map((line) => `<li><span class="tick">${UI.icon("check")}</span><span>${line}</span></li>`).join("")}</ul>`;
 }
-function veridropCard() {
-  return `<a class="hero-promo" href="https://www.veridrop.cn" target="_blank" rel="noopener noreferrer">
-    <img class="hero-promo-logo" src="assets/veridrop-icon.png" alt="">
-    <span class="hero-promo-copy">
-      <strong>维渡 AI</strong>
-      <em>AI 中转站排行 · 实测与价格对比</em>
-      <span class="hero-promo-foot"><span class="hero-promo-pills"><span>3436 家站点</span><span>4672 模型</span><span>在线实测</span></span><span class="hero-promo-go">veridrop.cn</span></span>
-    </span>
-  </a>`;
-}
 function hero(opts) {
-  const img = opts.art ? `<img src="${opts.art}" alt="${UI.esc(opts.artAlt || "")}">` : "";
-  const art = opts.promo ? veridropCard() : (img && opts.artHref
-    ? `<a class="hero-art" href="${UI.esc(opts.artHref)}" target="_blank" rel="noopener noreferrer">${img}</a>`
-    : (img ? `<div class="hero-art">${img}</div>` : ""));
+  const art = UI.veridropCard();
   const icon = opts.icon ? `<span class="ico-box">${UI.icon(opts.icon)}</span>` : "";
   const head = (opts.icon || opts.back)
     ? `<div class="hero-title">${opts.back || ""}${icon}<h1>${opts.title}</h1></div>`
@@ -677,7 +664,7 @@ const Pages = {
       <time>${UI.esc(row.time || "")}</time>
     </a>`).join("") || `<div class="empty">还没有使用记录</div>`;
     return UI.shell("home", `
-      ${hero({ title: "大模型降智检测", sub: "评测 GPT、Claude、DeepSeek、Kimi 等模型的能力、迷惑题和绘图表现", bar: true, promo: true })}
+      ${hero({ title: "大模型降智检测", sub: "评测 GPT、Claude、DeepSeek、Kimi 等模型的能力、迷惑题和绘图表现", bar: true })}
       <section class="official-bar" id="official-bar" aria-label="官方模型实况">
         <strong class="official-label">官方模型实况</strong>
         <span class="official-sync" id="official-sync">正在同步官方状态…</span>
@@ -785,7 +772,7 @@ const Pages = {
     const when = snap.time ? `检测时间：${UI.esc(snap.time)}` : "检测时间：尚未检测";
     const model = snap.modelName ? `模型版本：${UI.esc(snap.modelName)}` : "模型版本：尚未检测";
     return UI.shell("detect", `
-      ${hero({ icon: "shield", title: "模型检测页", sub: "汇总各项测试结果，评估模型是否存在降智问题。", art: "assets/hero-detect.png" })}
+      ${hero({ icon: "shield", title: "模型检测页", sub: "汇总各项测试结果，评估模型是否存在降智问题。" })}
       <a class="relay-entry" href="trace.html">
         <div>
           <div class="relay-kicker">不用复制题目</div>
@@ -847,7 +834,7 @@ const Pages = {
       <td><button class="linkish" type="button" data-action="open-task" data-id="${task.id}">${opLabel(task)}</button></td>
     </tr>`).join("") || `<tr><td colspan="6"><div class="empty">还没有能力测试记录</div></td></tr>`;
     return UI.shell("basic", `
-      ${hero({ title: "基础测试页", sub: "通过基础能力测试，评估模型的核心能力表现。", bar: true, art: "assets/hero-basic.png" })}
+      ${hero({ title: "基础测试页", sub: "通过基础能力测试，评估模型的核心能力表现。", bar: true })}
       ${placeShare(latestReport((item) => Engine.moduleOf(item.kind) === "basic"), "分享最近一次基础测试。链接和海报里没有密钥。")}
       <a class="relay-entry" href="relay.html">
         <div>
@@ -935,7 +922,7 @@ const Pages = {
       <td><div class="ops"><button class="linkish" type="button" data-action="open-task" data-id="${task.id}">${task.status === "done" ? "查看结果" : opLabel(task)}</button><button class="linkish" type="button" data-action="more" data-id="${task.id}" aria-label="更多">${UI.icon("more")}</button></div></td>
     </tr>`).join("");
     return UI.shell("candy", `
-      ${hero({ icon: "candy", title: "糖果测试页", sub: "使用更具迷惑性的测试题目，识别模型是否出现降智。", art: "assets/hero-candy.png" })}
+      ${hero({ icon: "candy", title: "糖果测试页", sub: "使用更具迷惑性的测试题目，识别模型是否出现降智。" })}
       ${placeShare(latestReport((item) => item.kind === "candy"), "分享最近一次糖果测试。链接和海报里没有密钥。")}
       <section class="grid-side">
         <div class="stack">
@@ -997,7 +984,7 @@ const Pages = {
     </tr>`).join("") || `<tr><td colspan="6"><div class="empty">还没有鹈鹕骑车记录</div></td></tr>`;
     const back = `<a class="back-btn" href="index.html" aria-label="返回首页">${UI.icon("back")}</a>`;
     return UI.shell("pelican", `
-      ${hero({ back, title: "鹈鹕骑车测试页", sub: "让模型写一只正在骑自行车的鹈鹕，测完直接看画面，并下载 HTML。", bar: true, art: "assets/hero-pelican.png" })}
+      ${hero({ back, title: "鹈鹕骑车测试页", sub: "让模型写一只正在骑自行车的鹈鹕，测完直接看画面，并下载 HTML。", bar: true })}
       ${placeShare(latestReport((item) => item.kind === "pelican"), "分享最近一次鹈鹕骑车。有作品时，打开链接就能看到画面；海报二维码只放分数。链接里没有密钥。")}
       <section class="grid-side">
         <article class="panel">
@@ -1058,6 +1045,7 @@ const Pages = {
       ? `<div class="card"><div class="empty"><h3>没有匹配的作品</h3><p>换一个关键词或分类。</p></div></div>`
       : `<div class="card"><div class="empty"><h3>还没有 HTML 作品</h3><p>公开页面登记在 js/works.js。</p></div></div>`;
     return UI.shell("works", `
+      ${UI.veridropBanner()}
       <div class="works-bar">
         <div class="works-intro">
           <span class="ico-box">${UI.icon("doc")}</span>
@@ -1511,7 +1499,6 @@ const Pages = {
   },
   prompts() {
     const query = qs();
-    const art = `<div class="prompt-art" aria-hidden="true"><svg viewBox="0 0 320 180"><rect x="150" y="28" width="132" height="92" rx="18" fill="#eef3ff" stroke="#d5e2ff"/><rect x="168" y="48" width="78" height="8" rx="4" fill="#c9d7ff"/><rect x="168" y="66" width="96" height="8" rx="4" fill="#dbe4ff"/><rect x="168" y="84" width="58" height="8" rx="4" fill="#dbe4ff"/><rect x="196" y="62" width="86" height="78" rx="16" fill="#fff" stroke="#d5e2ff"/><circle cx="226" cy="88" r="10" fill="#fff6d8" stroke="#f0a03a" stroke-width="2"/><path d="M222 100h8M223 104h6" stroke="#f0a03a" stroke-width="2" stroke-linecap="round"/><rect x="214" y="112" width="52" height="8" rx="4" fill="#e4ebff"/><path d="M78 46l4 8 8 2-8 2-4 8-4-8-8-2 8-2z" fill="#8eabff"/><path d="M118 34l2 5 5 1-5 1-2 5-2-5-5-1 5-1z" fill="#b9cbff"/><rect x="40" y="108" width="46" height="28" rx="8" fill="#fff" stroke="#d5e2ff"/><path d="M52 122h22M58 116v12" stroke="#3b5ffa" stroke-width="2" stroke-linecap="round"/></svg></div>`;
     return UI.shell("prompts", `
       <section class="prompt-hero">
         <div>
@@ -1519,7 +1506,7 @@ const Pages = {
           <p class="sub">从多维度设计提示词，全面评估大模型在理解、生成、推理等方面的表现。</p>
           <div class="accent"></div>
         </div>
-        ${art}
+        ${UI.veridropCard()}
       </section>
       <div class="prompt-layout">
         ${promptSide()}
@@ -1539,6 +1526,7 @@ const Pages = {
     if (report) Poster.live = report;
     const shown = opened ? opened.view : remembered;
     return UI.shell("trace", `
+      ${UI.veridropBanner()}
       <div class="page-head relay-head" data-share>
         <div>
           <div class="crumb"><a href="index.html">首页</a> / 指纹检测</div>
@@ -1554,7 +1542,7 @@ const Pages = {
             <div class="field"><span>&nbsp;</span><button class="btn btn-primary" type="button" data-action="start-trace">${UI.icon("play")} 开始检测</button></div>
           </div>
           ${apiHint()}
-          <p class="note">指纹库目前有 18 个模型，分别是 GPT-5.4、GPT-5.5、GPT-5.6 的 luna / terra / sol、GPT-6 的 astra / sol / luna，以及 Claude Haiku、Sonnet、Opus 的一批版本。库外模型也会被归到最像的一项。请求不额外设置温度，也不加系统提示词。</p>
+          <p class="note">指纹库目前有 19 个模型，分别是 GPT-5.4、GPT-5.5、GPT-5.6 的 luna / terra / sol、GPT-6 的 astra / sol / luna、GPT-6.1 Sol，以及 Claude Haiku、Sonnet、Opus 的一批版本。库外模型也会被归到最像的一项。请求不额外设置温度，也不加系统提示词。</p>
         </div>
       </article>
       <div id="trace-live"></div>
