@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>检测案例 - 公开作品与评分依据 | 大模型降智检测</title>
+  <meta name="description" content="不用填写 API 密钥，先看公开鹈鹕作品、代码结构评分和人工核对方法。每份案例标注来源与许可，帮助你理解模型检测结果。">
+  <meta name="keywords" content="模型检测案例,鹈鹕骑车,代码结构评分,大模型评测">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <meta name="applicable-device" content="pc,mobile">
+  <meta name="theme-color" content="#3B5FFA">
+  <link rel="canonical" href="https://www.modeltool.cn/examples.html">
+  <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+  <link rel="icon" href="/favicon.ico" sizes="any" type="image/x-icon">
+  <link rel="icon" type="image/png" sizes="48x48" href="/assets/favicon-48.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png">
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta property="og:locale" content="zh_CN">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="大模型降智检测">
+  <meta property="og:title" content="检测案例 - 公开作品与评分依据 | 大模型降智检测">
+  <meta property="og:description" content="不用填写 API 密钥，先看公开鹈鹕作品、代码结构评分和人工核对方法。每份案例标注来源与许可，帮助你理解模型检测结果。">
+  <meta property="og:url" content="https://www.modeltool.cn/examples.html">
+  <meta property="og:image" content="https://www.modeltool.cn/assets/og-cover.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="大模型降智检测">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="检测案例 - 公开作品与评分依据 | 大模型降智检测">
+  <meta name="twitter:description" content="不用填写 API 密钥，先看公开鹈鹕作品、代码结构评分和人工核对方法。每份案例标注来源与许可，帮助你理解模型检测结果。">
+  <meta name="twitter:image" content="https://www.modeltool.cn/assets/og-cover.png">
+  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "CollectionPage", "name": "检测案例 - 公开作品与评分依据 | 大模型降智检测", "url": "https://www.modeltool.cn/examples.html", "description": "不用填写 API 密钥，先看公开鹈鹕作品、代码结构评分和人工核对方法。每份案例标注来源与许可，帮助你理解模型检测结果。", "inLanguage": "zh-CN"}</script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app"></div>
+  <section class="page-seo" aria-label="案例说明"><div class="container">
+  <h1 class="seo-only-h1">公开作品分析案例</h1><h2>先看作品与评分依据，再检测自己的模型</h2>
+  <p>本站引用 pelican-svg-drawings 数据集中的公开鹈鹕作品，按保存的 HTML 展示代码结构分析。模型名称沿用来源标注，原始调用参数与生成时间未提供。这些案例不是本站 API 实测，不参与个人综合分。</p>
+  <nav aria-label="公开作品案例"><a href="examples.html?id=claude-opus-5">Claude Opus 5 作品分析</a><a href="examples.html?id=gpt-5.6-sol">GPT-5.6 Sol 作品分析</a><a href="examples.html?id=glm-5.2">GLM-5.2 作品分析</a></nav>
+  <p>结构分检查 SVG、circle、路径、代码长度、动画、Three.js 或 Canvas 相关代码。它没有识别画面的美观程度、鹈鹕是否骑在车上，也不能证明模型身份。</p>
+  <nav aria-label="开始检测"><a href="trace.html?mode=manual">免填密钥的手动指纹检测</a><a href="relay.html">中转站协议检测</a><a href="relays.html">已公开的中转检测</a><a href="pelican.html">生成自己的鹈鹕作品</a></nav>
+</div></section>
+
+  <footer class="site-footer">
+  <div class="container">
+    <div class="footer-grid">
+      <section>
+        <p class="footer-name">大模型降智检测</p>
+        <p>本站提供大模型评测和降智检测。你可以用自己的接口测试 GPT、Claude、DeepSeek、Kimi、通义千问、豆包、Gemini、Grok，覆盖能力测试、迷惑题、绘图和中转站稳定性。适合做模型对比，也适合在换模型或换 API 中转站之前先看有没有降智、掺水。</p>
+      </section>
+      <nav class="footer-col" aria-label="测试入口">
+        <p class="footer-label">测试入口</p>
+        <a href="index.html">大模型评测</a>
+        <a href="detect.html">大模型降智检测</a>
+        <a href="basic.html">大模型能力测试</a>
+        <a href="candy.html">迷惑题与幻觉测试</a>
+        <a href="pelican.html">鹈鹕骑车绘图测试</a>
+        <a href="works.html">HTML作品</a>
+        <a href="prompts.html">提示词库</a>
+        <a href="relay.html">AI中转站检测</a>
+        <a href="trace.html">模型指纹检测</a>
+        <a href="compare.html">大模型对比</a>
+        <a href="guide.html">评测说明</a>
+        <a href="cooperate.html">商务合作</a>
+      </nav>
+      <nav class="footer-col" aria-label="热门模型评测">
+        <p class="footer-label">热门模型评测</p>
+        <a href="guide.html#gpt">GPT评测</a>
+        <a href="guide.html#claude">Claude评测</a>
+        <a href="guide.html#deepseek">DeepSeek评测</a>
+        <a href="guide.html#kimi">Kimi评测</a>
+        <a href="guide.html#qwen">通义千问评测</a>
+        <a href="guide.html#doubao">豆包评测</a>
+        <a href="guide.html#gemini">Gemini评测</a>
+        <a href="guide.html#grok">Grok评测</a>
+      </nav>
+    </div>
+    <div class="footer-bottom">
+      <span>大模型降智检测</span>
+      <span>接口密钥只保存在本地浏览器，不会写入导出报告</span>
+    </div>
+  </div>
+</footer>
+  <noscript>启用 JavaScript 后可以运行测试。本页说明可以直接阅读。</noscript>
+  <script src="js/data.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/probe.js"></script>
+  <script src="js/relay-public.js"></script>
+  <script src="js/examples.js"></script>
+  <script src="js/pages.js"></script>
+    <script>App.start("examples");</script>
+</body>
+</html>

@@ -16,7 +16,7 @@ const Official = {
       Official.paint(data);
     } catch (err) {
       if (sync) sync.textContent = "官方状态没有返回";
-      if (!pills.children.length) pills.innerHTML = "";
+      if (!pills.querySelector(".official-pill")) pills.innerHTML = '<p class="official-empty">暂时未获取状态，可稍后刷新或打开状态详情。</p>';
     } finally {
       clearTimeout(timer);
       if (refresh) refresh.disabled = false;
@@ -28,15 +28,22 @@ const Official = {
     const byId = {};
     (data.vendors || []).forEach((item) => { byId[item.id] = item; });
     const current = (typeof qs === "function" ? qs().id : "") || "";
+    const ticker = !!pills.closest(".official-ticker");
+    const names = { openai: "OpenAI", anthropic: "Claude", gemini: "Gemini", deepseek: "DeepSeek", moonshot: "Kimi", xai: "Grok" };
     pills.innerHTML = Official.order.map((id) => {
       const item = byId[id] || { id: id, name: id, level: "idle", levelText: "未获取", percent: null };
-      const pct = item.percent == null ? "" : `<strong>${Number(item.percent).toFixed(2)}%</strong>`;
+      const name = item.name && item.name !== id ? item.name : names[id];
+      const percent = item.percent == null || !Number.isFinite(Number(item.percent)) ? "" : Number(item.percent).toFixed(2) + "%";
+      const pct = percent ? `<strong>${percent}</strong>` : "";
+      const status = item.levelText || "未获取";
+      const label = [name, percent, status].filter(Boolean).join(" · ");
       const active = current === id ? " active" : "";
-      return `<a class="official-pill ${UI.esc(item.level || "idle")}${active}" href="status.html?id=${UI.esc(id)}"><i class="dot"></i><span>${UI.esc(item.name || id)}</span>${pct}<em>${UI.esc(item.levelText || "未获取")}</em></a>`;
+      return `<a class="official-pill ${UI.esc(item.level || "idle")}${active}" href="status.html?id=${UI.esc(id)}" aria-label="${UI.esc(label)}" title="${UI.esc(label)}"><i class="dot"></i>${UI.vendorMark(id)}<span class="official-vendor-name">${UI.esc(name)}</span>${pct}<em>${UI.esc(status)}</em></a>`;
     }).join("");
     if (sync) {
       const stamp = data.fetchedAt ? data.fetchedAt.replace("T", " ").replace("Z", " UTC") : "";
-      sync.textContent = stamp ? "已同步官方状态 · " + stamp : "已同步官方状态";
+      sync.textContent = stamp ? (ticker ? stamp.slice(5, 16) + " UTC" : "已同步官方状态 · " + stamp) : "已同步官方状态";
+      sync.title = stamp ? "官方状态同步时间：" + stamp : "已同步官方状态";
     }
     document.querySelectorAll(".seo-only-h1").forEach((node) => node.remove());
     const detail = document.getElementById("official-detail");

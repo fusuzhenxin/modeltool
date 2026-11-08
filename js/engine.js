@@ -343,17 +343,25 @@ const Api = {
     if (!svg) return "";
     return "<!DOCTYPE html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><title>鹈鹕骑车</title><style>html,body{margin:0;min-height:100%;display:grid;place-items:center;background:#f7f8fc}svg{max-width:100%;height:auto}</style></head><body>" + svg[0] + "</body></html>";
   },
-  scoreArtwork(html) {
+  artworkChecks(html) {
     const text = String(html || "");
-    if (!text) return 0;
-    let score = 20;
-    if (/<svg\b/i.test(text)) score += 20;
-    if (/<circle\b/i.test(text)) score += 15;
-    if (/<(line|path|polyline|polygon)\b/i.test(text)) score += 10;
-    if (text.length > 800) score += 10;
-    if (/animate|requestAnimationFrame|@keyframes/i.test(text)) score += 15;
-    if (/three/i.test(text) || /canvas/i.test(text)) score += 10;
-    return Math.max(0, Math.min(100, score));
+    return [
+      { name: "包含页面内容", points: 20, passed: Boolean(text) },
+      { name: "包含 SVG 元素", points: 20, passed: /<svg\b/i.test(text) },
+      { name: "包含 circle 元素", points: 15, passed: /<circle\b/i.test(text) },
+      { name: "包含线条或路径", points: 10, passed: /<(line|path|polyline|polygon)\b/i.test(text) },
+      { name: "代码超过 800 字符", points: 10, passed: text.length > 800 },
+      { name: "包含动画相关代码", points: 15, passed: /animate|requestAnimationFrame|@keyframes/i.test(text) },
+      { name: "包含 Three.js 或 Canvas 相关代码", points: 10, passed: /three/i.test(text) || /canvas/i.test(text) }
+    ];
+  },
+  scoreArtwork(html) {
+    return Api.artworkChecks(html).reduce((score, item) => score + (item.passed ? item.points : 0), 0);
+  },
+  artworkInfo(score) {
+    const level = Engine.judge(score);
+    const label = { ok: "结构特征较完整", warn: "包含部分结构特征", bad: "结构特征较少", none: "尚无结构分" }[level];
+    return { level, label, title: label, desc: "代码结构分只检查页面内容、SVG、circle、线条或路径、代码长度以及动画和画布相关代码。它没有识别画面，也不能单独判断模型身份或是否降智。" };
   },
   async ask(item, modelId) {
     const cfg = Store.api();

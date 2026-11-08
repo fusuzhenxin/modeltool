@@ -115,7 +115,8 @@ const Poster = {
       "3", report.claimed || "", report.known ? "1" : "0", report.prediction || "",
       report.probability == null ? "" : String(Math.round(Number(report.probability) * 1000)),
       report.familyName || "", report.familyProbability == null ? "" : String(Math.round(Number(report.familyProbability) * 1000)),
-      report.used == null ? "" : String(report.used), report.time || "", top, digits
+      report.used == null ? "" : String(report.used), report.time || "", top, digits,
+      report.method === "manual" ? "manual" : "api", report.modelCount || "", report.builtAt || ""
     ]);
   },
   packTask(report) {
@@ -248,7 +249,10 @@ const Poster = {
       familyProbability: parts[6] === "" ? null : Number(parts[6]) / 1000,
       used: Poster.num(parts[7]),
       time: parts[8] || "",
-      title: known ? (same ? "回答更像你请求的这个模型" : "回答更像指纹库里的另一个模型") : "所选模型不在指纹库里",
+      method: parts[11] === "manual" ? "manual" : "api",
+      modelCount: Poster.num(parts[12]),
+      builtAt: parts[13] || "",
+      title: known ? (same ? "回答更像你请求的这个模型" : "回答更像指纹库里的另一个模型") : (claimed ? "所选模型不在指纹库里" : "已找到库内最接近的候选"),
       level: known ? (same ? "ok" : "warn") : "none",
       top,
       digits
@@ -259,6 +263,8 @@ const Poster = {
   traceView(report) {
     return {
       shared: true,
+      method: report.method || "api",
+      model_count: report.modelCount,
       claimed: report.claimed,
       known: report.known,
       prediction: report.prediction,
@@ -267,7 +273,7 @@ const Poster = {
       family_prediction_name: report.familyName,
       family_probability: report.familyProbability,
       used_outputs: report.used,
-      built_at: "",
+      built_at: report.builtAt || "",
       errors: [],
       diagnostics: (report.digits || []).map((item, index) => ({ index, parsed_numbers: item.n, accepted: item.ok })),
       results: (report.top || []).map((item) => ({
@@ -282,7 +288,8 @@ const Poster = {
     const test = parts[1] || "ability";
     const score = Poster.num(parts[2]);
     const scene = test === "pelican" ? "pelican" : "detect";
-    const info = typeof Engine === "undefined" ? { level: "none", title: "检测结果", label: "未检测", desc: "" } : Engine.judgeText(score, scene);
+    const info = test === "pelican" && parts[10] && typeof Api !== "undefined" ? Api.artworkInfo(score)
+      : typeof Engine === "undefined" ? { level: "none", title: "检测结果", label: "未检测", desc: "" } : Engine.judgeText(score, scene);
     const mode = parts[10] || "";
     let modeName = "";
     if (mode && typeof DATA !== "undefined" && DATA.pelicanModes) {
@@ -337,6 +344,9 @@ const Poster = {
     const report = {
       kind: "trace",
       claimed: payload.claimed || "",
+      method: payload.method || "api",
+      modelCount: payload.model_count,
+      builtAt: payload.built_at || "",
       known,
       prediction: payload.prediction || "",
       predictionName: payload.prediction_name || payload.prediction || "",
@@ -345,7 +355,7 @@ const Poster = {
       familyProbability: payload.family_probability,
       used: payload.used_outputs,
       time: payload.at || "",
-      title: known ? (same ? "回答更像你请求的这个模型" : "回答更像指纹库里的另一个模型") : "所选模型不在指纹库里",
+      title: known ? (same ? "回答更像你请求的这个模型" : "回答更像指纹库里的另一个模型") : (payload.claimed ? "所选模型不在指纹库里" : "已找到库内最接近的候选"),
       level: known ? (same ? "ok" : "warn") : "none",
       top: (payload.results || []).slice(0, 5).map((item) => ({
         name: item.display_name || item.model || "",
@@ -362,7 +372,7 @@ const Poster = {
     if (!task || task.status !== "done" || task.score == null || Number.isNaN(Number(task.score))) return null;
     const test = task.kind || "ability";
     const scene = test === "pelican" ? "pelican" : "detect";
-    const info = Engine.judgeText(Number(task.score), scene);
+    const info = task.pelicanMode || task.html ? Api.artworkInfo(Number(task.score)) : Engine.judgeText(Number(task.score), scene);
     const items = task.items || [];
     const mode = task.pelicanMode || "";
     const found = mode && typeof DATA !== "undefined" ? DATA.pelicanModes.find((item) => item.id === mode) : null;
@@ -854,7 +864,7 @@ const Poster = {
     ctx.fillText(report.time || "—", 108, foot + 78);
     ctx.fillStyle = "#8b97ad";
     ctx.font = "500 13px 'Microsoft YaHei', sans-serif";
-    ctx.fillText("modeltool.cn  逐项实测可复现", 36, foot + 112);
+    ctx.fillText(report.kind === "trace" && report.method === "manual" ? "modeltool.cn  手动粘贴 · 未核验回答来源" : "modeltool.cn  逐项实测可复现", 36, foot + 112);
     const qr = Poster.qrTarget(report);
     let modules = null;
     try { modules = QR.matrix(qr.link); } catch (err) { modules = null; }
@@ -967,7 +977,7 @@ const Poster = {
     ctx.fillText(report.predictionName || report.prediction || "—", cx, 348);
     ctx.font = "500 13px 'Microsoft YaHei', sans-serif";
     ctx.fillStyle = "#98a2b3";
-    ctx.fillText("modeltool.cn", cx, 370);
+    ctx.fillText(report.method === "manual" ? "手动粘贴回答 · 库内相似程度，不是身份认证" : "API 自动检测 · 库内相似程度，不是身份认证", cx, 370);
     const familyPct = report.familyProbability == null ? "—" : (report.familyProbability * 100).toFixed(1) + "%";
     Poster.paintCards(ctx, width, 400, [
       ["请求模型", report.claimed || "—"],

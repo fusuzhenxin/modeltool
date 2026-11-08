@@ -104,6 +104,16 @@ const UI = {
     const label = name || model.name;
     return `<span class="model-chip">${UI.modelMark(model)}${UI.esc(label)}</span>`;
   },
+  vendorMark(id) {
+    const key = { openai: "openai", anthropic: "anthropic", gemini: "gemini", deepseek: "deepseek", moonshot: "kimi", xai: "grok" }[id];
+    const brand = MODEL_BRANDS[key];
+    if (!brand) return "";
+    const paths = brand.paths.map((d) => `<path fill="currentColor" d="${d}"/>`).join("");
+    return `<span class="official-brand official-brand-${key}" style="--brand-color:${brand.color}"><svg viewBox="0 0 24 24" aria-hidden="true">${paths}</svg></span>`;
+  },
+  officialTicker() {
+    return `<section class="official-ticker" id="official-bar" aria-label="官方模型实况"><div class="container official-ticker-inner" tabindex="0" role="group" aria-label="官方服务状态，可横向滚动"><a class="official-label" href="status.html">官方模型实况</a><div class="official-pills" id="official-pills"></div><div class="official-ticker-meta">${UI.icon("clock")}<span class="official-sync" id="official-sync" role="status">正在同步官方状态…</span><button type="button" class="official-refresh" id="official-refresh">刷新</button></div></div></section>`;
+  },
   ring(score, color) {
     const missing = score == null || Number.isNaN(Number(score));
     const shown = missing ? "—" : score;
@@ -143,11 +153,13 @@ const UI = {
       <span class="veridrop-banner-go">veridrop.cn</span>
     </a>`;
   },
-  shell(active, body) {
+  shell(active, body, options = {}) {
     const nav = [
       ["home", "index.html", "首页"],
       ["detect", "detect.html", "模型检测页"],
       ["trace", "trace.html", "指纹检测"],
+      ["examples", "examples.html", "检测案例"],
+      ["relay-public", "relays.html", "中转日报"],
       ["basic", "basic.html", "基础测试页"],
       ["candy", "candy.html", "糖果测试页"],
       ["pelican", "pelican.html", "鹈鹕骑车测试页"],
@@ -180,6 +192,7 @@ const UI = {
         <div class="account">${account}<button class="nav-toggle" type="button" data-action="nav" aria-label="打开菜单">${UI.icon("menu")}</button></div>
       </div>
     </header>
+    ${options.officialTicker ? UI.officialTicker() : ""}
     <main class="page"><div class="container">${promo}${body}</div></main>`;
   },
   currentFile() {

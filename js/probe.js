@@ -332,6 +332,7 @@ const Probe = {
       </div>
       ${shared}
       <div class="findings">${findings}</div>
+      <div class="trace-explain"><h3>先看具体项目，再决定是否复测</h3><p>“失败”表示这次请求或检查没有通过；“不支持”表示接口明确拒绝该能力；缓存未命中也不等于改写请求。模型回显不一致、指令测试失败都是需要复核的线索，不能单独证明模型被替换。</p><p>保持同一个模型 ID、接口和设置再测一次，并结合逐项明细判断。复测会使用你自己的 API 额度。</p><div class="entry-actions">${report.shared ? `<a class="btn btn-primary" href="relay.html">检查我的 API</a>` : `<button class="btn btn-ghost" type="button" data-action="retry-probe">用当前接口设置复测</button>`}<a class="btn btn-ghost" href="trace.html?mode=manual">再做一次模型指纹检测</a></div></div>
     </article>`;
   }
 };

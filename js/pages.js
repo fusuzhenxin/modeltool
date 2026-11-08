@@ -45,6 +45,13 @@ function setMeta(selector, attr, value) {
 }
 function applyHead() {
   const file = location.pathname.split("/").pop() || "index.html";
+  if (file === "relays.html" || file === "stations.html") {
+    const title = (document.querySelector("#app h1")?.textContent || "中转检测日报") + " | 大模型降智检测";
+    document.title = title;
+    setMeta('meta[property="og:title"]', "content", title);
+    setMeta('meta[name="twitter:title"]', "content", title);
+    return;
+  }
   if (file === "setup.html") {
     const meta = DATA.kinds[qs().type];
     if (!meta) return;
@@ -69,6 +76,17 @@ function applyHead() {
     document.title = title;
     setMeta('meta[property="og:title"]', "content", title);
     setMeta('meta[name="twitter:title"]', "content", title);
+    return;
+  }
+  if (file === "examples.html" && typeof Examples !== "undefined") {
+    const item = Examples.items.find((row) => row.id === qs().id);
+    const title = item ? item.model + " 鹈鹕作品分析 - 评分依据 | 大模型降智检测" : "检测案例 - 公开作品与评分依据 | 大模型降智检测";
+    document.title = title;
+    setMeta('meta[property="og:title"]', "content", title);
+    setMeta('meta[name="twitter:title"]', "content", title);
+    const canonical = "https://www.modeltool.cn/examples.html" + (item ? "?id=" + encodeURIComponent(item.id) : "");
+    setMeta('link[rel="canonical"]', "href", canonical);
+    setMeta('meta[property="og:url"]', "content", canonical);
     return;
   }
   if (file !== "run.html" && file !== "result.html") return;
@@ -229,6 +247,9 @@ function hero(opts) {
     : `<h1>${opts.title}</h1>`;
   return `<section class="hero"><div class="hero-copy">${head}<p class="sub">${opts.sub}</p>${opts.bar ? '<div class="accent"></div>' : ""}</div>${art}</section>`;
 }
+function entryInvite() {
+  return typeof Examples === "undefined" ? "" : Examples.teaser();
+}
 const QUESTION_COUNTS = [3, 5, 10, 20, 30].map((n) => ({ value: String(n), label: n + " 题" }));
 function featureMark(name) {
   const pen = "fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"";
@@ -349,7 +370,7 @@ function questionBlock(item, index, opened) {
 function artworkResult(task) {
   const active = "pelican";
   const mode = DATA.pelicanModes.find((item) => item.id === task.pelicanMode);
-  const info = Engine.judgeText(task.score, "pelican");
+  const info = Api.artworkInfo(task.score);
   const artReport = typeof Poster === "undefined" ? null : Poster.fromTask(task);
   const artShare = shareHead(artReport);
   return UI.shell(active, `
@@ -362,8 +383,8 @@ function artworkResult(task) {
       ${artShare[1]}
     </div>
     <section class="stat-row">
-      <div class="stat" style="display:flex;justify-content:center">${UI.ring(task.score)}</div>
-      <div class="stat"><div class="k">画面结构</div><div class="v">${UI.levelBadge(task.score, "pelican")}</div></div>
+      <div class="stat"><div class="k">代码结构分</div>${UI.ring(task.score)}</div>
+      <div class="stat"><div class="k">结构检查</div><div class="v"><span class="badge ${info.level}"><i></i>${UI.esc(info.label)}</span></div></div>
       <div class="stat"><div class="k">能否展示</div><div class="v">${task.html ? "可以" : "不能"}</div></div>
       <div class="stat"><div class="k">说明</div><div class="v" style="font-size:14px;font-weight:650">看画面，不只看分数</div></div>
     </section>
@@ -376,7 +397,7 @@ function artworkResult(task) {
       </div>
       <div class="panel-bd">
         ${task.html ? `<iframe id="art-frame" class="art-frame" sandbox="allow-scripts" title="鹈鹕骑车预览"></iframe>` : `<div class="empty"><h3>没有提取出可展示的页面</h3><p>${UI.esc(info.desc)}</p></div>`}
-        <p class="note mt16">${UI.esc(info.desc)} 结构分只检查有没有 SVG、车轮和动画。长嘴、喉囊和是不是骑在车上，要看上面的画面。</p>
+        <p class="note mt16">${UI.esc(info.desc)} 长嘴、喉囊和是不是骑在车上，要看上面的画面。</p>
       </div>
     </article>
     <article class="panel mt16">
@@ -627,6 +648,7 @@ function sharedTaskPage(report) {
   Poster.live = report;
   const correct = report.correct == null ? "—" : report.correct + " / " + (report.total == null ? "—" : report.total);
   const rate = report.correct == null || !report.total ? "—" : Math.round(100 * report.correct / report.total) + "%";
+  const artwork = report.test === "pelican" && (report.mode || report.html);
   const note = report.html
     ? "这是一份分享结果。打开这条链接就能看到作品。海报上的二维码放不下整页 HTML，扫码只能看到分数。链接里没有密钥，也没有题目。"
     : "这是一份分享结果。链接和海报里只有分数和结论，没有题目、作品和密钥。";
@@ -643,7 +665,7 @@ function sharedTaskPage(report) {
     <p class="note">${note}</p>
     <section class="stat-row">
       <div class="stat" style="display:flex;justify-content:center">${UI.ring(report.score)}</div>
-      <div class="stat"><div class="k">判定</div><div class="v">${UI.levelBadge(report.score, report.test === "pelican" ? "pelican" : "detect")}</div></div>
+      <div class="stat"><div class="k">${artwork ? "代码结构分" : "判定"}</div><div class="v">${artwork ? UI.esc(Api.artworkInfo(report.score).label) : UI.levelBadge(report.score, report.test === "pelican" ? "pelican" : "detect")}</div></div>
       <div class="stat"><div class="k">答对</div><div class="v">${correct}</div></div>
       <div class="stat"><div class="k">题目正确率</div><div class="v">${rate}</div></div>
     </section>
@@ -655,6 +677,41 @@ function shareHead(report) {
   Poster.live = report;
   return ["page-head relay-head", Poster.buttons()];
 }
+function relayLevel(level) {
+  return level === "bad" || level === "warn" || level === "ok" ? level : "ok";
+}
+function relayPublicDetail(item) {
+  const names = (item.findings || []).map((name) => `<li>${UI.esc(name)}</li>`).join("") || "<li>这次没有列出异常项目</li>";
+  const checks = item.checks || [];
+  const abnormal = checks.filter((check) => check.status === "fail" || check.status === "warn").length;
+  const statuses = { pass: ["ok", "通过"], warn: ["warn", "需核对"], fail: ["bad", "异常"], skip: ["", "未计入异常"] };
+  return UI.shell("relay-public", `
+    <div class="page-head">
+      <div class="crumb"><a href="relays.html">中转检测日报</a> / <a href="${RelayDirectory.url({ station: RelayDirectory.domain(item), date: RelayDirectory.day(item) })}">${UI.esc(item.stationName || item.domain || "中转站")}</a> / 报告详情</div>
+      <h1 class="domain">${UI.esc(item.domain || item.maskedDomain || "")}</h1>
+      <p><span class="badge ${relayLevel(item.level)}"><i></i>${UI.esc(item.title || "")}</span></p>
+      <div class="entry-actions"><a href="${RelayDirectory.url({ date: RelayDirectory.day(item) }, "#daily-reports")}">查看 ${RelayDirectory.day(item)} 所有中转站的报告 →</a><a href="${RelayDirectory.url({ station: RelayDirectory.domain(item), date: RelayDirectory.day(item) })}">该中转站当天全部报告 →</a></div>
+    </div>
+    ${item.demo ? `<p class="demo-notice"><strong>演示数据</strong> 域名、检测时间、分数和结果均为虚构，仅供预览页面效果，不代表实际服务。</p>` : ""}
+    ${item.score != null ? `<section class="stat-row public-stats"><div class="stat"><div class="k">${item.demo ? "模拟" : "本次"}检测分</div><div class="v">${UI.esc(item.score)}<small> / 100</small></div></div><div class="stat"><div class="k">检查项目</div><div class="v">${checks.length}</div></div><div class="stat"><div class="k">异常或需核对</div><div class="v">${abnormal}</div></div><div class="stat"><div class="k">检测次数</div><div class="v">${UI.esc(item.runs || 1)}</div></div></section>` : ""}
+    <article class="panel relay-public">
+      <div class="panel-bd">
+        ${item.summary ? `<p class="lead">${UI.esc(item.summary)}</p>` : ""}
+        <p>宣称模型：${UI.esc(item.model || "")}</p>
+        <p>时间：<time>${UI.esc(item.time || "")}</time></p>
+        <p>测试条件：${UI.esc(item.conditions || "该记录未提供补充参数，请结合检测时间与项目判断。")}</p>
+        <p>这一次的结论用的是检测报告原有的三档：未见掺水、疑似掺水、明显掺水。</p>
+        <ul>${names}</ul>
+        <p class="note">${UI.esc(item.retest || "这份记录只代表这一次检测。复测时保持相同接口、模型 ID 和设置，再对照逐项结果。")}</p>
+      </div>
+    </article>
+    ${checks.length ? `<article class="panel relay-public mt16"><div class="panel-hd"><h2>逐项检测结果${item.demo ? " · 模拟" : ""}</h2></div><div class="table-wrap"><table class="grid"><thead><tr><th>检查项目</th><th>结果</th><th>依据说明</th></tr></thead><tbody>${checks.map((check) => { const status = statuses[check.status] || ["", "待核对"]; return `<tr><td>${UI.esc(check.name)}</td><td><span class="badge ${status[0]}">${status[1]}</span></td><td class="finding-names">${UI.esc(check.detail)}</td></tr>`; }).join("")}</tbody></table></div></article>` : ""}
+    ${RelayDirectory.reportContext(item)}
+    <div class="share-actions">
+      <a class="btn btn-ghost" href="relays.html">返回列表</a>
+      <a class="btn btn-primary" href="relay.html">去测中转站</a>
+    </div>`);
+}
 const Pages = {
   home() {
     const recentIcons = { detect: "shield", basic: "doc", candy: "candy", pelican: "car", relay: "target" };
@@ -664,29 +721,19 @@ const Pages = {
       <time>${UI.esc(row.time || "")}</time>
     </a>`).join("") || `<div class="empty">还没有使用记录</div>`;
     return UI.shell("home", `
-      ${hero({ title: "大模型降智检测", sub: "评测 GPT、Claude、DeepSeek、Kimi 等模型的能力、迷惑题和绘图表现", bar: true })}
-      <section class="official-bar" id="official-bar" aria-label="官方模型实况">
-        <strong class="official-label">官方模型实况</strong>
-        <span class="official-sync" id="official-sync">正在同步官方状态…</span>
-        <button type="button" class="official-refresh" id="official-refresh">刷新</button>
-        <div class="official-pills" id="official-pills"></div>
-      </section>
-      <article class="panel key-note">
-        <h2>${UI.icon("info")} 密钥只留在当前浏览器</h2>
-        <p>接口密钥填写后，只保存在你正在用的这个浏览器里。这个站没有后台账号，也不会把密钥存下来。</p>
-        <p>写入浏览器之前，密钥会用 AES-GCM 加密。浏览器里留下的是密文，解开用的钥匙同样只在这台浏览器中，不会放进导出的报告。</p>
-        <p>开始测试时，页面在本地解开密钥，${UI.forwardNote()}转发时用一下，不另存一份。换一个浏览器、换一个网址，或清掉本站数据之后，需要重新填写。</p>
-      </article>
+      <section class="hero home-entry"><div class="hero-copy"><span class="entry-kicker">模型能力 · 接口协议 · 行为指纹</span><h1>你买的模型，<br>实际表现对得上吗？</h1><p class="sub">检查 API 的回答与协议表现。先看公开案例，也可以免填密钥，手动检测你正在用的模型。</p><div class="entry-actions"><a class="btn btn-primary" href="relay.html">${UI.icon("target")} 检查我的 API</a><a class="btn btn-ghost" href="examples.html">先看检测案例</a><a class="entry-text-link" href="trace.html?mode=manual">免填密钥，手动检测 →</a></div><p class="entry-footnote">API 检测使用你自己的额度；手动模式可在自己的客户端作答。</p></div>${UI.veridropCard()}</section>
+      ${typeof RelayDirectory === "undefined" ? "" : RelayDirectory.overview()}
+      <section class="home-tools-layout"><div class="home-tools-main"><div class="section-intro"><h2>选择检测工具</h2><a href="guide.html">如何选择 →</a></div>
       ${featureGrid([
         { mark: "detect", title: "模型检测页", desc: "综合多项测试结果，评估模型是否存在降智问题。", href: "detect.html", cta: "进入检测 →", primary: true },
-        { mark: "target", title: "模型指纹检测", desc: "自动发送三道数字题，对照指纹库看回答更像哪一个 GPT 或 Claude。", href: "trace.html", cta: "开始检测 →" },
+        { mark: "target", title: "模型指纹检测", desc: "自动检测或手动粘贴回答，对照指纹库查看最接近的候选。", href: "trace.html", cta: "开始检测 →" },
         { mark: "basic", title: "基础测试页", desc: "通过基础能力测试，评估模型的核心能力表现。", href: "basic.html", cta: "开始测试 →" },
         { mark: "candy", title: "糖果测试页", desc: "使用更具迷惑性的测试题目，识别模型是否出现降智。", href: "candy.html", cta: "开始测试 →" },
         { mark: "pelican", title: "鹈鹕骑车测试页", desc: "让模型写出一只鹈鹕骑自行车的 HTML，打开就能看到画面。", href: "pelican.html", cta: "开始测试 →" },
         { mark: "prompts", title: "提示词库", desc: "按分类查看评测提示词，可以复制，也可以用当前接口试跑。", href: "prompts.html", cta: "打开提示词库 →" },
         { mark: "works", title: "HTML 作品", desc: "公开的 HTML 作品目录。列表用静图，详情页再打开可玩页面。", href: "works.html", cta: "查看作品 →" },
         { mark: "relay", title: "中转导航", desc: "去 API 中转导航站挑选接口，再回到这里填写地址和密钥。", href: "https://www.veridrop.cn", cta: "打开导航 →" }
-      ])}
+      ])}</div><aside class="home-utilities" aria-label="检测辅助信息"><section class="panel home-privacy" aria-labelledby="home-privacy-title"><h2 id="home-privacy-title">${UI.icon("info")} 密钥只留在当前浏览器</h2><div><p>接口密钥填写后，只保存在你正在用的这个浏览器里。这个站没有后台账号，也不会把密钥存下来。</p><p>写入浏览器之前，密钥会用 AES-GCM 加密。浏览器里留下的是密文，解开用的钥匙同样只在这台浏览器中，不会放进导出的报告。</p><p>开始测试时，页面在本地解开密钥，${UI.forwardNote()}转发时用一下，不另存一份。换一个浏览器、换一个网址，或清掉本站数据之后，需要重新填写。</p></div></section></aside></section>
       <section class="grid-side">
         <article class="panel">
           <div class="panel-hd"><h3>${UI.icon("clock")} 最近使用</h3></div>
@@ -699,7 +746,7 @@ const Pages = {
             <a class="btn btn-ghost btn-pill" href="guide.html#tips">查看详细说明 →</a>
           </div>
         </article>
-      </section>`);
+      </section>`, { officialTicker: true });
   },
   status() {
     return UI.shell("home", `
@@ -773,11 +820,12 @@ const Pages = {
     const model = snap.modelName ? `模型版本：${UI.esc(snap.modelName)}` : "模型版本：尚未检测";
     return UI.shell("detect", `
       ${hero({ icon: "shield", title: "模型检测页", sub: "汇总各项测试结果，评估模型是否存在降智问题。" })}
+      ${!anyPart && !(sharedDetect && sharedDetect.kind === "detect") ? entryInvite() : ""}
       <a class="relay-entry" href="trace.html">
         <div>
-          <div class="relay-kicker">不用复制题目</div>
+          <div class="relay-kicker">支持自动检测和手动检测</div>
           <h3>模型指纹检测</h3>
-          <p>用当前接口直接答三道数字题，再对照指纹库看更像哪一个 GPT 或 Claude。适合在怀疑中转站掉包时先看一眼。</p>
+          <p>三道数字题，对照指纹库看回答更接近哪个候选。可以用 API 自动作答，也可以复制到自己的客户端运行。</p>
         </div>
         <span class="btn btn-primary">开始检测 →</span>
       </a>
@@ -873,6 +921,8 @@ const Pages = {
         </div>
       </section>`);
   },
+  relays() { return RelayDirectory.page(); },
+  stations() { return RelayDirectory.stationsPage(); },
   relay() {
     ensureSelect("basic-model", defaultModelId());
     const shared = typeof Poster === "undefined" ? null : Poster.fromLocation();
@@ -885,10 +935,11 @@ const Pages = {
         <div>
           <div class="crumb"><a href="basic.html">基础测试页</a> / 中转站测试</div>
           <h1>中转站测试</h1>
-          <p>测的是中转站有没有把请求改掉、把模型换成更便宜的，或把协议能力弄丢。模型会不会做题，看上面的四项能力测试。想看回答更像哪一个 GPT 或 Claude，用<a href="trace.html">模型指纹检测</a>。测完可以生成分享海报和链接，里面没有密钥。</p>
+          <p>测的是中转站有没有把请求改掉、把模型换成更便宜的，或把协议能力弄丢。模型会不会做题，看上面的四项能力测试。想看回答更像哪一个 GPT 或 Claude，用<a href="trace.html">模型指纹检测</a>。测完可以生成分享海报和链接，里面没有密钥。<a href="relays.html">已公开的检测</a>可查看完整报告，模拟案例会标注演示数据。</p>
         </div>
         ${share}
       </div>
+      ${!report ? entryInvite() : ""}
       <article class="panel">
         <div class="panel-bd">
           <div class="form-row" style="grid-template-columns: 1.4fr auto">
@@ -979,12 +1030,13 @@ const Pages = {
       <td>${UI.esc(task.modelName)}</td>
       <td>${UI.esc(variantName(task))}</td>
       <td>${task.html ? "可预览" : (task.score == null ? "—" : "无作品")}</td>
-      <td>${task.score == null ? UI.statusBadge(task.status) : UI.levelBadge(task.score, "pelican")}</td>
+      <td>${task.score == null ? UI.statusBadge(task.status) : `<span class="badge ${Engine.judge(task.score)}"><i></i>结构分 ${task.score}</span>`}</td>
       <td><div class="ops"><button class="btn btn-ghost btn-sm" type="button" data-action="open-task" data-id="${task.id}">${task.html ? "查看作品" : opLabel(task)}</button>${task.html ? `<button class="btn btn-ghost btn-sm" type="button" data-action="download-html" data-id="${task.id}">下载 HTML</button>` : ""}</div></td>
     </tr>`).join("") || `<tr><td colspan="6"><div class="empty">还没有鹈鹕骑车记录</div></td></tr>`;
     const back = `<a class="back-btn" href="index.html" aria-label="返回首页">${UI.icon("back")}</a>`;
     return UI.shell("pelican", `
       ${hero({ back, title: "鹈鹕骑车测试页", sub: "让模型写一只正在骑自行车的鹈鹕，测完直接看画面，并下载 HTML。", bar: true })}
+      ${Store.tasks().some((item) => item.kind === "pelican" && item.status === "done") ? "" : entryInvite()}
       ${placeShare(latestReport((item) => item.kind === "pelican"), "分享最近一次鹈鹕骑车。有作品时，打开链接就能看到画面；海报二维码只放分数。链接里没有密钥。")}
       <section class="grid-side">
         <article class="panel">
@@ -1010,7 +1062,7 @@ const Pages = {
       <article class="panel mt16">
         <div class="panel-hd"><h3>${UI.icon("doc")} 测试记录</h3><span class="ops"><a class="more" href="works.html">HTML 作品列表 →</a><a class="more" href="records.html?kind=pelican">全部记录 →</a></span></div>
         <div class="table-wrap"><table class="grid">
-          <thead><tr><th>测试时间</th><th>使用模型</th><th>作品类型</th><th>作品</th><th>画面结构</th><th>操作</th></tr></thead>
+            <thead><tr><th>测试时间</th><th>使用模型</th><th>作品类型</th><th>作品</th><th>代码结构分</th><th>操作</th></tr></thead>
           <tbody>${rows}</tbody>
         </table></div>
       </article>`);
@@ -1517,6 +1569,7 @@ const Pages = {
         ${promptHot()}
       </div>`);
   },
+  examples() { return Examples.page(); },
   trace() {
     ensureSelect("trace-model", defaultModelId());
     const sharedTrace = typeof Poster === "undefined" ? null : Poster.fromLocation();
@@ -1525,17 +1578,19 @@ const Pages = {
     const report = opened || (remembered && typeof Poster !== "undefined" ? Poster.fromTrace(remembered) : null);
     if (report) Poster.live = report;
     const shown = opened ? opened.view : remembered;
+    const manualMode = qs().mode === "manual";
     return UI.shell("trace", `
       ${UI.veridropBanner()}
       <div class="page-head relay-head" data-share>
         <div>
           <div class="crumb"><a href="index.html">首页</a> / 指纹检测</div>
           <h1>模型指纹检测</h1>
-          <p>用已经保存的接口，自动向当前模型发送三道数字题，再在这台浏览器里对照指纹库。不用把题目复制出去，也不用把回答贴回来。测完可以生成分享海报和链接，里面没有密钥。</p>
+          <p>用三道数字题比较回答的行为特征。可用自己的 API 自动检测，也可复制题目，在自己的客户端作答后粘贴回来。结果在这台浏览器里对照指纹库。</p>
         </div>
         ${report ? Poster.buttons() : ""}
       </div>
-      <article class="panel">
+      <div class="trace-modes" role="group" aria-label="选择检测方式"><button class="${manualMode ? "" : "active"}" type="button" data-action="trace-mode" data-mode="api" aria-pressed="${!manualMode}"><strong>API 自动检测</strong><span>使用已配置的接口和密钥</span></button><button class="${manualMode ? "active" : ""}" type="button" data-action="trace-mode" data-mode="manual" aria-pressed="${manualMode}"><strong>手动检测 · 免填密钥</strong><span>复制题目，粘贴模型回答</span></button></div>
+      <article class="panel" id="trace-api" ${manualMode ? "hidden" : ""}>
         <div class="panel-bd">
           <div class="form-row" style="grid-template-columns: 1.4fr auto">
             ${UI.field("选择模型", UI.select("trace-model", Form.get("trace-model"), modelOptions()))}
@@ -1545,10 +1600,12 @@ const Pages = {
           <p class="note">指纹库目前有 19 个模型，分别是 GPT-5.4、GPT-5.5、GPT-5.6 的 luna / terra / sol、GPT-6 的 astra / sol / luna、GPT-6.1 Sol，以及 Claude Haiku、Sonnet、Opus 的一批版本。库外模型也会被归到最像的一项。请求不额外设置温度，也不加系统提示词。</p>
         </div>
       </article>
-      <div id="trace-live"></div>
+      <article class="panel" id="trace-manual" ${manualMode ? "" : "hidden"}>${Trace.manualHtml()}</article>
+      <div id="trace-live" aria-live="polite"></div>
       <div id="trace-result">${shown && typeof Trace !== "undefined" ? Trace.resultHtml(shown) : ""}</div>`);
   },
   mount: {
+    examples() { Examples.mount(); },
     home() { if (typeof Official !== "undefined") Official.load(false); },
     relay() {
       if (location.hash.indexOf("preview=1") < 0 || typeof Poster === "undefined") return;
@@ -1567,6 +1624,7 @@ const Pages = {
     works() { paintWorkFrames(); },
     trace() {
       if (typeof Trace !== "undefined") Trace.loadBank().catch(() => {});
+      Trace.bindManual();
       if (location.hash.indexOf("preview=1") >= 0 && typeof Poster !== "undefined" && Poster.live && Poster.live.kind === "trace") Poster.open(Poster.live);
     },
     prompts() {
@@ -1831,11 +1889,88 @@ Actions.pick = (el, event) => {
   wrap.querySelectorAll("button").forEach((button) => button.classList.toggle("active", button === el));
   wrap.classList.remove("open");
 };
+function traceBusy(busy) {
+  App.traceBusy = busy;
+  document.querySelectorAll('[data-action="trace-mode"]').forEach((node) => { node.disabled = busy; });
+  ["trace-api", "trace-manual"].forEach((id) => {
+    const node = document.getElementById(id);
+    if (node) node.inert = busy;
+  });
+}
+function showTraceResult(payload) {
+  const result = document.getElementById("trace-result");
+  if (result) result.innerHTML = Trace.resultHtml(payload);
+  if (typeof Poster !== "undefined") {
+    Poster.live = Poster.fromTrace(payload);
+    if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+    Poster.ensureButtons();
+  }
+}
+Actions["trace-mode"] = (el) => {
+  if (App.traceBusy) return;
+  const manual = el.dataset.mode === "manual";
+  document.getElementById("trace-api").hidden = manual;
+  document.getElementById("trace-manual").hidden = !manual;
+  document.querySelectorAll('[data-action="trace-mode"]').forEach((node) => {
+    const active = node === el;
+    node.classList.toggle("active", active);
+    node.setAttribute("aria-pressed", String(active));
+  });
+  const url = new URL(location.href);
+  if (manual) url.searchParams.set("mode", "manual"); else url.searchParams.delete("mode");
+  history.replaceState(null, "", url.pathname + url.search + url.hash);
+};
+Actions["copy-manual-prompt"] = async (el) => {
+  const challenge = Trace.manual().challenges[Number(el.dataset.index)];
+  if (challenge) await Actions["copy-text"]({ dataset: { copy: challenge.prompt } });
+};
+Actions["analyze-manual"] = async (el) => {
+  if (App.traceBusy) return;
+  traceBusy(true);
+  const original = el.textContent;
+  el.textContent = "正在分析…";
+  const error = document.getElementById("manual-error");
+  if (error) error.textContent = "";
+  try {
+    const payload = await Trace.analyzeManual();
+    showTraceResult(payload);
+    document.getElementById("trace-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    UI.toast("手动指纹分析完成");
+  } catch (err) {
+    if (error) error.textContent = err.message || "分析失败，请稍后重试";
+  } finally {
+    el.textContent = original;
+    traceBusy(false);
+  }
+};
+Actions["reset-manual"] = () => {
+  if (App.traceBusy) return;
+  const reset = () => {
+    Trace.resetManual();
+    Trace.clearResult();
+    document.getElementById("trace-result").innerHTML = "";
+    document.querySelectorAll("[data-share] .share-actions").forEach((node) => node.remove());
+    if (typeof Poster !== "undefined") Poster.live = null;
+    if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+    document.querySelector('[data-action="trace-mode"][data-mode="manual"]')?.click();
+    document.getElementById("trace-manual")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    UI.toast("已换一组新题目");
+  };
+  if (Trace.manual().answers.some((answer) => answer.trim())) {
+    UI.modal({ title: "换一组题目", body: "当前粘贴的回答会清空。请把新题目分别发到新的对话中，保持同一个模型和设置。", okText: "清空并换题", onOk: reset });
+  } else reset();
+};
+Actions["retest-trace"] = () => {
+  document.querySelector('[data-action="trace-mode"][data-mode="api"]')?.click();
+  document.querySelector('[data-action="start-trace"]')?.click();
+};
 Actions["start-trace"] = async (el) => {
+  if (App.traceBusy) return;
   if (!ensureApi()) return;
   if (typeof Trace === "undefined") { UI.toast("指纹脚本没有加载"); return; }
   const live = document.getElementById("trace-live");
   const result = document.getElementById("trace-result");
+  traceBusy(true);
   el.disabled = true;
   const old = el.innerHTML;
   el.textContent = "检测中…";
@@ -1851,16 +1986,12 @@ Actions["start-trace"] = async (el) => {
   try {
     const payload = await Trace.run(Form.get("trace-model", defaultModelId()), paint);
     if (live) live.innerHTML = "";
-    if (result) result.innerHTML = Trace.resultHtml(payload);
-    if (typeof Poster !== "undefined") {
-      Poster.live = Poster.fromTrace(payload);
-      if (location.hash.indexOf("r=") >= 0) history.replaceState(null, "", "trace.html");
-      Poster.ensureButtons();
-    }
+    showTraceResult(payload);
     UI.toast("指纹检测完成");
   } catch (error) {
     if (live) live.innerHTML = `<article class="panel mt16"><div class="panel-bd"><p class="note">${UI.esc(error && error.message ? error.message : "检测失败")}</p></div></article>`;
   } finally {
+    traceBusy(false);
     el.disabled = false;
     el.innerHTML = old;
   }
@@ -1888,6 +2019,10 @@ Actions["start-basic-probe"] = async (el) => {
     el.disabled = false;
     el.innerHTML = old;
   }
+};
+Actions["retry-probe"] = () => {
+  const button = document.querySelector('[data-action="start-basic-probe"]');
+  if (button && !button.disabled) button.click();
 };
 Actions["start-candy"] = () => launchTask("candy", { modelId: Form.get("candy-model", defaultModelId()), count: Number(Form.get("candy-count", "20")), difficulty: Form.get("candy-diff", "medium"), rounds: 5 });
 Actions["start-pelican"] = () => launchTask("pelican", { modelId: Form.get("pel-model", defaultModelId()), variant: Form.get("pel-variant", "html2d"), count: 1, difficulty: "medium", rounds: 1 });

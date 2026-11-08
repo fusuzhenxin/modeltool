@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem("modeltool-theme");
+        if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    })();
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>中转检测日报 - 站点统计与每日报告 | 大模型降智检测</title>
+  <meta name="description" content="查看中转站完整域名、检测结论和逐项依据。演示记录明确标注，使用虚构域名和模拟结果，不含密钥或对话原文。">
+  <meta name="keywords" content="中转站检测,掺水报告,已公开的检测,大模型降智检测">
+  <meta name="robots" content="noindex,follow">
+  <meta name="applicable-device" content="pc,mobile">
+  <meta name="theme-color" content="#3B5FFA">
+  <link rel="canonical" href="https://www.modeltool.cn/relays.html">
+  <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+  <link rel="icon" href="/favicon.ico" sizes="any" type="image/x-icon">
+  <link rel="icon" type="image/png" sizes="48x48" href="/assets/favicon-48.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png">
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta property="og:locale" content="zh_CN">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="大模型降智检测">
+  <meta property="og:title" content="中转检测日报 - 站点统计与每日报告 | 大模型降智检测">
+  <meta property="og:description" content="查看中转站完整域名、检测结论和逐项依据。演示记录明确标注，使用虚构域名和模拟结果，不含密钥或对话原文。">
+  <meta property="og:url" content="https://www.modeltool.cn/relays.html">
+  <meta property="og:image" content="https://www.modeltool.cn/assets/og-cover.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="大模型降智检测">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="中转检测日报 - 站点统计与每日报告 | 大模型降智检测">
+  <meta name="twitter:description" content="查看中转站完整域名、检测结论和逐项依据。演示记录明确标注，使用虚构域名和模拟结果，不含密钥或对话原文。">
+  <meta name="twitter:image" content="https://www.modeltool.cn/assets/og-cover.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app"></div>
+  <section class="page-seo" aria-label="页面说明">
+    <div class="container">
+      <h1 class="seo-only-h1">已公开的中转检测</h1>
+      <h2>已公开的中转检测</h2>
+      <p>这里展示中转站检测报告，保留完整域名，并列出检测结论、测试条件和逐项依据。</p>
+      <p>当前包含用于预览效果的模拟案例，均标注“演示数据”，域名、分数和结果为虚构。页面不包含接口密钥、私有接口路径、题目和原始回答。</p>
+      <nav aria-label="相关测试"><a href="relay.html">中转站检测</a><a href="trace.html">指纹检测</a><a href="detect.html">降智检测</a><a href="guide.html">评测说明</a></nav>
+    </div>
+  </section>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <section>
+          <p class="footer-name">大模型降智检测</p>
+          <p>本站提供大模型评测和降智检测。你可以用自己的接口测试 GPT、Claude、DeepSeek、Kimi、通义千问、豆包、Gemini、Grok，覆盖能力测试、迷惑题、绘图和中转站稳定性。适合做模型对比，也适合在换模型或换 API 中转站之前先看有没有降智、掺水。</p>
+        </section>
+        <nav class="footer-col" aria-label="测试入口">
+          <p class="footer-label">测试入口</p>
+          <a href="index.html">大模型评测</a>
+          <a href="detect.html">大模型降智检测</a>
+          <a href="basic.html">大模型能力测试</a>
+          <a href="candy.html">迷惑题与幻觉测试</a>
+          <a href="pelican.html">鹈鹕骑车绘图测试</a>
+          <a href="works.html">HTML作品</a>
+          <a href="prompts.html">提示词库</a>
+          <a href="relay.html">AI中转站检测</a>
+          <a href="relays.html">已公开的检测</a>
+          <a href="trace.html">模型指纹检测</a>
+          <a href="compare.html">大模型对比</a>
+          <a href="guide.html">评测说明</a>
+          <a href="cooperate.html">商务合作</a>
+        </nav>
+        <nav class="footer-col" aria-label="热门模型评测">
+          <p class="footer-label">热门模型评测</p>
+          <a href="guide.html#gpt">GPT评测</a>
+          <a href="guide.html#claude">Claude评测</a>
+          <a href="guide.html#deepseek">DeepSeek评测</a>
+          <a href="guide.html#kimi">Kimi评测</a>
+          <a href="guide.html#qwen">通义千问评测</a>
+          <a href="guide.html#doubao">豆包评测</a>
+          <a href="guide.html#gemini">Gemini评测</a>
+          <a href="guide.html#grok">Grok评测</a>
+        </nav>
+      </div>
+      <div class="footer-bottom">
+        <span>大模型降智检测</span>
+        <span>接口密钥只保存在本地浏览器，不会写入导出报告</span>
+      </div>
+    </div>
+  </footer>
+  <noscript>启用 JavaScript 后可以查看已公开的检测。本页说明可以直接阅读。</noscript>
+  <script src="js/data.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/relay-public.js"></script>
+  <script src="js/relay-directory.js"></script>
+  <script src="js/pages.js"></script>
+  <script>App.start("relays");</script>
+</body>
+</html>
