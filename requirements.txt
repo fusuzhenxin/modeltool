@@ -1,0 +1,5 @@
+fastapi==0.139.2
+uvicorn==0.51.0
+httpx==0.28.1
+cryptography==50.0.0
+Pillow==12.3.0

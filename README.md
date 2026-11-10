@@ -1,6 +1,6 @@
 # 大模型降智检测
 
-当前预览版本：**v0.1.0-preview.1**（[版本记录](CHANGELOG.md)，版本源文件 [VERSION](VERSION)）。此版本仅推送到 `codex/v0.1.0-preview.1` 分支并打标签，未部署到线上；该分支已禁止 Vercel Git 自动部署。
+当前版本：**v0.2.0**（[版本记录](CHANGELOG.md)，版本源文件 [VERSION](VERSION)）。本版增加持久化运营后台与收录提案，发布分支为 `codex/v0.2.0`；该分支禁止 Vercel Git 自动部署，仓库推送与线上切换分开执行。旧预览保留 `v0.1.0-preview.1` 标签，更新前的旧版线上基线保留为 `v0.1.0-legacy`。
 
 线上 [www.modeltool.cn](https://www.modeltool.cn) · 仓库 [github.com/fusuzhenxin/modeltool](https://github.com/fusuzhenxin/modeltool)
 
@@ -50,9 +50,15 @@
 
 中转站测试单独给出掺水报告，不改写基础能力分。模型下拉、题量和难度刷新后回到默认值。测试记录和接口配置按当前网址保存在这台浏览器里。
 
+## 运营后台
+
+新增 Python + FastAPI + SQLite 运营服务，支持公告、中转站与图标、专用检测密钥、定时检测、报告审核发布、广告位及预算管理。双击 `start-admin.bat`，或执行 `python run_backend.py`，访问 <http://127.0.0.1:8767/admin/>。首次在本机页面设置自己的管理员，没有默认密码。
+
+完整使用、检测范围、费用控制与备份说明见 [ADMIN.md](ADMIN.md)。后台前台访问 <http://127.0.0.1:8767/>；原有 `serve.py` 的 8766 静态预览仍可使用。完整后台需要常驻 Python、Node.js 服务与持久数据目录，不能只通过 Vercel 静态部署启用。
+
 ## 密钥
 
-密钥在写入 `localStorage` 之前用 AES-GCM 加密。解开用的钥匙放在 IndexedDB，不能被导出。本站没有后台保存密钥。页面在本地解开之后，把当次请求交给 `/api/chat` 或 `/api/probe`，再转到你填写的接口。导出的报告不含密钥。线上这一跳最长会被平台停在 300 秒；本机转发不另设秒数，一直等到上游返回。
+访客个人密钥在写入 `localStorage` 之前用 AES-GCM 加密。解开用的钥匙放在 IndexedDB，不能被导出。本站不在后台保存访客填写的个人密钥。管理员为定时检测配置的专用密钥另行加密保存在运营数据库，详见 ADMIN.md。页面在本地解开之后，把当次请求交给 `/api/chat` 或 `/api/probe`，再转到你填写的接口。导出的报告不含密钥。线上这一跳最长会被平台停在 300 秒；原有 serve.py 本机转发不另设秒数；新增运营服务中的浏览器转发总期限为 180 秒。
 
 换浏览器、无痕窗口，或者在 `127.0.0.1` 和 `localhost` 之间切换，需要重新填写密钥。清除这个站点的数据后，记录和接口配置一起消失。
 

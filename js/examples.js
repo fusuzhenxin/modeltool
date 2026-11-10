@@ -19,7 +19,7 @@ const Examples = {
     </a>`).join("")}</div>`;
   },
   relayCards() {
-    const rows = typeof RELAY_PUBLIC === "undefined" ? [] : RELAY_PUBLIC;
+    const rows = typeof RelayDirectory === "undefined" ? [] : RelayDirectory.rows();
     if (!rows.length) return "";
     return `<div class="example-grid">${rows.slice(0, 3).map((item) => `<a class="panel example-card" href="relays.html?id=${encodeURIComponent(item.id)}">
       <div class="example-card-top"><span class="badge ${UI.esc(item.level)}"><i></i>${UI.esc(item.title)}</span>${item.demo ? `<span class="demo-tag">演示数据</span>` : ""}</div>
@@ -33,7 +33,7 @@ const Examples = {
     if (id && !item) return UI.shell("examples", `<div class="page-head"><h1>没有找到这个案例</h1><p>可以返回案例列表，选择一份公开作品。</p><a class="btn btn-primary" href="examples.html">返回案例列表</a></div>`);
     if (!item) return UI.shell("examples", `
       <div class="page-head"><div class="crumb"><a href="index.html">首页</a> / 检测案例</div><h1>先看结果，再开始自己的检测</h1><p>不用接口或密钥，先了解检测报告和逐项依据。</p></div>
-      ${Examples.relayCards() ? `<div class="section-intro"><h2>中转检测报告</h2><a href="relays.html">查看全部记录 →</a></div><p class="demo-notice"><strong>演示数据</strong> 以下中转报告为模拟案例，使用完整的虚构域名，仅供预览效果。</p>${Examples.relayCards()}` : ""}
+      ${Examples.relayCards() ? `<div class="section-intro"><h2>中转检测报告</h2><a href="relays.html">查看全部记录 →</a></div>${RelayDirectory.demoNotice(RelayDirectory.rows())}${Examples.relayCards()}` : ""}
       <div class="section-intro"><h2>公开作品分析</h2></div>
       <p class="note">以下作品来自 pelican-svg-drawings（Apache-2.0），模型标注沿用数据集。本站没有这些作品的原始调用参数和生成时间；这里展示的是公开作品分析，不是本站 API 实测，也不参与综合分。</p>
       ${Examples.cards()}

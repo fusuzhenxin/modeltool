@@ -17,6 +17,7 @@ const App = {
   show: "all",
   async start(page) {
     await Store.init();
+    if (typeof PublicData !== "undefined") await PublicData.load();
     UI.bind();
     App.page = page;
     if (App.timer) clearInterval(App.timer);
@@ -678,39 +679,44 @@ function shareHead(report) {
   return ["page-head relay-head", Poster.buttons()];
 }
 function relayLevel(level) {
-  return level === "bad" || level === "warn" || level === "ok" ? level : "ok";
+  return level === "bad" || level === "warn" || level === "ok" ? level : "unknown";
 }
 function relayPublicDetail(item) {
-  const names = (item.findings || []).map((name) => `<li>${UI.esc(name)}</li>`).join("") || "<li>这次没有列出异常项目</li>";
+  const names = (item.findings || []).map((name) => `<li>${UI.esc(name)}</li>`).join("");
   const checks = item.checks || [];
   const abnormal = checks.filter((check) => check.status === "fail" || check.status === "warn").length;
-  const statuses = { pass: ["ok", "通过"], warn: ["warn", "需核对"], fail: ["bad", "异常"], skip: ["", "未计入异常"] };
+  const passed = checks.filter((check) => check.status === "pass").length;
+  const date = RelayDirectory.day(item), domain = RelayDirectory.domain(item);
+  const site = typeof PublicData !== "undefined" && PublicData.live ? PublicData.stations.find((station) => station.domain === domain) : null;
+  const stationName = site?.name || item.stationName || domain;
+  const relaySection = (item.sections || []).find((section) => section.kind === "relay");
+  const summary = relaySection?.summary || item.summary || "请结合下方逐项检测结果与复测记录判断。";
+  const scoreLabel = item.demo ? "模拟检测分" : item.suite === "server-v1" ? "协议检查分" : "本次检测分";
+  const reportType = item.test_name || "中转站检测";
+  const level = relayLevel(item.level);
+  const statuses = { pass: ["ok", "通过"], warn: ["warn", "需核对"], fail: ["bad", "未通过"], skip: ["", "不支持"], miss: ["", "未命中"], unknown: ["", "无法确认"] };
   return UI.shell("relay-public", `
-    <div class="page-head">
-      <div class="crumb"><a href="relays.html">中转检测日报</a> / <a href="${RelayDirectory.url({ station: RelayDirectory.domain(item), date: RelayDirectory.day(item) })}">${UI.esc(item.stationName || item.domain || "中转站")}</a> / 报告详情</div>
-      <h1 class="domain">${UI.esc(item.domain || item.maskedDomain || "")}</h1>
-      <p><span class="badge ${relayLevel(item.level)}"><i></i>${UI.esc(item.title || "")}</span></p>
-      <div class="entry-actions"><a href="${RelayDirectory.url({ date: RelayDirectory.day(item) }, "#daily-reports")}">查看 ${RelayDirectory.day(item)} 所有中转站的报告 →</a><a href="${RelayDirectory.url({ station: RelayDirectory.domain(item), date: RelayDirectory.day(item) })}">该中转站当天全部报告 →</a></div>
+    <div class="page-head report-head">
+      <div class="crumb"><a href="relays.html">中转检测日报</a> / <a href="${RelayDirectory.url({ station: domain, date })}">${UI.esc(stationName || "中转站")}</a> / 报告详情</div>
+      <div class="report-identity">${RelayDirectory.stationMark({ domain, name: stationName })}<div><span class="report-eyebrow">公开检测报告</span><h1>${UI.esc(stationName)}</h1><p class="report-domain">${UI.esc(domain)}</p></div></div>
+      <div class="report-actions">${RelayDirectory.stationVisit(item, true)}<a class="report-action" href="${RelayDirectory.url({ station: domain, date })}">${UI.icon("list")}该站当天报告</a><a class="report-action" href="${RelayDirectory.url({ date }, "#daily-reports")}">${UI.icon("chart")}全部中转日报</a></div>
     </div>
+    <div class="report-body">
     ${item.demo ? `<p class="demo-notice"><strong>演示数据</strong> 域名、检测时间、分数和结果均为虚构，仅供预览页面效果，不代表实际服务。</p>` : ""}
-    ${item.score != null ? `<section class="stat-row public-stats"><div class="stat"><div class="k">${item.demo ? "模拟" : "本次"}检测分</div><div class="v">${UI.esc(item.score)}<small> / 100</small></div></div><div class="stat"><div class="k">检查项目</div><div class="v">${checks.length}</div></div><div class="stat"><div class="k">异常或需核对</div><div class="v">${abnormal}</div></div><div class="stat"><div class="k">检测次数</div><div class="v">${UI.esc(item.runs || 1)}</div></div></section>` : ""}
-    <article class="panel relay-public">
-      <div class="panel-bd">
-        ${item.summary ? `<p class="lead">${UI.esc(item.summary)}</p>` : ""}
-        <p>宣称模型：${UI.esc(item.model || "")}</p>
-        <p>时间：<time>${UI.esc(item.time || "")}</time></p>
-        <p>测试条件：${UI.esc(item.conditions || "该记录未提供补充参数，请结合检测时间与项目判断。")}</p>
-        <p>这一次的结论用的是检测报告原有的三档：未见掺水、疑似掺水、明显掺水。</p>
-        <ul>${names}</ul>
-        <p class="note">${UI.esc(item.retest || "这份记录只代表这一次检测。复测时保持相同接口、模型 ID 和设置，再对照逐项结果。")}</p>
-      </div>
-    </article>
-    ${checks.length ? `<article class="panel relay-public mt16"><div class="panel-hd"><h2>逐项检测结果${item.demo ? " · 模拟" : ""}</h2></div><div class="table-wrap"><table class="grid"><thead><tr><th>检查项目</th><th>结果</th><th>依据说明</th></tr></thead><tbody>${checks.map((check) => { const status = statuses[check.status] || ["", "待核对"]; return `<tr><td>${UI.esc(check.name)}</td><td><span class="badge ${status[0]}">${status[1]}</span></td><td class="finding-names">${UI.esc(check.detail)}</td></tr>`; }).join("")}</tbody></table></div></article>` : ""}
+    <section class="panel report-overview report-tone-${level}" aria-labelledby="report-verdict-title">
+      <div class="report-overview-main"><div class="report-verdict"><span class="report-verdict-icon">${UI.icon(level === "ok" ? "shield" : "info")}</span><div><p class="report-kicker">${UI.esc(reportType)}${item.demo ? " · 演示" : ""}</p><h2 id="report-verdict-title">${UI.esc(item.title || "检测已完成")}</h2><p class="report-summary">${UI.esc(summary)}</p></div></div><div class="report-score"><span>${scoreLabel}</span><strong>${item.score == null ? "—" : UI.esc(item.score)}${item.score == null ? "" : "<small>/ 100</small>"}</strong>${item.score == null ? '<small>本次未进行协议评分</small>' : ""}</div></div>
+      <div class="report-metrics"><div>${UI.icon("list")}<span>检查项目</span><strong>${checks.length}<small>项</small></strong></div><div>${UI.icon("check")}<span>通过项目</span><strong>${passed}<small>项</small></strong></div><div class="${abnormal ? "report-metric-attention" : ""}">${UI.icon("info")}<span>异常或需核对</span><strong>${abnormal}<small>项</small></strong></div><div>${UI.icon("refresh")}<span>检测次数</span><strong>${UI.esc(item.runs || 1)}<small>次</small></strong></div></div>
+    </section>
+    <section class="panel report-information" aria-labelledby="report-info-title"><div class="report-section-heading"><h2 id="report-info-title">检测信息</h2><span>参数与结果一同留档</span></div><dl class="report-info-grid"><div><dt>${UI.icon("target")}宣称模型</dt><dd>${UI.modelChip(item.model || "")}</dd></div><div><dt>${UI.icon("clock")}检测时间</dt><dd><time>${UI.esc(item.time || "未提供")}</time></dd></div><div><dt>${UI.icon("doc")}检测类型</dt><dd>${UI.esc(reportType)}</dd></div><div class="report-conditions"><dt>${UI.icon("code")}测试条件</dt><dd>${UI.esc(item.conditions || "该记录未提供补充参数，请结合检测时间与项目判断。")}</dd></div></dl>${names ? `<div class="report-findings"><span>结果摘要</span><ul>${names}</ul></div>` : ""}<details class="report-method"><summary>${UI.icon("info")}检测说明与复测建议${UI.icon("chevron")}</summary><div>${item.summary && item.summary !== summary ? `<p>${UI.esc(item.summary)}</p>` : ""}<p>${item.protocol_tested === false ? "本次未选择中转站测试，不据能力、指纹或作品判断协议是否掺水。" : "中转站结论沿用本站原版测试，请结合逐项依据复核。"}</p><p>${UI.esc(item.retest || "这份记录只代表这一次检测。复测时保持相同接口、模型 ID 和设置，再对照逐项结果。")}</p></div></details></section>
+    ${(item.sections || []).some((section) => section.kind !== "pelican") ? '<div class="report-section-label"><h2>各项测试表现</h2><span>不同测试独立展示结果</span></div>' : ""}
+    ${typeof SiteReport === "undefined" ? "" : SiteReport.render(item.sections || [], UI.esc)}
+    ${item.artwork ? `<article class="panel"><div class="panel-hd"><h2>鹈鹕骑车 · ${UI.esc(item.artwork.mode_name)}</h2><span>代码结构分 ${UI.esc(item.artwork.score)} / 100</span></div><div class="panel-bd"><p class="note">结构分只检查代码特征，不识别画面，不代表模型身份或是否降智。请观察长嘴、喉囊、车架和骑行关系。</p>${item.artwork.available ? `<iframe class="art-frame" sandbox="allow-scripts" referrerpolicy="no-referrer" src="/api/public/reports/${encodeURIComponent(item.id)}/artwork" title="鹈鹕骑车作品预览"></iframe>` : '<p>本次没有生成完整作品。</p>'}<ul class="example-checks">${item.artwork.checks.map((c) => `<li><span>${c.passed ? "✓" : "—"} ${UI.esc(c.name)}</span><b>${c.passed ? "+" + c.points : "0"}</b></li>`).join("")}</ul></div></article>` : ""}
+    ${checks.length ? `<article class="panel relay-public report-checks mt16"><div class="panel-hd"><div><h2>逐项检测结果${item.demo ? " · 模拟" : ""}</h2><p>保留每个检查项的结果与判断依据</p></div><span>共 ${checks.length} 项</span></div><div class="table-wrap"><table class="grid"><thead><tr><th>检查项目</th><th>结果</th><th>依据说明</th></tr></thead><tbody>${checks.map((check) => { const status = statuses[check.status] || ["", "待核对"]; return `<tr><td>${UI.esc(check.name)}</td><td><span class="badge ${status[0]}">${status[1]}</span></td><td class="finding-names">${UI.esc(check.detail)}</td></tr>`; }).join("")}</tbody></table></div></article>` : ""}
     ${RelayDirectory.reportContext(item)}
     <div class="share-actions">
       <a class="btn btn-ghost" href="relays.html">返回列表</a>
       <a class="btn btn-primary" href="relay.html">去测中转站</a>
-    </div>`);
+    </div></div>`);
 }
 const Pages = {
   home() {
@@ -733,7 +739,7 @@ const Pages = {
         { mark: "prompts", title: "提示词库", desc: "按分类查看评测提示词，可以复制，也可以用当前接口试跑。", href: "prompts.html", cta: "打开提示词库 →" },
         { mark: "works", title: "HTML 作品", desc: "公开的 HTML 作品目录。列表用静图，详情页再打开可玩页面。", href: "works.html", cta: "查看作品 →" },
         { mark: "relay", title: "中转导航", desc: "去 API 中转导航站挑选接口，再回到这里填写地址和密钥。", href: "https://www.veridrop.cn", cta: "打开导航 →" }
-      ])}</div><aside class="home-utilities" aria-label="检测辅助信息"><section class="panel home-privacy" aria-labelledby="home-privacy-title"><h2 id="home-privacy-title">${UI.icon("info")} 密钥只留在当前浏览器</h2><div><p>接口密钥填写后，只保存在你正在用的这个浏览器里。这个站没有后台账号，也不会把密钥存下来。</p><p>写入浏览器之前，密钥会用 AES-GCM 加密。浏览器里留下的是密文，解开用的钥匙同样只在这台浏览器中，不会放进导出的报告。</p><p>开始测试时，页面在本地解开密钥，${UI.forwardNote()}转发时用一下，不另存一份。换一个浏览器、换一个网址，或清掉本站数据之后，需要重新填写。</p></div></section></aside></section>
+      ])}</div><aside class="home-utilities" aria-label="检测辅助信息"><section class="panel home-privacy" aria-labelledby="home-privacy-title"><h2 id="home-privacy-title">${UI.icon("info")} 密钥只留在当前浏览器</h2><div><p>接口密钥填写后，只保存在你正在用的这个浏览器里。这里不提供访客账号，也不会把你填写的个人密钥存到服务器。</p><p>写入浏览器之前，密钥会用 AES-GCM 加密。浏览器里留下的是密文，解开用的钥匙同样只在这台浏览器中，不会放进导出的报告。</p><p>开始测试时，页面在本地解开密钥，${UI.forwardNote()}转发时用一下，不另存一份。换一个浏览器、换一个网址，或清掉本站数据之后，需要重新填写。</p></div></section></aside></section>
       <section class="grid-side">
         <article class="panel">
           <div class="panel-hd"><h3>${UI.icon("clock")} 最近使用</h3></div>
@@ -2245,7 +2251,7 @@ Actions["open-api"] = () => {
   mask.className = "modal-mask";
   mask.innerHTML = `<div class="modal wide" role="dialog" aria-modal="true">
     <h3>接口设置</h3>
-    <p>填写 OpenAI 兼容接口。${UI.forwardNote()}模型 ID 会作为 model 发送。密钥会加密后只留在当前浏览器，本站没有后台存放它。</p>
+    <p>填写 OpenAI 兼容接口。${UI.forwardNote()}模型 ID 会作为 model 发送。密钥会加密后只留在当前浏览器，本站不会在后台保存你填写的个人密钥。</p>
     <div class="api-grid">
       <label class="field"><span>接口地址</span><input class="text-input" id="api-url" placeholder="https://api.openai.com/v1" value="${UI.esc(cfg.baseUrl)}"></label>
       <label class="field"><span>密钥</span><input class="text-input" id="api-key" type="password" autocomplete="off" placeholder="sk-..." value="${UI.esc(cfg.apiKey)}"></label>

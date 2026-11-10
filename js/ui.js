@@ -158,14 +158,15 @@ const UI = {
       ["home", "index.html", "首页"],
       ["detect", "detect.html", "模型检测页"],
       ["trace", "trace.html", "指纹检测"],
-      ["examples", "examples.html", "检测案例"],
       ["relay-public", "relays.html", "中转日报"],
       ["basic", "basic.html", "基础测试页"],
       ["candy", "candy.html", "糖果测试页"],
       ["pelican", "pelican.html", "鹈鹕骑车测试页"],
       ["works", "works.html", "HTML鹈鹕作品"],
       ["prompts", "prompts.html", "提示词库"]
-    ].map(([id, href, label]) => `<a href="${href}" class="${active === id ? "active" : ""}">${label}</a>`).join("");
+    ].map(([id, href, label]) => id === "relay-public"
+      ? `<details class="nav-group"><summary aria-label="展开中转日报菜单"><a href="relays.html" class="nav-group-link ${["relay-public", "examples", "proposals"].includes(active) ? "active" : ""}">中转日报</a>${UI.icon("chevron")}</summary><div class="nav-group-menu">${[["relay-public", "relays.html", "中转日报", "chart"], ["examples", "examples.html", "检测案例", "doc"], ["proposals", "proposals.html", "收录提案", "chat"]].map(([key, url, text, icon]) => `<a href="${url}"${active === key ? ' class="active" aria-current="page"' : ""}>${UI.icon(icon)}<span>${text}</span>${UI.icon("arrow")}</a>`).join("")}</div></details>`
+      : `<a href="${href}" class="${active === id ? "active" : ""}">${label}</a>`).join("");
     const cfg = Store.api();
     let apiLabel = "接口设置";
     if (cfg.baseUrl && cfg.apiKey) {
@@ -183,6 +184,9 @@ const UI = {
       </a>
     </div>`;
     const promo = body.indexOf("hero-promo") >= 0 || body.indexOf("veridrop-banner") >= 0 ? "" : `<div class="page-promo">${UI.veridropCard()}</div>`;
+    const content = promo && /^\s*<div class="page-head(?:\s|")/.test(body)
+      ? `<div class="page-intro-layout">${promo}${body}</div>`
+      : promo + body;
     const relay = `<a class="api-btn relay-nav" href="https://www.veridrop.cn" target="_blank" rel="noopener noreferrer" title="API中转导航">${UI.icon("out")}<span>中转导航</span></a>`;
     const account = `${marks}${relay}<button class="api-btn" type="button" data-action="open-api" title="${UI.esc(apiLabel)}">${UI.icon("info")}<span>${UI.esc(apiLabel)}</span></button>`;
     return `<header class="topbar">
@@ -193,7 +197,8 @@ const UI = {
       </div>
     </header>
     ${options.officialTicker ? UI.officialTicker() : ""}
-    <main class="page"><div class="container">${promo}${body}</div></main>`;
+    ${typeof PublicData !== "undefined" && PublicData.live ? PublicData.notices(active === "home") : ""}
+    <main class="page"><div class="container">${content}</div></main>`;
   },
   currentFile() {
     const file = (location.pathname.split("/").pop() || "index.html") + location.search;
@@ -226,10 +231,12 @@ const UI = {
     return location.protocol === "file:" || host === "127.0.0.1" || host === "localhost";
   },
   forwardNote() {
+    if (typeof PublicData !== "undefined" && PublicData.live) return "请求由当前服务转发到填写的接口。";
     if (UI.siteIsLocal()) return "请求由你电脑上的 start.bat 转发到填写的接口。";
     return "请求由当前网站转发到填写的接口。";
   },
   offlineForward() {
+    if (typeof PublicData !== "undefined" && PublicData.live) return "连不上本地服务。请使用 start-admin.bat 启动后台，再刷新当前页面。";
     if (UI.siteIsLocal()) return "连不上本机转发。请先双击项目里的 start.bat，再用 http://127.0.0.1:8766/index.html 打开，不要直接双击 html。";
     return "连不上网站转发。请稍后再试。";
   },
@@ -288,7 +295,16 @@ const UI = {
   bind() {
     if (UI.bound) return;
     UI.bound = true;
+    document.addEventListener("pointerover", (event) => {
+      const group = event.target.closest(".nav-group");
+      if (event.pointerType === "mouse" && group && !group.contains(event.relatedTarget)) group.open = true;
+    });
+    document.addEventListener("pointerout", (event) => {
+      const group = event.target.closest(".nav-group");
+      if (event.pointerType === "mouse" && group && !group.contains(event.relatedTarget)) group.open = false;
+    });
     document.addEventListener("click", (event) => {
+      document.querySelectorAll(".nav-group[open]").forEach((group) => { if (!group.contains(event.target)) group.open = false; });
       const actionEl = event.target.closest("[data-action]");
       if (!actionEl) {
         if (!event.target.closest(".select") && !event.target.closest(".menu-pop")) UI.closeFloaters();
@@ -309,6 +325,7 @@ const UI = {
     });
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
+        document.querySelectorAll(".nav-group[open]").forEach((group) => { group.open = false; group.querySelector("summary").focus(); });
         UI.closeFloaters();
         document.querySelector(".modal-mask")?.remove();
       }

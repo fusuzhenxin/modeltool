@@ -1,0 +1,17 @@
+{
+  "svg": {
+    "name": "经典 SVG",
+    "system": "你只输出一个完整的 HTML 文件，不要解释，不要使用 Markdown。页面里只用内联 SVG 画图，不要引用外部图片或脚本。",
+    "prompt": "Generate an SVG of a pelican riding a bicycle. 把这张图画进一个完整 HTML 文件。鹈鹕要能看出长嘴和喉囊，自行车要有两个轮子、车架，并且鹈鹕是骑在车上，而不是站在旁边。"
+  },
+  "html2d": {
+    "name": "2D 动画 HTML",
+    "system": "你只输出一个完整的单文件 HTML，不要解释，不要使用 Markdown。动画用 SVG 或页面内脚本完成，除 Three.js 以外不要依赖外网。",
+    "prompt": "创建一个 HTML，内容是 SVG 绘制一个鹈鹕骑自行车的 2D 动画。画面里要有鹈鹕的长嘴、喉囊、身体，以及自行车的两个车轮和车架。鹈鹕要骑在车上，车轮持续转动。不要写测试代码，只给这个页面。"
+  },
+  "three": {
+    "name": "3D 动画 HTML",
+    "system": "你只输出一个完整的单文件 HTML，不要解释，不要使用 Markdown。可以用 CDN 引入 Three.js。",
+    "prompt": "用 Three.js 做一个「鹈鹕骑车」的 3D 动画，放在一个完整 HTML 文件里。鹈鹕骑在自行车上，车轮会转，镜头能看清长嘴和两个轮子。不要写测试代码。"
+  }
+}

@@ -41,7 +41,7 @@
   <meta name="twitter:description" content="查看单次大模型测试报告，包含得分、降智判定、逐题对错和分维度成绩。报告只根据接口返回的真实作答生成。">
   <meta name="twitter:image" content="https://www.modeltool.cn/assets/og-cover.png">
   <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebPage","@id":"https://www.modeltool.cn/result.html#webpage","url":"https://www.modeltool.cn/result.html","name":"大模型测试报告 - 得分、错题与降智判定 | 大模型降智检测","description":"查看单次大模型测试报告，包含得分、降智判定、逐题对错和分维度成绩。报告只根据接口返回的真实作答生成。","inLanguage":"zh-CN","isPartOf":{"@id":"https://www.modeltool.cn/#website"},"about":{"@id":"https://www.modeltool.cn/#org"},"primaryImageOfPage":{"@type":"ImageObject","url":"https://www.modeltool.cn/assets/og-cover.png"},"breadcrumb":{"@id":"https://www.modeltool.cn/result.html#breadcrumb"}},{"@type":"BreadcrumbList","@id":"https://www.modeltool.cn/result.html#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://www.modeltool.cn/index.html"},{"@type":"ListItem","position":2,"name":"测试报告","item":"https://www.modeltool.cn/result.html"}]}]}</script>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=20261109-report-layout">
 </head>
 <body>
   <div id="app"></div>
@@ -98,11 +98,13 @@
   <script src="js/data.js"></script>
   <script src="js/engine.js"></script>
   <script src="js/store.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/probe.js"></script>
+  <script src="js/ui.js?v=20261109-nav-hover"></script>
+  <script src="js/probe.js?v=20261109-output-limit"></script>
   <script src="js/qr.js"></script>
   <script src="js/poster.js"></script>
-  <script src="js/pages.js"></script>
+  <script src="js/public-data.js?v=20261109-announcement"></script>
+  <script src="js/site-report.js?v=20261109-site-tests"></script>
+  <script src="js/pages.js?v=20261109-report-layout"></script>
   <script>App.start("result");</script>
 </body>
 </html>

@@ -60,6 +60,58 @@ const Probe = {
     const text = ((result && result.text) || "") + JSON.stringify((result && result.json) || {});
     return result && result.status >= 400 && /not support|unsupported|unknown|unrecognized|invalid|unexpected|extra|vision|image|tool|reasoning/i.test(text);
   },
+  async testOutputLimit(call, model, baseUrl) {
+    const anthropic = Api.isAnthropic(Api.endpoint(baseUrl));
+    let parameter = anthropic ? "max_tokens" : "max_completion_tokens";
+    const attempts = [];
+    const test = async (cap) => {
+      const payload = { model, [parameter]: cap, messages: [{ role: "user", content: "请连续写出从 1 到 200 的整数，用逗号分隔，不要省略，不要解释。" }] };
+      const result = await call(payload);
+      const data = result.json;
+      const usage = data?.usage;
+      const values = [usage?.completion_tokens, usage?.output_tokens].filter((v) => v !== undefined && v !== null);
+      const valid = values.length > 0 && values.every((v) => Number.isInteger(v) && v >= 0) && values.every((v) => v === values[0]);
+      const tokens = valid ? values[0] : null;
+      const finish = data?.choices?.[0]?.finish_reason || data?.stop_reason || "未提供";
+      const text = Probe.textOf(data);
+      const failed = result.error || !(result.status >= 200 && result.status < 300);
+      // Only an explicit rejection of this field permits switching parameter names.
+      const error = data?.error;
+      const message = String(error?.message || (typeof error === "string" ? error : "") || data?.message || result.text || "");
+      const namesField = error?.param === parameter || message.toLowerCase().includes(parameter);
+      const rejected = [400, 422].includes(result.status) && namesField;
+      const unsupported = rejected && /unsupported|not supported|does not support|not support|unknown|unrecognized|unexpected|extra inputs|extra fields|not permitted|not allowed|不支持|未知参数|无法识别/i.test(message);
+      let outcome = "unknown";
+      if (failed) outcome = rejected ? "skip" : "unknown";
+      else if (valid && tokens > cap) outcome = "over";
+      else if (values.length && !valid) outcome = "unknown";
+      else if (["length", "max_tokens"].includes(finish) && text.trim() && tokens !== 0) outcome = "pass";
+      const attempt = { parameter, cap, tokens, finish, http: result.status || 0, outcome };
+      attempts.push(attempt);
+      return { outcome, unsupported };
+    };
+    let result = await test(32);
+    if (!anthropic && parameter === "max_completion_tokens" && result.unsupported) {
+      parameter = "max_tokens";
+      result = await test(32);
+    }
+    let status = result.outcome;
+    let note = "";
+    if (status === "over") {
+      const confirmation = await test(64);
+      status = confirmation.outcome === "over" ? "fail" : "unknown";
+      note = status === "fail" ? "两次返回用量均超出请求上限，输出限制异常。" : "首次返回用量超限，复测未能重复确认，暂不判为限制失效。";
+    } else if (status === "pass") {
+      note = "检测到输出因上限而截断。";
+    } else if (status === "skip") {
+      note = "接口明确拒绝该输出上限参数或取值，当前设置不支持。";
+    } else {
+      status = "unknown";
+      note = "未获得可核对的截断证据，无法确认输出限制；短回答、空回答或仅推理耗尽预算不算通过。";
+    }
+    const evidence = attempts.map((a) => `${a.parameter}=${a.cap}，接口报告输出 ${a.tokens == null ? "用量缺失或无效" : a.tokens + " Token"}，结束原因 ${a.finish}，HTTP ${a.http}`).join("；");
+    return { version: 2, status, attempts, detail: note + " " + evidence + "。此项仅反映输出限制兼容性，不作为掺水或降智依据；用量包含接口计入的推理等非可见 Token。" };
+  },
   rows(report) {
     const saved = (report && report.items) || {};
     return Probe.checks.map((item, index) => {
@@ -68,7 +120,7 @@ const Probe = {
     }).join("");
   },
   rowHtml(item, index, status, detail) {
-    const label = { idle: "未测", run: "测试中", pass: "通过", fail: "失败", skip: "不支持", miss: "未命中" }[status] || "未测";
+    const label = { idle: "未测", run: "测试中", pass: "通过", fail: "失败", skip: "不支持", miss: "未命中", unknown: "无法确认" }[status] || "未测";
     return `<tr id="probe-${item.id}">
       <td class="probe-no">${String(index + 1).padStart(2, "0")}</td>
       <td><div class="probe-name">${item.name}</div>${detail ? `<div class="probe-detail">${UI.esc(detail)}</div>` : ""}</td>
@@ -163,16 +215,8 @@ const Probe = {
     const streamOk = stream.status < 400 && /data:\s*\{/.test(stream.text || "") && (/\[DONE\]/.test(stream.text || "") || /delta|content_block_delta/.test(stream.text || ""));
     put("stream", stream.error ? "fail" : streamOk ? "pass" : (Probe.unsupported(stream) ? "skip" : "fail"), streamOk ? "收到 SSE 分片" : (stream.error || "没有解析到流式分片"));
 
-    const limited = await call({
-      model,
-      temperature: 0,
-      max_tokens: 1,
-      messages: [{ role: "user", content: "请用很长一段话介绍鹈鹕，至少写三百字。" }]
-    });
-    const limitedText = Probe.textOf(limited.json);
-    const finish = limited.json && limited.json.choices && limited.json.choices[0] && limited.json.choices[0].finish_reason;
-    const limitedOk = limited.status < 400 && (finish === "length" || limitedText.length <= 24);
-    put("limit", limited.error ? "fail" : limitedOk ? "pass" : (Probe.unsupported(limited) ? "skip" : "fail"), limitedOk ? "max_tokens=1 已截断" + (finish ? "，finish_reason=" + finish : "") : (limited.error || "输出没有被 max_tokens 限制住"));
+    report.outputControl = await Probe.testOutputLimit(call, model, cfg.baseUrl);
+    put("limit", report.outputControl.status, report.outputControl.detail);
 
     const memory = await call({
       model,
@@ -278,7 +322,10 @@ const Probe = {
     cut("shape", 15, "响应结构被改过", "标准消息字段缺失，中转可能包了一层或把字段弄丢了。");
     cut("system", 15, "系统指令没有送达", "系统提示没有约束住回答。中转可能吞掉了 system，或换成了不听指令的小模型。");
     cut("memory", 15, "上下文没有转发给上游", "模型不记得上一轮刚约定的暗号，历史消息很可能没被原样带上。");
-    cut("limit", 12, "输出限制没有生效", "max_tokens 没有截断输出。中转可能丢掉了这个参数，用量会比你以为的更大。");
+    if (["fail", "skip", "unknown"].includes(status("limit"))) findings.push({
+      level: "ok", title: status("limit") === "fail" ? "输出限制异常（接口兼容性）" : status("limit") === "skip" ? "输出上限参数不支持" : "输出限制无法确认",
+      text: "输出控制单独展示，不计入掺水评分，也不作为降智依据。" + detail("limit")
+    });
     cut("stream", 10, "没有真正的流式", "打开 stream 后没有收到逐段分片。中转可能把流式缓冲成一次性返回，或根本没转发。");
     cut("tools", 10, "工具调用被丢掉", "请求里带了 tools，响应却没有 tool_calls。中转可能剥掉了工具字段。");
     cut("usage", 8, "用量对不上账", "响应里没有 token 用量。中转不给账，就无法核对有没有多扣。");
@@ -293,7 +340,7 @@ const Probe = {
     const warns = findings.filter((item) => item.level === "warn" || item.level === "bad").length;
     let level = "ok";
     let title = "未见掺水";
-    let summary = "请求的模型有回显，系统指令、上下文和输出限制都按原样生效。这次没有看到中转站偷换模型或改写协议的证据。";
+    let summary = "请求的模型有回显，系统指令、上下文等关键项目通过。这次没有看到中转站偷换模型或改写协议的证据。" + (status("limit") === "pass" ? "输出上限检测通过。" : "输出控制另列兼容性结果，未据此判断掺水。");
     if (hard || score < 60) {
       level = "bad";
       title = "明显掺水";
