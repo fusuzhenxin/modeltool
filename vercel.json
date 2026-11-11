@@ -3,7 +3,8 @@
   "git": {
     "deploymentEnabled": {
       "codex/v0.1.0-preview.1": false,
-      "codex/v0.2.0": false
+      "codex/v0.2.0": false,
+      "codex/v0.2.1": false
     }
   },
   "functions": {

@@ -1,15 +1,18 @@
 /* The operations service owns live public content. Static previews retain labeled fixtures. */
 const PublicData = {
-  live: false, failed: false, reports: [], stations: [], announcements: [], ads: [], pending: null,
-  async load() {
+  live: false, failed: false, loading: false, reports: [], stations: [], announcements: [], ads: [], pending: null,
+  async load(summary = false) {
     if (PublicData.pending) return PublicData.pending;
+    // Until the service responds, never substitute preview fixtures for live data.
+    PublicData.loading = true;
+    PublicData.live = true;
     PublicData.pending = (async () => {
       const backend = !!document.querySelector('meta[name="modeltool-backend"]');
       const abort = new AbortController();
       const timer = setTimeout(() => abort.abort(), 5000);
       try {
-        const res = await fetch("/api/public/bootstrap", { signal: abort.signal, cache: "no-store" });
-        if (res.status === 404 && !backend) return;
+        const res = await fetch("/api/public/bootstrap" + (summary ? "?summary=true" : ""), { signal: abort.signal, cache: "no-store" });
+        if (res.status === 404 && !backend) { PublicData.live = false; return; }
         if (!res.ok) throw new Error("Public data unavailable");
         const data = await res.json();
         if (data.mode !== "live" || !Array.isArray(data.reports) || !Array.isArray(data.stations)) throw new Error("Invalid public data");
@@ -17,7 +20,7 @@ const PublicData = {
       } catch (_) {
         // A live service failure must never replace measurements with fixture reports.
         PublicData.live = true; PublicData.failed = true;
-      } finally { clearTimeout(timer); }
+      } finally { clearTimeout(timer); PublicData.loading = false; }
     })();
     return PublicData.pending;
   },

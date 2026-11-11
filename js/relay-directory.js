@@ -40,14 +40,16 @@ const RelayDirectory = {
     return file + (query.size ? "?" + query.toString() : "") + hash;
   },
   stationsUrl(params = {}, hash = "") { return RelayDirectory.url(params, hash, "stations.html"); },
-  stationVisit(station, button = false) {
+  stationVisit(station, button = false, iconOnly = false) {
     const site = typeof PublicData !== "undefined" && PublicData.live ? PublicData.stations.find((s) => s.domain === RelayDirectory.domain(station)) : station;
-    const value = site?.website_url;
+    const domain = RelayDirectory.domain(station);
+    const value = site?.website_url || (iconOnly && /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::\d+)?$/i.test(domain) ? `https://${domain}` : "");
     if (!value) return "";
     try {
       const url = new URL(value);
       if (!["https:", "http:"].includes(url.protocol) || url.username || url.password) return "";
     } catch (_) { return ""; }
+    if (iconOnly) return `<a class="relay-artwork-visit" href="${UI.esc(value)}" target="_blank" rel="noopener noreferrer" aria-label="${UI.esc('访问中转站：' + (station.stationName || station.name || domain))}" title="访问中转站"><span aria-hidden="true">↗</span></a>`;
     return `<a class="relay-station-visit${button ? " relay-station-visit-button" : ""}" href="${UI.esc(value)}" target="_blank" rel="noopener noreferrer">访问中转站 <span aria-hidden="true">↗</span></a>`;
   },
   stationIntro(description) {
@@ -172,9 +174,46 @@ const RelayDirectory = {
     const original = item.suite === "site-original-v1";
     return `<section class="panel relay-ability"><div class="panel-hd"><h2>模型能力表现${item.demo ? " · 模拟" : ""}</h2>${RelayDirectory.abilityBadge(item)}</div><div class="panel-bd">${measured ? `<div class="relay-ability-scores"><div><span>本次能力分</span><strong>${UI.esc(ability.score)}<small> / 100</small></strong></div>${original ? '<div><span>评分依据</span><strong>本站原版</strong></div>' : `<div><span>同条件参考基线</span><strong>${UI.esc(ability.baseline ?? "未设定")}<small> / 100</small></strong></div>`}</div><p>${UI.esc(ability.summary || "")}</p><p class="note">${UI.esc(ability.questions || "—")} 道题 · ${original ? "题目和判分直接复用网站测试；各模块结果见上方。" : "相同题组与设置。"}${item.demo ? "本次分数与参考基线均为模拟数据。" : "请结合题目范围与同条件复测判断。"}</p>` : `<p>这份报告没有模型能力测试，不能据协议检测结果判断是否降智。</p>`}</div></section><section class="panel relay-related"><div class="panel-hd"><h2>该中转站当天的其他报告</h2><a href="${RelayDirectory.url({ station, date })}">进入中转站档案 →</a></div>${RelayDirectory.table(siblings, date, false)}<div class="panel-bd entry-actions"><a class="btn btn-primary" href="${RelayDirectory.url({ date }, "#daily-reports")}">查看 ${date} 所有中转站的报告</a><a class="btn btn-ghost" href="${RelayDirectory.url({ station, date })}">查看该站当天全部报告</a></div></section>`;
   },
+  mountArtworkPreviews() {
+    if (RelayDirectory.previewObserver) RelayDirectory.previewObserver.disconnect();
+    const fit = (viewport) => {
+      const frame = viewport.querySelector("iframe");
+      if (!frame || !viewport.clientWidth || !viewport.clientHeight) return;
+      const scale = Math.min(viewport.clientWidth / 1200, viewport.clientHeight / 1000);
+      frame.style.transform = `translate(${(viewport.clientWidth - 1200 * scale) / 2}px, ${(viewport.clientHeight - 1000 * scale) / 2}px) scale(${scale})`;
+      frame.style.visibility = "visible";
+    };
+    const viewports = document.querySelectorAll(".relay-artwork-viewport");
+    if (typeof ResizeObserver !== "undefined") {
+      RelayDirectory.previewObserver = new ResizeObserver((entries) => entries.forEach((entry) => fit(entry.target)));
+      viewports.forEach((viewport) => { fit(viewport); RelayDirectory.previewObserver.observe(viewport); });
+    } else viewports.forEach(fit);
+  },
+  artworkPage() {
+    const query = new URLSearchParams(location.search);
+    const search = (query.get("q") || "").trim().slice(0, 120);
+    const date = RelayDirectory.validDay(query.get("date")) ? query.get("date") : "";
+    const modes = { svg: "经典 SVG", html2d: "2D 动画 HTML", three: "3D 动画 HTML" };
+    const mode = Object.hasOwn(modes, query.get("mode")) ? query.get("mode") : "";
+    const all = RelayDirectory.rows().filter((row) => row.id && row.artwork?.available);
+    const rows = all.filter((row) => (!date || RelayDirectory.day(row) === date) && (!mode || row.artwork.mode === mode) && (!search || [row.stationName, RelayDirectory.domain(row), row.model].join(" ").toLowerCase().includes(search.toLowerCase())));
+    const pages = Math.max(1, Math.ceil(rows.length / 6));
+    const requested = Number(query.get("page") || 1);
+    const page = Number.isSafeInteger(requested) ? Math.max(1, Math.min(requested, pages)) : 1;
+    const shown = rows.slice((page - 1) * 6, page * 6);
+    const url = (page) => RelayDirectory.url({ view: "artworks", q: search, mode, date, page });
+    const card = (row) => {
+      const art = row.artwork, source = `/api/public/reports/${encodeURIComponent(row.id)}/artwork`;
+      const score = typeof art.score === "number" && Number.isFinite(art.score) && art.score >= 0 && art.score <= 100 ? art.score : null;
+      const tone = score === null ? "unscored" : score >= 85 ? "high" : score >= 70 ? "medium" : "low";
+      return `<article class="panel relay-artwork-card"><div class="relay-artwork-viewport"><iframe width="1200" height="1000" class="relay-artwork-preview" loading="lazy" sandbox="allow-scripts" referrerpolicy="no-referrer" src="${source}" title="${UI.esc((row.stationName || row.domain) + ' · ' + row.model + ' 鹈鹕作品')}"></iframe></div><div class="panel-bd"><div class="relay-artwork-title"><h2>${UI.esc(row.stationName || RelayDirectory.domain(row))}</h2>${RelayDirectory.stationVisit(row, false, true)}${row.demo ? '<span class="demo-tag">演示数据</span>' : ""}</div><p class="relay-muted">${UI.esc(RelayDirectory.domain(row))}</p><p>${UI.esc(row.model)} · ${UI.esc(art.mode_name || modes[art.mode] || "鹈鹕骑车")}</p><div class="relay-artwork-score score-${tone}"><span>代码结构分</span><div><strong>${UI.esc(score ?? "—")}</strong><span> / 100</span></div></div><p class="relay-artwork-time relay-muted"><time>${UI.esc(row.time)}</time></p><div class="entry-actions"><a class="btn btn-primary btn-sm" href="${source}" target="_blank" rel="noopener noreferrer">新标签页打开作品</a><a class="btn btn-ghost btn-sm" href="${RelayDirectory.url({ id: row.id })}">报告与分享 →</a></div></div></article>`;
+    };
+    return UI.shell("relay-artworks", `<div class="page-head"><div class="crumb"><a href="relays.html">中转日报</a> / 中转站鹈鹕作品</div><h1>中转站鹈鹕骑车作品</h1><p>查看各中转站、模型在测试中生成的已公开作品，支持 SVG、2D 和 3D。</p></div><form class="panel relay-directory-form relay-artwork-filters" action="relays.html" method="get"><input type="hidden" name="view" value="artworks"><label class="relay-directory-search" for="artwork-search">搜索站点或模型<input class="text-input" id="artwork-search" type="search" name="q" maxlength="120" value="${UI.esc(search)}" placeholder="名称、完整域名或模型"></label><label for="artwork-date">报告日期（可选）<input class="text-input" id="artwork-date" type="date" name="date" value="${date}"></label><label for="artwork-mode">作品类型<select class="select-native" id="artwork-mode" name="mode"><option value="">全部类型</option>${Object.entries(modes).map(([key, name]) => `<option value="${key}" ${mode === key ? "selected" : ""}>${name}</option>`).join("")}</select></label><button class="btn btn-primary" type="submit">查找</button><a class="relay-directory-reset" href="relays.html?view=artworks">重置</a></form><p class="note">${date || "全部日期"} · ${rows.length} 件作品 · 每页 6 件。代码结构分不代表画面质量或模型身份；打开报告可生成海报和分享链接。</p>${RelayDirectory.demoNotice(rows)}<div class="relay-artwork-grid">${shown.map(card).join("") || '<div class="panel"><div class="panel-bd"><h2>暂无符合条件的公开作品</h2><p>试试其他条件。检测完成的作品经审核公开后会显示在这里。</p></div></div>'}</div>${pages > 1 ? `<nav class="relay-pagination" aria-label="作品列表分页">${page > 1 ? `<a href="${UI.esc(url(page - 1))}">← 上一页</a>` : ""}<span>${page} / ${pages}</span>${page < pages ? `<a href="${UI.esc(url(page + 1))}">下一页 →</a>` : ""}</nav>` : ""}`);
+  },
   page() {
     const all = RelayDirectory.rows();
     const query = new URLSearchParams(location.search);
+    if (query.get("view") === "artworks" && !query.get("id")) return RelayDirectory.artworkPage();
     if (query.get("id")) {
       const report = all.find((row) => row.id === query.get("id"));
       return report ? relayPublicDetail(report) : UI.shell("relay-public", `<div class="page-head"><h1>没有找到这份公开记录</h1><a href="relays.html">返回检测日报</a></div>`);

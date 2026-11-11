@@ -19,6 +19,86 @@ function directory(search = "", publicData) {
   return vm.runInContext("({ directory: RelayDirectory, reports: RELAY_PUBLIC })", context);
 }
 
+function artworkData() {
+  const reports = Array.from({ length: 9 }, (_, i) => ({
+    id: "art-" + i, domain: "station.example", stationName: "作品站", model: i % 2 ? "model-b" : "model-a",
+    time: `2026-11-${i < 4 ? "09" : "10"} 12:0${i}`, artwork: { available: true, mode: i % 2 ? "svg" : "html2d", score: i * 10, checks: [] }
+  }));
+  reports.push({ id: "protocol", time: "2026-11-11 12:00", level: "ok" });
+  reports.push({ id: "incomplete", time: "2026-11-11 12:01", artwork: { available: false } });
+  return { live: true, stations: [], reports };
+}
+
+test("作品缩略预览按完整页面等比例缩放，窗口变窄或高度受限时居中且不裁切", () => {
+  let onResize;
+  const frame = { style: {} };
+  const viewport = { clientWidth: 400, clientHeight: 1000 / 3, querySelector: () => frame };
+  const observer = { observe() {}, disconnect() { this.disconnected = true; } };
+  const context = vm.createContext({
+    document: { querySelectorAll: () => [viewport] },
+    ResizeObserver: function(callback) { onResize = callback; return observer; }
+  });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../js/relay-directory.js"), "utf8"), context);
+  const d = vm.runInContext("RelayDirectory", context);
+  d.mountArtworkPreviews();
+  assert.equal(frame.style.visibility, "visible");
+  assert.match(frame.style.transform, /scale\(0\.3333333333333333\)/);
+  viewport.clientWidth = 300; viewport.clientHeight = 250;
+  onResize([{ target: viewport }]);
+  assert.equal(frame.style.transform, "translate(0px, 0px) scale(0.25)");
+  viewport.clientHeight = 200;
+  onResize([{ target: viewport }]);
+  assert.match(frame.style.transform, /^translate\(30px, 0px\) scale\(0\.2\)$/);
+  d.mountArtworkPreviews();
+  assert.equal(observer.disconnected, true);
+});
+
+test("中转站作品目录默认展示全部日期，仅完整作品入列，每页六件并使用隔离预览", () => {
+  const data = artworkData();
+  const html = directory("?view=artworks", data).directory.page();
+  assert.match(html, /全部日期 · 9 件作品/);
+  assert.equal((html.match(/<iframe /g) || []).length, 6);
+  assert.match(html, /loading="lazy" sandbox="allow-scripts" referrerpolicy="no-referrer"/);
+  assert.match(html, /target="_blank" rel="noopener noreferrer"/);
+  assert.match(html, /报告与分享/);
+  assert.doesNotMatch(html, /reports\/(protocol|incomplete)\/artwork/);
+  assert.match(html, /page=2/);
+  const second = directory("?view=artworks&page=2", data).directory.page();
+  assert.equal((second.match(/<iframe /g) || []).length, 3);
+  const ids = [...html.matchAll(/src="[^\"]*reports\/([^/]+)\/artwork"/g)].map(m => m[1]);
+  assert.ok(ids.every(id => !second.includes('src="/api/public/reports/' + id + '/artwork"')));
+});
+
+test("作品目录支持模型与站点搜索、日期和作品类型交集，翻页保留条件", () => {
+  const data = artworkData();
+  const html = directory("?view=artworks&q=model-a&mode=html2d&date=2026-11-10", data).directory.page();
+  assert.match(html, /3 件作品/);
+  assert.equal((html.match(/<iframe /g) || []).length, 3);
+  assert.match(html, /value="html2d" selected/);
+  assert.doesNotMatch(html, /<p>model-b/);
+  assert.match(directory("?view=artworks&q=作品站", data).directory.page(), /9 件作品/);
+  for (const row of data.reports) if (row.artwork?.available) row.artwork.mode = "html2d";
+  const paged = directory("?view=artworks&q=作品站&mode=html2d", data).directory.page();
+  assert.match(paged, /mode=html2d&amp;page=2/);
+  assert.match(paged, /q=%E4%BD%9C%E5%93%81%E7%AB%99/);
+});
+
+test("作品目录处理无数据、加载失败、非法页码和恶意输入，不回退模拟作品", () => {
+  const data = artworkData();
+  for (const page of ["-5", "NaN", "9999999999999999999999"]) {
+    assert.equal((directory("?view=artworks&page=" + page, data).directory.page().match(/<iframe /g) || []).length, 6);
+  }
+  assert.match(directory("?view=artworks&q=not-found", data).directory.page(), /暂无符合条件/);
+  const failed = directory("?view=artworks", { live: true, failed: true, stations: [], reports: [] }).directory.page();
+  assert.match(failed, /0 件作品/);
+  assert.doesNotMatch(failed, /<iframe /);
+  data.reports[0].stationName = '<img src=x onerror="bad">';
+  data.reports[0].model = '<script>bad</script>';
+  const html = directory("?view=artworks&q=" + encodeURIComponent('<script>'), data).directory.page();
+  assert.match(html, /&lt;script&gt;/);
+  assert.doesNotMatch(html, /<script>|<img src=x/);
+});
+
 test("后台排序先于最近检测时间生效，首页、日报和分页目录一致且不改变报告顺序", () => {
   const stations = Array.from({ length: 8 }, (_, i) => ({ domain: `station-${i}.example`, name: `站点${i}`, models: ["m"], order: 0 }));
   stations[0].order = 20;
@@ -282,4 +362,42 @@ test("已测能力但没有基线时保留分数，不伪装为未测或正常",
   assert.equal(group.degraded, false);
   assert.match(d.reportContext(row), /未设定/);
   assert.doesNotMatch(d.reportContext(row), /这份报告没有模型能力测试/);
+});
+
+
+test("作品站名旁直达后台配置的网址，缺省使用站点域名并转义链接", () => {
+  const data = artworkData();
+  data.stations = [{ domain: "station.example", website_url: 'https://console.example/register?a=1&b="two"' }];
+  const d = directory("?view=artworks", data).directory;
+  const html = d.page();
+  assert.match(html, /class="relay-artwork-visit" href="https:\/\/console.example\/register\?a=1&amp;b=&quot;two&quot;"/);
+  assert.match(html, /aria-label="访问中转站：作品站"/);
+  assert.match(html, /title="访问中转站"><span aria-hidden="true">↗<\/span>/);
+  data.stations[0].website_url = "";
+  assert.match(d.page(), /class="relay-artwork-visit" href="https:\/\/station.example"/);
+  for (const url of ["javascript:alert(1)", "https://user:password@example.com", "data:text/html,test"]) {
+    data.stations[0].website_url = url;
+    assert.doesNotMatch(d.page(), /class="relay-artwork-visit"/);
+  }
+});
+
+test("作品评分按区间突出显示，零分保留，异常分数显示未评分", () => {
+  const data = artworkData();
+  data.reports = [data.reports[0]];
+  const d = directory("?view=artworks", data).directory;
+  for (const [score, tone] of [[100, "high"], [85, "high"], [84, "medium"], [70, "medium"], [69, "low"], [0, "low"]]) {
+    data.reports[0].artwork.score = score;
+    const html = d.page();
+    assert.match(html, new RegExp('class="relay-artwork-score score-' + tone + '"'));
+    assert.ok(html.includes('<strong>' + score + '</strong>'));
+    assert.match(html, /代码结构分/);
+    assert.match(html, /代码结构分不代表画面质量或模型身份/);
+  }
+  for (const score of [null, undefined, -1, 101, NaN, Infinity, '<img src=x>']) {
+    data.reports[0].artwork.score = score;
+    const html = d.page();
+    assert.match(html, /score-unscored/);
+    assert.match(html, /<strong>—<\/strong>/);
+    assert.doesNotMatch(html, /<img src=x>/);
+  }
 });

@@ -1,6 +1,6 @@
 # 大模型降智检测
 
-当前版本：**v0.2.0**（[版本记录](CHANGELOG.md)，版本源文件 [VERSION](VERSION)）。本版增加持久化运营后台与收录提案，发布分支为 `codex/v0.2.0`；该分支禁止 Vercel Git 自动部署，仓库推送与线上切换分开执行。旧预览保留 `v0.1.0-preview.1` 标签，更新前的旧版线上基线保留为 `v0.1.0-legacy`。
+当前版本：**v0.2.1**（[版本记录](CHANGELOG.md)，版本源文件 [VERSION](VERSION)）。本版优化后台筛选、页面加载和检测进程恢复，增加公开报告分享与中转站鹈鹕作品列表；发布分支为 `codex/v0.2.1`，禁止 Vercel Git 自动部署。仓库推送与线上切换分开执行，历史版本标签继续保留。
 
 线上 [www.modeltool.cn](https://www.modeltool.cn) · 仓库 [github.com/fusuzhenxin/modeltool](https://github.com/fusuzhenxin/modeltool)
 

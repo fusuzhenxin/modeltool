@@ -1,7 +1,7 @@
 "use strict";
 
 const Admin = (() => {
-  const state = { csrf: "", user: "", route: "dashboard", rows: [], stations: [], tests: [], search: "", filter: "", page: 1, ticket: 0, setupToken: "", selected: new Set(), bulkResult: null, bulkBusy: false };
+  const state = { csrf: "", user: "", route: "dashboard", rows: [], stations: [], tests: [], search: "", filter: "", modelFilter: "", testFilter: "", page: 1, ticket: 0, setupToken: "", selected: new Set(), bulkResult: null, bulkBusy: false };
   const app = document.getElementById("admin-app");
   const editor = document.getElementById("editor");
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -90,9 +90,18 @@ const Admin = (() => {
   function identity(r) {
     return `<span class="identity">${r.logo ? `<img class="station-logo" src="${esc(r.logo)}" alt="" loading="lazy">` : `<span class="station-logo">${esc(Array.from(r.name)[0])}</span>`}<span><span class="main-text">${esc(r.name)}</span><span class="sub">${esc(r.domain)}</span></span></span>`;
   }
+  const hasTestFilters = () => ["jobs", "schedules", "reports"].includes(state.route);
+  const rowTest = (row) => row.kind || (row.artwork?.mode ? "pelican" : "legacy");
+  function testFilters() {
+    if (!hasTestFilters()) return "";
+    const models = [...new Set([state.modelFilter, ...state.rows.map((row) => row.model)].filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const kinds = [...new Set([...state.tests.map((test) => test.id), ...state.rows.map(rowTest), state.testFilter].filter(Boolean))];
+    const label = (kind) => kind === "legacy" ? "历史测试（未标注项目）" : kindLabel(kind);
+    return `<select id="model-filter" aria-label="筛选模型"><option value="">全部模型</option>${models.map((model) => `<option value="${esc(model)}" ${state.modelFilter === model ? "selected" : ""}>${esc(model)}</option>`).join("")}</select><select id="test-filter" aria-label="筛选测试项"><option value="">全部测试项</option>${kinds.map((kind) => `<option value="${esc(kind)}" ${state.testFilter === kind ? "selected" : ""}>${esc(label(kind))}</option>`).join("")}</select>`;
+  }
   function visibleRows() {
     const text = state.search.toLowerCase();
-    return state.rows.filter((r) => (!text || [r.name, r.title, r.content, r.domain, r.model, name(r.station_id), r.description, r.error, r.models?.join(" "), r.author].join(" ").toLowerCase().includes(text)) && (!state.filter || (state.filter === "enabled" ? r.enabled : state.filter === "disabled" ? !r.enabled : r.status === state.filter)));
+    return state.rows.filter((r) => (!text || [r.name, r.title, r.content, r.domain, r.model, name(r.station_id), r.description, r.error, r.models?.join(" "), r.author].join(" ").toLowerCase().includes(text)) && (!state.filter || (state.filter === "enabled" ? r.enabled : state.filter === "disabled" ? !r.enabled : r.status === state.filter)) && (!hasTestFilters() || ((!state.modelFilter || r.model === state.modelFilter) && (!state.testFilter || rowTest(r) === state.testFilter))));
   }
   function listContent() {
     const route = state.route;
@@ -102,7 +111,7 @@ const Admin = (() => {
     const shown = rows.slice((state.page - 1) * 12, state.page * 12);
     const listTable = (head, rendered) => AdminBulk.table(head, rendered, shown, state.selected, esc, table);
     let html;
-    if (!shown.length) html = empty(state.search || state.filter ? "没有符合条件的记录" : "这里还没有内容", { stations: "添加中转站资料和检测密钥，随后就可以安排检测。", schedules: "创建周期计划后，后台会自动排队执行，不需要一直打开网页。", reports: "检测完成后，报告会自动进入这里等待审核。", jobs: "发起一次手动检测，或者创建定时计划。", announcements: "添加一条公告，它会按设定时间出现在网站上。", ads: "添加广告素材，选择一个前台展示位置。" }[route]);
+    if (!shown.length) html = empty(state.search || state.filter || (hasTestFilters() && (state.modelFilter || state.testFilter)) ? "没有符合条件的记录" : "这里还没有内容", { stations: "添加中转站资料和检测密钥，随后就可以安排检测。", schedules: "创建周期计划后，后台会自动排队执行，不需要一直打开网页。", reports: "检测完成后，报告会自动进入这里等待审核。", jobs: "发起一次手动检测，或者创建定时计划。", announcements: "添加一条公告，它会按设定时间出现在网站上。", ads: "添加广告素材，选择一个前台展示位置。" }[route]);
     else if (route === "stations") html = listTable(["中转站", "展示排序", "已登记模型", "展示 / 检测", "检测凭据", "每日上限", "操作"], shown.map((r) => `<tr><td>${identity(r)}</td><td><div class="station-order-control"><input type="number" min="-10000" max="10000" step="1" required value="${r.order ?? 0}" data-station-order="${r.id}" aria-label="${esc(r.name)}的展示排序"><button class="text-btn" data-action="station-order" data-id="${r.id}">保存</button></div></td><td>${r.models.slice(0, 2).map((m) => `<span class="sub">${esc(m)}</span>`).join("")}${r.models.length > 2 ? `<span class="sub">另 ${r.models.length - 2} 个模型</span>` : ""}</td><td>${chip(r.visible ? "公开" : "隐藏", r.visible ? "green" : "")} ${chip(r.enabled ? "可检测" : "已暂停", r.enabled ? "blue" : "")}</td><td>${chip(r.has_key ? "已加密保存" : "未配置密钥", r.has_key ? "green" : "orange")}</td><td>调用：${r.daily_calls === 0 ? "无上限" : fmt(r.daily_calls) + " 次"}<span class="sub">Token：${r.daily_tokens === 0 ? "无上限" : fmt(r.daily_tokens)}</span></td><td class="actions">${resourceActions(r)}<button class="text-btn" data-action="run" data-id="${r.id}">检测</button></td></tr>`));
     else if (route === "proposals") html = proposalTable(shown, listTable);
     else if (route === "jobs") html = listTable(["中转站 / 模型", "检测内容", "任务状态", "检测分数", "创建时间", "操作"], jobRows(shown));
@@ -155,7 +164,7 @@ const Admin = (() => {
     const action = route === "jobs" ? button("run", "手动检测", true) : ["reports", "proposals"].includes(route) ? "" : button("create", { stations: "添加中转站", announcements: "添加公告", schedules: "创建计划", ads: "添加广告" }[route], true);
     const filters = route === "proposals" ? Object.keys(proposalStatuses) : route === "jobs" ? ["queued", "running", "done", "failed", "cancelled", "interrupted"] : route === "reports" ? ["draft", "published", "rejected"] : ["enabled", "disabled"];
     const notice = route === "proposals" ? "用户无需注册即可提交、支持与评论。提案不会自动触发检测；可设置公开进度、关联已发布报告，隐藏不合适的提案或评论。" : route === "reports" ? "检测原始结果不能在审核时改分。公开报告进入日报与站点档案；撤回后立即从前台移除。" : route === "schedules" ? "按固定间隔排队执行，错过的轮次不会集中补跑。同一站点模型避免重复排队，异常项会在单次任务中复测一次。" : route === "jobs" ? "取消运行中的任务会在当前请求结束后生效。任务进程中断后不会自动重新扣费，可检查原因后手动重试。" : route === "ads" ? "前台广告位当前暂停展示，保存或启用广告也不会公开展示。原有维渡 AI 推荐继续保留。" : "";
-    return heading(action + button("refresh", "刷新")) + (notice ? `<div class="notice">${notice}</div>` : "") + `<div class="toolbar"><label class="search">${icon("search")}<input id="search" type="search" aria-label="搜索记录" placeholder="搜索名称、域名或模型…" value="${esc(state.search)}"></label><select id="filter" aria-label="筛选状态"><option value="">全部状态</option>${filters.map((v) => `<option value="${v}" ${state.filter === v ? "selected" : ""}>${({ enabled: "已启用", disabled: "已停用" }[v]) || proposalStatuses[v] || statuses[v][0]}</option>`).join("")}</select><span class="muted" style="font-size:11px">${route === "jobs" ? "每 8 秒自动更新" : ""}</span></div><section class="card" id="list-content">${listContent()}</section>`;
+    return heading(action + button("refresh", "刷新")) + (notice ? `<div class="notice">${notice}</div>` : "") + `<div class="toolbar${hasTestFilters() ? " test-filter-toolbar" : ""}"><label class="search">${icon("search")}<input id="search" type="search" aria-label="搜索记录" placeholder="搜索名称、域名或模型…" value="${esc(state.search)}"></label><select id="filter" aria-label="筛选状态"><option value="">全部状态</option>${filters.map((v) => `<option value="${v}" ${state.filter === v ? "selected" : ""}>${({ enabled: "已启用", disabled: "已停用" }[v]) || proposalStatuses[v] || statuses[v][0]}</option>`).join("")}</select>${testFilters()}<span class="muted" style="font-size:11px">${route === "jobs" ? "每 8 秒自动更新" : ""}</span></div><section class="card" id="list-content">${listContent()}</section>`;
   }
   const input = (key, label, value = "", type = "text", hint = "", attrs = "") => `<label class="field" for="f-${key}"><span>${label}</span><input id="f-${key}" name="${key}" aria-label="${esc(label)}" type="${type}" value="${esc(value)}" ${attrs}>${hint ? `<small>${hint}</small>` : ""}</label>`;
   const area = (key, label, value = "", hint = "", attrs = "") => `<label class="field" for="f-${key}"><span>${label}</span><textarea id="f-${key}" name="${key}" aria-label="${esc(label)}" ${attrs}>${esc(value)}</textarea>${hint ? `<small>${hint}</small>` : ""}</label>`;
@@ -266,7 +275,9 @@ const Admin = (() => {
     const artworkPanel = artwork ? `<h3>鹈鹕骑车 · ${esc(artwork.mode_name)}</h3><p class="tabs-note">代码结构分只检查代码特征，不代表画面质量、模型身份或降智结论。请人工检查鹈鹕长嘴、喉囊、两个轮子和骑行关系。</p>${artwork.available ? `<iframe class="artwork-preview" sandbox="allow-scripts" referrerpolicy="no-referrer" src="/api/admin/reports/${encodeURIComponent(id)}/artwork" title="鹈鹕骑车作品预览"></iframe>` : '<div class="notice warning">没有提取出完整作品，请查看下面的原始回答。</div>'}<div class="artwork-features">${artwork.checks.map((c) => chip((c.passed ? "✓ " : "— ") + c.name + (c.passed ? " +" + c.points : ""), c.passed ? "green" : "")).join("")}</div>` : "";
     const verdict = { pass: ["通过", "green"], warn: ["复测通过", "orange"], fail: ["未通过", "red"], skip: ["不支持", ""], miss: ["未命中", ""], unknown: ["无法确认", ""] };
     const body = `<div class="report-detail"><p class="muted">${esc(name(r.station_id))} · ${esc(result.model)} ${r.demo ? '<span class="demo-label">演示报告</span>' : ""}</p><p class="tabs-note">${esc(result.time)} · ${esc(result.conditions)}</p><div class="report-summary">${artwork && !(result.sections || []).some((s) => s.kind !== "pelican") ? `<div><span>作品类型</span><strong>${esc(artwork.mode_name)}</strong></div><div><span>代码结构分</span><strong>${artwork.score} / 100</strong></div><div><span>作品状态</span><strong>${artwork.available ? "已提取" : "不完整"}</strong></div>` : `<div><span>中转站测试分</span><strong>${result.score ?? "—"}</strong></div><div><span>基础能力分</span><strong>${result.ability?.score ?? "—"}</strong></div><div><span>${result.suite === "site-original-v1" ? "实际调用数" : "同条件基线"}</span><strong>${result.request_count ?? result.ability?.baseline ?? "—"}</strong></div>`}</div>${artworkPanel}${SiteReport.render(result.sections || [], esc)}<p class="tabs-note">${esc(result.summary)}</p>${result.ability ? `<p class="tabs-note">${esc(result.ability.summary)}</p>` : ""}<h3>逐项结果</h3>${(result.checks || []).map((c) => `<div class="report-check"><span>${esc(c.name)}<small>${esc(c.detail)}</small></span>${chip(...(verdict[c.status] || [c.status, ""]))}</div>`).join("")}<details><summary>查看检测题目与原始回答</summary><pre class="report-raw">${esc(JSON.stringify(result.raw || [], null, 2))}</pre></details>${select("status", "审核决定", [["draft", "待审核 / 撤回公开"], ["published", "审核通过，公开报告"], ["rejected", "驳回，不公开"]], r.status)}${area("note", "内部审核备注", r.note, "备注只在后台保存，不会出现在公开报告中。", 'maxlength="1500"')}</div>`;
-    openDialog("检测报告审核", body, "review-form", "保存审核决定", `data-id="${id}"`);
+    const shareEntry = r.status === "published" ? `<p><a class="btn" href="/relays.html?id=${encodeURIComponent(id)}" target="_blank" rel="noopener noreferrer">分享报告（海报 / 链接）</a></p>` : '<p class="tabs-note">报告尚未公开；审核通过后可在前台生成分享海报和分享链接。</p>';
+    const previewBody = artwork?.available ? body.replace('<iframe class="artwork-preview"', `<p><a class="btn" href="/api/admin/reports/${encodeURIComponent(id)}/artwork" target="_blank" rel="noopener noreferrer">新标签页打开作品</a></p><iframe class="artwork-preview"`) : body;
+    openDialog("检测报告审核", shareEntry + previewBody, "review-form", "保存审核决定", `data-id="${id}"`);
   }
   function settingsPage(s) {
     return heading() + `<div class="settings-grid"><section class="card"><div class="card-head"><h2>检测预算与暂停</h2>${icon("shield")}</div><form id="settings-form" class="card-body">${input("daily_calls", "全站每日调用上限", s.daily_calls, "number", "0 表示无上限，所有站点和异常复测合并统计。", 'min="0" max="1000000" required')}${input("daily_tokens", "全站每日 Token 上限", s.daily_tokens, "number", "0 表示无上限。未返回用量时按本次输出上限 + 2048 Token 预留值计入；指纹与作品每次预留 10240 Token。", 'min="0" max="1000000000" required')}${check("paused", "暂停所有后台检测", s.paused)}<p class="tabs-note">暂停后停止新调用与调度，队列保留。已发出的请求结束后才会停下。预算按北京时间自然日统计；全站和站点上限独立生效，0 仅取消当前这一项限制，其他非零上限仍生效。</p><div class="error-box" role="alert"></div><button class="btn primary" type="submit">保存检测设置</button></form></section><div><section class="card"><div class="card-head"><h2>管理员账户</h2>${icon("settings")}</div><form id="password-form" class="card-body">${input("current_password", "当前密码", "", "password", "", 'required autocomplete="current-password"')}${input("new_password", "新密码", "", "password", "至少 12 个字符；修改后所有已登录设备都会退出。", 'required minlength="12" maxlength="128" autocomplete="new-password"')}<div class="error-box" role="alert"></div><button class="btn" type="submit">修改密码并退出</button></form></section><section class="card"><div class="card-head"><h2>数据保存与恢复</h2></div><div class="card-body"><p>数据库、图片与加密密钥存放在网站目录之外。请通过本机管理命令备份，密钥与数据库需要一起妥善保管。</p><p class="tabs-note">具体操作见项目中的 ADMIN.md。访客浏览器保存的密钥不会进入这份后台数据库。</p></div></section></div></div>`;
@@ -291,7 +302,7 @@ const Admin = (() => {
     if (!state.user) return;
     const next = location.hash.slice(1);
     state.route = titles[next] ? next : "dashboard";
-    state.search = ""; state.filter = ""; state.page = 1; state.selected.clear(); state.bulkResult = null;
+    state.search = ""; state.filter = ""; state.modelFilter = ""; state.testFilter = ""; state.page = 1; state.selected.clear(); state.bulkResult = null;
     editor.close();
     loadPage();
   }
@@ -474,7 +485,8 @@ const Admin = (() => {
       editor.querySelector('[name="background_color"]').value = colors[0];
       editor.querySelector('[name="text_color"]').value = colors[1];
     }
-    if (el.id === "filter") { state.filter = el.value; state.page = 1; state.selected.clear(); state.bulkResult = null; renderList(); }
+    const filterKey = { filter: "filter", "model-filter": "modelFilter", "test-filter": "testFilter" }[el.id];
+    if (filterKey) { state[filterKey] = el.value; state.page = 1; state.selected.clear(); state.bulkResult = null; renderList(); }
     if (el.name === "station_id") {
       const select = editor.querySelector('[name="model"]');
       select.innerHTML = (station(el.value)?.models || []).map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join("");

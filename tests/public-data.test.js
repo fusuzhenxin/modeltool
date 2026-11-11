@@ -25,6 +25,44 @@ test("后台的空数组是有效数据，不能用模拟报告补齐", async ()
   assert.equal(data.reports.length, 0);
 });
 
+test("概览请求使用精简数据，默认请求仍保留完整报告", async () => {
+  for (const summary of [false, true]) {
+    let url;
+    const ctx = vm.createContext({ fetch: async (value) => { url = value; return { ok: true, json: async () => ({ mode: "live", reports: [], stations: [] }) }; }, AbortController, setTimeout: () => 1, clearTimeout() {}, document: { querySelector: () => ({}) } });
+    vm.runInContext(source, ctx);
+    await vm.runInContext(`PublicData.load(${summary})`, ctx);
+    assert.equal(url, "/api/public/bootstrap" + (summary ? "?summary=true" : ""));
+  }
+});
+
+test("请求未完成时明确标记加载中，禁止回退演示报告", async () => {
+  let resolve;
+  let calls = 0;
+  const ctx = vm.createContext({ fetch: () => { calls++; return new Promise((done) => { resolve = done; }); }, AbortController, setTimeout: () => 1, clearTimeout: () => {}, document: { querySelector: () => ({}) } });
+  vm.runInContext(source, ctx);
+  const pending = vm.runInContext("PublicData.load()", ctx);
+  const same = vm.runInContext("PublicData.load()", ctx);
+  const data = vm.runInContext("PublicData", ctx);
+  assert.equal(data.loading, true);
+  assert.equal(data.live, true);
+  assert.equal(data.failed, false);
+  assert.equal(data.reports.length, 0);
+  assert.equal(calls, 1);
+  resolve({ status: 200, ok: true, json: async () => ({ mode: "live", reports: [], stations: [] }) });
+  await Promise.all([pending, same]);
+  assert.equal(data.loading, false);
+});
+
+test("请求失败和静态预览 404 均结束加载状态", async () => {
+  const failed = await load(async () => { throw new Error("offline"); });
+  assert.equal(failed.loading, false);
+  assert.equal(failed.live, true);
+  assert.equal(failed.failed, true);
+  const preview = await load(async () => ({ status: 404 }), false);
+  assert.equal(preview.loading, false);
+  assert.equal(preview.live, false);
+});
+
 test("滚动公告保留展示范围、转义文本和颜色边界，重复内容不进入朗读与键盘导航", () => {
   const ctx = vm.createContext({ UI: {
     icon: () => "",

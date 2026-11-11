@@ -450,9 +450,12 @@ def create_app(data_dir=None):
         return {"ok": True}
 
     @app.get("/api/public/bootstrap")
-    def public_bootstrap():
+    def public_bootstrap(summary: bool = False):
         stations = {r["id"]: r for r in db.list("stations") if r["visible"]}
         reports = [public_report(r, stations[r["station_id"]]) for r in db.list("reports") if r["status"] == "published" and r["station_id"] in stations]
+        if summary:
+            # Lists and the homepage need conclusions, not every answer/check in every report.
+            reports = [{k: v for k, v in report.items() if k not in ("checks", "sections", "artwork", "conditions", "retest", "findings")} for report in reports]
         return {"mode": "live", "stations": [{k: r.get(k, "") for k in ("id", "name", "domain", "description", "logo", "models", "website_url")} | {"order": r.get("order", 0)} for r in sorted(stations.values(), key=lambda r: (r.get("order", 0), r["domain"]))], "reports": reports, "announcements": sorted((r for r in db.list("announcements") if active(r)), key=lambda r: (not r["pinned"], r["order"])), "ads": sorted((r for r in db.list("ads") if active(r)), key=lambda r: r["order"])}
 
     @app.get("/api/health")

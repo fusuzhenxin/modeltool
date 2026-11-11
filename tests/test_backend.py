@@ -205,6 +205,29 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/public/bootstrap").status_code, 200)
         self.assertEqual(self.client.get("/api/public/bootstrap").json()["stations"][0]["website_url"], "")
 
+    def test_public_summary_is_small_and_preserves_visibility_and_conclusions(self):
+        station = self.station()
+        result = {"model": "test-model", "time": "2026-11-10T10:00:00Z", "score": 75,
+                  "level": "warn", "protocol_tested": True, "summary": "结论",
+                  "ability": {"score": 60, "level": "degraded"},
+                  "checks": [{"detail": "证据" * 5000}], "sections": [{"kind": "relay", "checks": []}],
+                  "raw": ["private-response"]}
+        self.db.save("reports", "perf-report", {"station_id": station["id"], "status": "published", "result": result})
+        full = self.client.get("/api/public/bootstrap")
+        summary = self.client.get("/api/public/bootstrap?summary=true")
+        row = summary.json()["reports"][0]
+        self.assertEqual(row["ability"], result["ability"])
+        self.assertEqual(row["score"], result["score"])
+        self.assertEqual(row["protocol_tested"], True)
+        self.assertIn("checks", full.json()["reports"][0])
+        self.assertNotIn("checks", row)
+        self.assertNotIn("sections", row)
+        self.assertNotIn("private-response", summary.text)
+        self.assertLess(len(summary.content), len(full.content) / 5)
+        self.assertEqual(summary.headers["cache-control"], "no-store")
+        self.put("reports/perf-report", {"status": "draft"})
+        self.assertEqual(self.client.get("/api/public/bootstrap?summary=true").json()["reports"], [])
+
     def test_crud_timed_content_and_no_secret_static_files(self):
         a = self.post("announcements", {"title": "公告 <script>", "content": "纯文本", "pinned": True, "background_color": "#eef2ff", "text_color": "#4338ca"}).json()
         future = self.post("announcements", {"title": "未来", "content": "未开始", "starts_at": "2099-01-01T00:00:00+08:00"}).json()

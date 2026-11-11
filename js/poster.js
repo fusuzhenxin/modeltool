@@ -400,6 +400,21 @@ const Poster = {
     }
     return report;
   },
+  fromPublic(item) {
+    if (!item || !item.id) return null;
+    return {
+      kind: "public-report", id: String(item.id),
+      name: item.test_name || "中转站检测", stationName: item.stationName || item.domain || "",
+      modelName: item.model || "", time: item.time || "", demo: !!item.demo,
+      title: item.title || "检测已完成", summary: item.summary || "",
+      level: item.level || "none", score: item.score ?? null,
+      sections: (item.sections || []).filter((s) => s.kind !== "pelican").map((s) => ({
+        name: s.name || s.kind || "测试", score: s.score ?? null,
+        detail: s.kind === "trace" ? "候选：" + (s.prediction_name || "未确定") : ""
+      })),
+      artwork: item.artwork ? { score: item.artwork.score ?? null, modeName: item.artwork.mode_name || "" } : null
+    };
+  },
   fromLocation() {
     const hash = location.hash.replace(/^#/, "");
     const params = new URLSearchParams(hash);
@@ -436,6 +451,11 @@ const Poster = {
     return hash;
   },
   link(report, withHtml) {
+    if (report.kind === "public-report") {
+      const url = new URL("/relays.html", location.href);
+      url.searchParams.set("id", report.id);
+      return url.toString();
+    }
     const url = new URL(location.href);
     url.search = "";
     const page = { detect: "detect.html", trace: "trace.html", task: "result.html" }[report.kind] || "relay.html";
@@ -498,6 +518,7 @@ const Poster = {
     ctx.closePath();
   },
   async draw(report) {
+    if (report && report.kind === "public-report") return Poster.drawPublic(report);
     if (report && report.kind === "trace") return Poster.drawTrace(report);
     if (report && (report.kind === "detect" || report.kind === "task")) return Poster.drawScore(report);
     return Poster.drawRelay(report);
@@ -864,7 +885,9 @@ const Poster = {
     ctx.fillText(report.time || "—", 108, foot + 78);
     ctx.fillStyle = "#8b97ad";
     ctx.font = "500 13px 'Microsoft YaHei', sans-serif";
-    ctx.fillText(report.kind === "trace" && report.method === "manual" ? "modeltool.cn  手动粘贴 · 未核验回答来源" : "modeltool.cn  逐项实测可复现", 36, foot + 112);
+    const local = typeof location !== "undefined" && ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+    const source = report.kind === "public-report" && local ? "本地预览 · 二维码仅指向本机" : report.demo ? "演示数据 · 不代表实际服务" : report.kind === "trace" && report.method === "manual" ? "手动粘贴 · 未核验回答来源" : "逐项实测可复现";
+    ctx.fillText("modeltool.cn  " + source, 36, foot + 112);
     const qr = Poster.qrTarget(report);
     let modules = null;
     try { modules = QR.matrix(qr.link); } catch (err) { modules = null; }
@@ -990,6 +1013,30 @@ const Poster = {
       value: item.probability == null ? "—" : (item.probability * 100).toFixed(1) + "%",
       tone: index === 0 ? "ok" : "idle"
     })), 516);
+    await Poster.paintFoot(ctx, width, foot, report);
+    return canvas;
+  },
+  async drawPublic(report) {
+    const rows = report.sections.map((s) => [s.name, s.score == null ? (s.detail || "详见报告") : s.score + " / 100"]);
+    if (report.artwork) rows.push(["作品结构分 · " + report.artwork.modeName, report.artwork.score == null ? "—" : report.artwork.score + " / 100"]);
+    if (!rows.length) rows.push(["协议检查分", report.score == null ? "本次未评分" : report.score + " / 100"]);
+    const width = 760, foot = 365 + rows.length * 48, height = foot + 205;
+    const canvas = document.createElement("canvas");
+    canvas.width = width * 2; canvas.height = height * 2;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(2, 2); ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, width, height);
+    await Poster.paintBrand(ctx, width, report.demo ? "演示报告" : "公开测试报告");
+    const line = (value, y, size = 18, color = "#1c2744") => {
+      ctx.fillStyle = color; ctx.font = "600 " + size + "px 'Microsoft YaHei', sans-serif";
+      ctx.textAlign = "left"; ctx.fillText(String(value || "—"), 36, y, width - 72);
+    };
+    line(report.stationName, 125, 26); line(report.name, 164, 20);
+    line(report.title, 210, 24);
+    line(report.demo ? "演示数据，不代表实际服务" : "各项独立展示，不合并为模型身份或降智结论", 244, 14, "#8b97ad");
+    line(report.summary, 282, 14, "#536179");
+    line("测试项目 / 结果", 330, 16);
+    rows.forEach((row, index) => line(row[0] + "：" + row[1], 372 + index * 48, 17));
+    line("结构分不识别画面；指纹候选不等于身份认证。", foot - 10, 13, "#8b97ad");
     await Poster.paintFoot(ctx, width, foot, report);
     return canvas;
   },

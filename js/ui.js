@@ -165,7 +165,7 @@ const UI = {
       ["works", "works.html", "HTML鹈鹕作品"],
       ["prompts", "prompts.html", "提示词库"]
     ].map(([id, href, label]) => id === "relay-public"
-      ? `<details class="nav-group"><summary aria-label="展开中转日报菜单"><a href="relays.html" class="nav-group-link ${["relay-public", "examples", "proposals"].includes(active) ? "active" : ""}">中转日报</a>${UI.icon("chevron")}</summary><div class="nav-group-menu">${[["relay-public", "relays.html", "中转日报", "chart"], ["examples", "examples.html", "检测案例", "doc"], ["proposals", "proposals.html", "收录提案", "chat"]].map(([key, url, text, icon]) => `<a href="${url}"${active === key ? ' class="active" aria-current="page"' : ""}>${UI.icon(icon)}<span>${text}</span>${UI.icon("arrow")}</a>`).join("")}</div></details>`
+      ? `<details class="nav-group"><summary aria-label="展开中转日报菜单"><a href="relays.html" class="nav-group-link ${["relay-public", "relay-artworks", "examples", "proposals"].includes(active) ? "active" : ""}">中转日报</a>${UI.icon("chevron")}</summary><div class="nav-group-menu">${[["relay-public", "relays.html", "中转日报", "chart"], ["relay-artworks", "relays.html?view=artworks", "中转站鹈鹕作品", "car"], ["examples", "examples.html", "检测案例", "doc"], ["proposals", "proposals.html", "收录提案", "chat"]].map(([key, url, text, icon]) => `<a href="${url}"${active === key ? ' class="active" aria-current="page"' : ""}>${UI.icon(icon)}<span>${text}</span>${UI.icon("arrow")}</a>`).join("")}</div></details>`
       : `<a href="${href}" class="${active === id ? "active" : ""}">${label}</a>`).join("");
     const cfg = Store.api();
     let apiLabel = "接口设置";
@@ -197,7 +197,7 @@ const UI = {
       </div>
     </header>
     ${options.officialTicker ? UI.officialTicker() : ""}
-    ${typeof PublicData !== "undefined" && PublicData.live ? PublicData.notices(active === "home") : ""}
+    <div id="public-notices">${typeof PublicData !== "undefined" && PublicData.live ? PublicData.notices(active === "home") : ""}</div>
     <main class="page"><div class="container">${content}</div></main>`;
   },
   currentFile() {
