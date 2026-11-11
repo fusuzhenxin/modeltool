@@ -1643,7 +1643,7 @@ const Pages = {
       <div id="trace-result">${shown && typeof Trace !== "undefined" ? Trace.resultHtml(shown) : ""}</div>`);
   },
   mount: {
-    relays() { RelayDirectory.mountArtworkPreviews(); },
+    relays() { RelayDirectory.mountArtworkPreviews(); if (typeof ArtworkVotes !== "undefined") ArtworkVotes.mount(); },
     examples() { Examples.mount(); },
     home() { if (typeof Official !== "undefined") Official.load(false); },
     relay() {

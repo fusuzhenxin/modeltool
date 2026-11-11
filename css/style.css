@@ -2356,3 +2356,19 @@ html[data-theme="dark"] .relay-directory-form input, html[data-theme="dark"] .re
 html[data-theme="dark"] .relay-artwork-score.score-high { color: #70dfad; background: #123528; border-color: #245d48; }
 html[data-theme="dark"] .relay-artwork-score.score-medium { color: #f2c071; background: #3a2c16; border-color: #66502a; }
 html[data-theme="dark"] .relay-artwork-score.score-low { color: #ff9aab; background: #3c202a; border-color: #6c3646; }
+
+.artwork-votes { margin-top: 14px; padding-top: 13px; border-top: 1px solid var(--line); }
+.artwork-vote-note { display: block; color: var(--ink-2); font-size: 12px; font-weight: 600; }
+.artwork-vote-note small { display: block; color: var(--muted); font-size: 10px; font-weight: 400; }
+.artwork-vote-buttons { display: flex; gap: 8px; margin: 8px 0 6px; }
+.artwork-vote-buttons button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 1; min-height: 36px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); color: var(--ink-2); font-size: 12px; }
+.artwork-vote-buttons b { margin-left: auto; font-variant-numeric: tabular-nums; font-size: 15px; }
+.artwork-vote-buttons button:not(:disabled):hover { border-color: var(--blue); }
+.artwork-vote-buttons .artwork-vote-real[aria-pressed="true"] { color: #138052; background: var(--green-bg); border-color: #81cbaa; }
+.artwork-vote-buttons .artwork-vote-fake[aria-pressed="true"] { color: #c13b46; background: var(--red-bg); border-color: #efa2ae; }
+.artwork-vote-buttons button:disabled { cursor: default; opacity: .6; }
+.artwork-vote-buttons button:focus-visible, .artwork-vote-retry:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.artwork-votes > small { display: block; color: var(--muted); font-size: 10px; line-height: 1.6; }
+.artwork-vote-retry { background: transparent; border: 0; padding: 6px 0; color: var(--blue); font-size: 12px; }
+html[data-theme="dark"] .artwork-vote-real[aria-pressed="true"] { color: #70dfad; background: #123528; border-color: #245d48; }
+html[data-theme="dark"] .artwork-vote-fake[aria-pressed="true"] { color: #ff9aab; background: #3c202a; border-color: #6c3646; }

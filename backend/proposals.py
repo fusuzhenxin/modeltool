@@ -169,6 +169,9 @@ def register_proposals(app, db, session):
         rows = [dict(r) for r in con.execute("SELECT id,author,content,official,visible,created FROM proposal_comments WHERE " + condition + " ORDER BY created DESC,id DESC LIMIT 30 OFFSET ?", (key, (page - 1) * 30))]
         return {"items": rows, "total": total, "page": page, "pages": max(1, (total + 29) // 30)}
 
+    from .artwork_votes import register_artwork_votes
+    register_artwork_votes(app, db, identity, guest, throttle)
+
     @app.get("/api/public/proposal-session")
     def participant(request: Request, response: Response):
         with db.connect(write=True) as con:

@@ -84,6 +84,7 @@ class Database:
                 CREATE TABLE IF NOT EXISTS worker (id INTEGER PRIMARY KEY CHECK(id=1), heartbeat REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS proposal_visitors (token TEXT PRIMARY KEY, csrf TEXT NOT NULL, expires REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS proposals (id TEXT PRIMARY KEY, domain TEXT UNIQUE NOT NULL, data TEXT NOT NULL, created REAL NOT NULL, updated REAL NOT NULL);
+                CREATE TABLE IF NOT EXISTS artwork_votes (report_id TEXT NOT NULL, visitor TEXT NOT NULL, choice TEXT NOT NULL CHECK(choice IN ('real','fake')), created REAL NOT NULL, PRIMARY KEY(report_id,visitor));
                 CREATE TABLE IF NOT EXISTS proposal_votes (proposal_id TEXT NOT NULL, visitor TEXT NOT NULL, created REAL NOT NULL, PRIMARY KEY(proposal_id,visitor));
                 CREATE TABLE IF NOT EXISTS proposal_comments (id TEXT PRIMARY KEY, proposal_id TEXT NOT NULL, author TEXT NOT NULL, content TEXT NOT NULL, official INTEGER NOT NULL DEFAULT 0, visible INTEGER NOT NULL DEFAULT 1, created REAL NOT NULL);
                 CREATE INDEX IF NOT EXISTS proposal_comments_parent ON proposal_comments(proposal_id,created);
