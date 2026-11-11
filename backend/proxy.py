@@ -4,11 +4,39 @@ import json
 import socket
 import threading
 import time
+import asyncio
+import queue
 from urllib.parse import urlsplit
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
+from chat_stream import ChatStream, LONG_TIMEOUT, HEARTBEAT, STREAM_HEADERS, frame
 from .runner import resolve_public
 
 _slots = threading.BoundedSemaphore(8)
+
+
+async def live_events(stream):
+    stream.start()
+    last = time.monotonic()
+    try:
+        yield b": connected\n\n"
+        while True:
+            if time.monotonic() - stream.started >= LONG_TIMEOUT:
+                yield frame({"type": "error", "message": "本次生成已等待 30 分钟，请稍后手动重试。"})
+                return
+            try:
+                event = stream.queue.get_nowait()
+            except queue.Empty:
+                if time.monotonic() - last >= HEARTBEAT:
+                    yield b": keepalive\n\n"
+                    last = time.monotonic()
+                await asyncio.sleep(.1)
+                continue
+            yield frame(event)
+            last = time.monotonic()
+            if event["type"] in ("end", "error"):
+                return
+    finally:
+        stream.close()
 
 
 def forward_browser(kind, raw):
@@ -16,6 +44,7 @@ def forward_browser(kind, raw):
     if not _slots.acquire(blocking=False):
         return JSONResponse({"error": {"message": "检测请求较多，请稍后重试"}}, status_code=429)
     connection = None
+    handed_off = False
     started = time.monotonic()
     try:
         data = json.loads(raw)
@@ -24,6 +53,11 @@ def forward_browser(kind, raw):
         base, key = str(data.get("baseUrl", "")), str(data.get("apiKey", ""))
         if len(base) > 500 or len(key) > 1000:
             raise ValueError()
+        if kind == "chat" and data.get("streamResponse") is True:
+            stream = ChatStream(data, serve.target_url, resolve_public, _slots.release)
+            response = StreamingResponse(live_events(stream), media_type="text/event-stream", headers=STREAM_HEADERS)
+            handed_off = True
+            return response
         url = serve.target_url(base)
         address = resolve_public(url)
         parsed = urlsplit(url)
@@ -73,4 +107,5 @@ def forward_browser(kind, raw):
     finally:
         if connection:
             connection.close()
-        _slots.release()
+        if not handed_off:
+            _slots.release()

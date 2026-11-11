@@ -73,7 +73,8 @@ class SiteTests(unittest.TestCase):
             message["tool_calls"] = [{"type": "function", "function": {"name": "get_code", "arguments": '{"id":"42"}'}}]
         data = {"id": "chatcmpl-fixture", "object": "chat.completion", "model": payload["model"], "choices": [{"message": message, "finish_reason": "length" if "从 1 到 200" in str(user) else "stop"}], "usage": {"prompt_tokens": 30, "completion_tokens": 10, "total_tokens": 40, "prompt_tokens_details": {"cached_tokens": 5}}}
         if payload.get("stream"):
-            return {"status": 200, "json": None, "text": 'data: {"choices":[{"delta":{"content":"OK"}}]}\n\ndata: [DONE]\n\n', "headers": {"content-type": "text/event-stream"}, "elapsedMs": 1, "error": ""}
+            event = json.dumps({"choices": [{"delta": {"content": answer}}]})
+            return {"status": 200, "json": None, "text": 'data: ' + event + '\n\ndata: [DONE]\n\n', "headers": {"content-type": "text/event-stream"}, "elapsedMs": 1, "error": ""}
         return data
 
     def run_test(self, kind, transport=None, **kwargs):
@@ -194,6 +195,7 @@ class SiteTests(unittest.TestCase):
             self.assertIsNone(report["ability"])
             self.assertEqual(self.calls[-1]["max_tokens"], 8192)
             self.assertEqual(self.calls[-1]["temperature"], .4)
+            self.assertTrue(self.calls[-1]["stream"])
 
     def test_anthropic_uses_original_messages_shape_and_grading(self):
         station = self.db.get("stations", self.station["id"])

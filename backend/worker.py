@@ -2,9 +2,32 @@ import argparse
 import json
 import signal
 import time
+import threading
+from contextlib import contextmanager
 
 from .core import Database, ident, now
 from .runner import RunStopped, run_suite
+
+
+def renew_lease(db, job_id):
+    with db.connect(write=True) as con:
+        con.execute("UPDATE jobs SET lease=? WHERE id=? AND status='running'", (now() + 180, job_id))
+        con.execute("INSERT INTO worker VALUES(1,?) ON CONFLICT(id) DO UPDATE SET heartbeat=excluded.heartbeat", (now(),))
+
+
+@contextmanager
+def keep_worker_alive(db, job_id):
+    stopped = threading.Event()
+    def pulse():
+        while not stopped.wait(20):
+            renew_lease(db, job_id)
+    thread = threading.Thread(target=pulse, name="worker-heartbeat", daemon=True)
+    thread.start()
+    try:
+        yield
+    finally:
+        stopped.set()
+        thread.join()
 
 
 def validate_run(db, spec, con):
@@ -79,7 +102,8 @@ def work_once(db, transport=None):
             raise RunStopped("站点已停用或删除")
         if job["model"] not in station["models"] or not station.get("key_cipher"):
             raise RunStopped("站点模型或检测密钥已变更，请检查后重新创建任务")
-        result = run_suite(db, job, dict(station, id=job["station_id"]), **({"transport": transport} if transport else {}))
+        with keep_worker_alive(db, job["id"]):
+            result = run_suite(db, job, dict(station, id=job["station_id"]), **({"transport": transport} if transport else {}))
         with db.connect(write=True) as con:
             current = con.execute("SELECT cancel,status FROM jobs WHERE id=?", (job["id"],)).fetchone()
             if current["cancel"] or current["status"] != "running" or db.get("settings", "site", con)["paused"]:

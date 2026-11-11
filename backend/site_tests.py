@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 
 from .core import ROOT, TZ
 from .runner import RunStopped, endpoint, reserve, resolve_public
+from chat_stream import LONG_TIMEOUT
 
 
 def start_engine():
@@ -136,7 +137,7 @@ def run_site_suite(db, job, station, transport=None):
             if not isinstance(response, dict) or "status" not in response:
                 response = {"status": 200, "json": response, "text": json.dumps(response), "headers": {}, "elapsedMs": 0, "error": ""}
         else:
-            response = post_exchange(endpoint(station), headers, payload, timeout=120 if limit > 256 else 45)
+            response = post_exchange(endpoint(station), headers, payload, timeout=LONG_TIMEOUT if limit > 256 else 45)
         # Scrub before JS analysis, private report storage, or any error path.
         def scrub(value):
             if isinstance(value, dict):
@@ -175,7 +176,7 @@ def run_site_suite(db, job, station, transport=None):
         if isinstance(total, int) and 0 < total < 10000000:
             with db.connect(write=True) as con:
                 con.execute("UPDATE usage SET tokens=?,actual=1 WHERE id=?", (total, usage_id))
-        if mode == "chat":
+        if mode == "chat" and not payload.get("stream"):
             import serve
             status, body = serve._collapse_stream(response["status"], response["text"].encode(), response.get("headers"), station["protocol"] == "anthropic")
             response["status"], response["text"] = status, body.decode()

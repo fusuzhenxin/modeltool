@@ -73,7 +73,7 @@ def create_app(data_dir=None):
         response.headers["Referrer-Policy"] = "same-origin"
         response.headers["X-Frame-Options"] = "DENY" if request.url.path.startswith("/admin") else "SAMEORIGIN"
         if request.url.path.startswith(("/api/", "/admin")):
-            response.headers["Cache-Control"] = "no-store"
+            response.headers["Cache-Control"] = "no-store, no-transform" if response.headers.get("X-ModelTool-Stream") == "1" else "no-store"
         if request.url.path.startswith("/admin"):
             response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http: https: data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
         if request.url.path.endswith("/artwork") and response.headers.get("content-type", "").startswith("text/html"):

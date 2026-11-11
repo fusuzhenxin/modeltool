@@ -800,6 +800,33 @@ class Handler(SimpleHTTPRequestHandler):
             return
         length = int(self.headers.get("Content-Length", "0") or 0)
         raw = self.rfile.read(length)
+        if path == "/api/chat":
+            try:
+                data = json.loads(raw)
+            except ValueError:
+                data = {}
+            if isinstance(data, dict) and data.get("streamResponse") is True and isinstance(data.get("payload"), dict):
+                from chat_stream import ChatStream, STREAM_HEADERS
+                def resolve(url):
+                    _reject_private_target(url)
+                    return None
+                stream = ChatStream(data, target_url, resolve)
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                for key, value in STREAM_HEADERS.items():
+                    self.send_header(key, value)
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.close_connection = True
+                events = stream.events()
+                try:
+                    for event in events:
+                        self.wfile.write(event); self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+                finally:
+                    events.close()
+                return
         status, body = api_post(path, raw)
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")

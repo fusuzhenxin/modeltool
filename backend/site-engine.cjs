@@ -37,7 +37,7 @@ async function main() {
       if (url === "data/trace-bank.json") return { ok: true, json: async () => JSON.parse(fs.readFileSync(path.join(root, url), "utf8")) };
       if (url !== "http://site-engine.invalid/api/chat") throw new Error("禁止检测脚本直接访问网络");
       const response = await rpc("chat", JSON.parse(options.body).payload);
-      return { ok: response.status >= 200 && response.status < 300, status: response.status, text: async () => response.text };
+      return { ok: response.status >= 200 && response.status < 300, status: response.status, headers: { get: (key) => response.headers?.[key.toLowerCase()] || null }, text: async () => response.text };
     }
   });
   for (const name of ["data", "engine", "ui", "poster", "probe", "trace"]) {

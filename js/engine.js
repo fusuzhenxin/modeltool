@@ -258,10 +258,90 @@ const Api = {
       return await Api.finish(options);
     } catch (err) {
       if (!options.long || options.retried) throw err;
+      if (err.streamRejected) return Api.finish(Object.assign({}, options, { noStream: true, retried: true }));
       if (err.gateway524) return Api.finish(Object.assign({}, options, { quick: true, retried: true }));
       if (err.reasoningRejected) return Api.finish(Object.assign({}, options, { noReasoning: true, retried: true }));
       throw err;
     }
+  },
+  streamReader(onProgress) {
+    let pending = "", content = "", seen = false, done = false, dataLines = [];
+    const event = () => {
+      if (!dataLines.length) return;
+      const raw = dataLines.join("\n"); dataLines = [];
+      if (raw.trim() === "[DONE]") { done = true; return; }
+      let value;
+      try { value = JSON.parse(raw); } catch (_) { throw new Error("接口流式数据格式异常，请手动重试。"); }
+      seen = true;
+      if (value.error) throw new Error("接口在生成过程中报错，请检查中转站状态后手动重试。");
+      if (value.type === "message_stop") done = true;
+      const choice = value.choices && value.choices[0];
+      if (choice && choice.finish_reason != null) done = true;
+      const part = value.delta?.text ?? choice?.delta?.content ?? choice?.message?.content ?? choice?.text ?? "";
+      content += Api.messageText(part);
+      if (onProgress) onProgress({ chars: content.length, content });
+    };
+    return {
+      push(text, final = false) {
+        pending += text;
+        const lines = pending.split(/\r\n|\n|\r(?!$)/);
+        pending = lines.pop();
+        if (final && pending) { lines.push(pending); pending = ""; }
+        for (const line of lines) {
+          if (!line) event();
+          else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+        }
+        if (final) event();
+      },
+      result(anthropic) {
+        if (!seen && !done) throw new Error("接口没有返回有效的流式回答。");
+        if (!done) throw new Error("接口在生成完成前断开，已接收内容不完整，请手动重试。");
+        return JSON.stringify(anthropic ? { content: [{ type: "text", text: content }] } : { choices: [{ message: { content } }] });
+      }
+    };
+  },
+  async readReply(response, anthropic, onProgress) {
+    const framed = response.headers?.get("x-modeltool-stream") === "1";
+    const parser = Api.streamReader(onProgress);
+    let text = "", status = response.status, pending = "", ended = false, bytes = 0;
+    const append = (part) => {
+      text += part;
+      if (text.length > 5 * 1024 * 1024) throw new Error("接口响应过大，已停止接收。");
+      if (status < 400 && !/^[\s]*[\[{]/.test(text)) parser.push(part);
+    };
+    const consume = (chunk, final = false) => {
+      if (!framed) { append(chunk); return; }
+      pending += chunk;
+      const lines = pending.split("\n"); pending = lines.pop();
+      if (final && pending) { lines.push(pending); pending = ""; }
+      for (const line of lines) {
+        if (!line.startsWith("data:")) continue;
+        const event = JSON.parse(line.slice(5));
+        if (event.type === "status") status = event.status;
+        else if (event.type === "chunk") append(event.text);
+        else if (event.type === "end") ended = true;
+        else if (event.type === "error") throw new Error(event.message);
+      }
+    };
+    if (response.body?.getReader) {
+      const reader = response.body.getReader(), decoder = new TextDecoder();
+      try {
+        while (true) {
+          const part = await reader.read();
+          if (part.done) break;
+          bytes += part.value.byteLength;
+          if (bytes > 40 * 1024 * 1024) throw new Error("接口响应过大，已停止接收。");
+          consume(decoder.decode(part.value, { stream: true }));
+        }
+        consume(decoder.decode(), true);
+      } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+    } else consume(await response.text(), true);
+    if (framed && !ended) throw new Error("与网站的连接已中断，请手动重试。");
+    if (status < 400 && text.trim() && !/^[\s]*[\[{]/.test(text)) {
+      parser.push("", true);
+      text = parser.result(anthropic);
+    }
+    return { status, ok: status >= 200 && status < 300, text };
   },
   async finish({ baseUrl, apiKey, model, system, user }) {
     if (!String(apiKey || "").trim()) throw new Error("请填写密钥");
@@ -280,28 +360,38 @@ const Api = {
         ? { model: model.trim(), max_tokens: limit, temperature: long ? 0.4 : 0, system, messages: [{ role: "user", content: asked }] }
         : { model: model.trim(), temperature: long ? 0.4 : 0, max_tokens: limit, messages: [{ role: "system", content: system }, { role: "user", content: asked }] };
     if (!bare && !anthropic && long && !noReasoning) payload.reasoning_effort = quick ? "none" : "low";
+    if (long && !arguments[0].noStream) payload.stream = true;
     let response;
     try {
       response = await fetch(Api.proxyUrl(), {
         method: "POST",
+        signal: arguments[0].signal,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ baseUrl, apiKey, payload })
+        body: JSON.stringify({ baseUrl, apiKey, payload, ...(long ? { streamResponse: true } : {}) })
       });
     } catch (err) {
       throw new Error(UI.offlineForward());
     }
-    const text = await response.text();
+    let text;
+    if (long) {
+      const reply = await Api.readReply(response, anthropic, arguments[0].onProgress);
+      response = reply; text = reply.text;
+    } else text = await response.text();
     let data = null;
     try { data = JSON.parse(text); } catch (err) { data = null; }
     if (!response.ok) {
       const waited = UI.gatewayWait(response.status, text);
-      if (waited) throw Object.assign(new Error(arguments[0].retried ? "已经用更短的思考重试过一次，对方 Cloudflare 仍在约 100 秒内没有收到任何数据。需要这条接口真正按流式立刻回传，或提供不经过 Cloudflare 的地址。" : waited), { gateway524: true });
+      if (waited) throw Object.assign(new Error(arguments[0].retried ? "已经重试过一次，对方 Cloudflare 仍未及时收到数据。需要中转站持续回传流式内容，或提供没有这层网关时限的接口地址。" : waited), { gateway524: true });
       const messageEarly = (data && data.error && (data.error.message || data.error)) || (data && data.message) || text.slice(0, 180) || ("HTTP " + response.status);
+      if (response.status === 400 && /stream/i.test(String(messageEarly)) && payload.stream) {
+        throw Object.assign(new Error("接口不支持流式输出"), { streamRejected: true });
+      }
       if (response.status === 400 && /reasoning/i.test(String(messageEarly)) && payload.reasoning_effort) {
         throw Object.assign(new Error(String(messageEarly)), { reasoningRejected: true });
       }
       const stopped = UI.platformStop(response.status, text);
       if (stopped) throw new Error(stopped);
+      if ([502, 503, 504].includes(response.status)) throw new Error("中转站或转发链路返回 " + response.status + "，可能是上游繁忙、等待超时或连接中断。请稍后手动重试。");
       const message = (data && data.error && (data.error.message || data.error)) || (data && data.message) || text.slice(0, 180) || ("HTTP " + response.status);
       if (String(message).indexOf("1010") >= 0) {
         const local = UI.siteIsLocal() ? "请关掉本机转发窗口后重新双击 start.bat，再测一次。" : "";

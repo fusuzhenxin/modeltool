@@ -28,6 +28,7 @@ const App = {
     App.paused = false;
     App.phase = "think";
     App.busy = false;
+    App.generationAbort?.abort();
     App.rush = false;
     App.runError = "";
     App.runToken = {};
@@ -429,7 +430,7 @@ function artworkResult(task) {
 function stageHtml(task) {
   if (task && task.pelicanMode && task.status === "running" && !task.html) {
     const mode = DATA.pelicanModes.find((item) => item.id === task.pelicanMode) || DATA.pelicanModes[1];
-    return `<div class="note">${UI.esc(mode.name)}</div><h2 style="margin:12px 0 8px;font-size:18px">正在生成鹈鹕骑车</h2><p>${UI.esc(mode.prompt)}</p><div class="think"><span class="dots">${App.runError ? "" : "模型正在写 HTML"}</span></div>${App.runError ? `<div class="explain" style="color:#ef5d5d">${UI.esc(App.runError)}</div><button type="button" class="btn btn-primary btn-sm" data-action="retry-run">重试</button>` : ""}`;
+    return `<div class="note">${UI.esc(mode.name)}</div><h2 style="margin:12px 0 8px;font-size:18px">正在生成鹈鹕骑车</h2><p>${UI.esc(mode.prompt)}</p><div class="think"><span class="dots">${App.runError ? "" : "模型正在写 HTML"}</span></div><p class="note" id="generation-progress" role="status" aria-live="polite">${UI.esc(App.generationProgress || "正在连接，单次最长等待 30 分钟。")}</p>${App.runError ? `<div class="explain" style="color:#ef5d5d">${UI.esc(App.runError)}</div><button type="button" class="btn btn-primary btn-sm" data-action="retry-run">重试</button>` : ""}`;
   }
   if (!task || task.status !== "running") {
     return `<div class="empty"><h3>这道测试不在进行中</h3><a class="btn btn-primary" href="${task ? taskLink(task) : "index.html"}">返回</a></div>`;
@@ -1742,6 +1743,8 @@ const Pages = {
           const mode = DATA.pelicanModes.find((item) => item.id === current.pelicanMode) || DATA.pelicanModes[1];
           App.phase = "think";
           App.runError = "";
+          App.generationProgress = "正在连接，单次最长等待 30 分钟。";
+          App.generationAbort = new AbortController();
           App.busy = true;
           paint();
           try {
@@ -1752,7 +1755,14 @@ const Pages = {
               model: current.requestedModel || cfg.modelOverride || current.modelId,
               system: mode.system,
               user: mode.prompt,
-              long: true
+              long: true,
+              signal: App.generationAbort.signal,
+              onProgress: ({ chars }) => {
+                if (App.runToken !== token) return;
+                App.generationProgress = chars ? `已收到 ${chars.toLocaleString()} 个字符，正在继续生成；单次最长 30 分钟。` : "接口已开始响应，正在等待作品内容；单次最长 30 分钟。";
+                const progress = document.getElementById("generation-progress");
+                if (progress) progress.textContent = App.generationProgress;
+              }
             });
             if (App.runToken !== token) return;
             current.reply = content;
@@ -2384,6 +2394,7 @@ Actions["stop-run"] = (el) => {
     okText: "终止",
     onOk() {
       App.runToken = {};
+      App.generationAbort?.abort();
       App.paused = true;
       if (App.timer) clearInterval(App.timer);
       const current = Store.task(el.dataset.id);
