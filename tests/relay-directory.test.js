@@ -426,3 +426,16 @@ test("中转站来源参数保留邀请、重复参数和锚点，不重复添�
   }
   assert.equal(d.url({ id: "report-1" }), "relays.html?id=report-1");
 });
+
+
+test("网友投票位于作品卡片的站名右侧，不再插入底部操作区", () => {
+  const html = directory("?view=artworks", artworkData()).directory.page();
+  const card = html.slice(html.indexOf('<article class="panel relay-artwork-card">'));
+  const headerStart = card.indexOf('class="relay-artwork-header"');
+  const votes = card.indexOf('data-artwork-votes=');
+  const score = card.indexOf('class="relay-artwork-score');
+  assert.ok(headerStart < votes && votes < score);
+  assert.match(card, /class="artwork-vote-real" disabled>判真/);
+  assert.match(card, /class="artwork-vote-fake" disabled>判假/);
+  assert.match(card, /网友判定，仅供参考，不代表模型身份认证/);
+});

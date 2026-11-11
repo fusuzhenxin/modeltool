@@ -56,7 +56,7 @@ test("提交失败保留原票数和选择，允许重试，不显示虚假成�
 
 test("接口加载失败显示未知票数及重试，静态预览不提供无效投票", async () => {
   const failed = client({ failLoad: true }); await failed.votes.mount();
-  assert.match(failed.box.innerHTML, /暂时无法加载/);
+  assert.match(failed.box.innerHTML, /offline/);
   assert.match(failed.box.innerHTML, /<b>—<\/b>/);
   assert.equal(failed.box.retry.textContent, "重试");
   const staticPage = client({ live: false }); await staticPage.votes.mount();
@@ -69,4 +69,15 @@ test("保存期间忽略连续点击，不重复请求", async () => {
   const first = c.click("real"), second = c.click("real");
   await Promise.all([first, second]); await turn();
   assert.equal(c.calls.filter((c) => c.options.method === "PUT").length, 1);
+});
+
+
+test("旧后台返回 404 时说明需要更新服务，不把缺失接口显示为零票", async () => {
+  const ctx = vm.createContext({
+    AbortController, setTimeout, clearTimeout,
+    fetch: async () => ({ status: 404, ok: false, json: async () => ({ detail: "Not Found" }) })
+  });
+  vm.runInContext(fs.readFileSync(require.resolve("../js/artwork-votes.js"), "utf8"), ctx);
+  const votes = vm.runInContext("ArtworkVotes", ctx);
+  await assert.rejects(votes.api("/api/public/artwork-votes?ids=test"), /投票接口尚未更新/);
 });

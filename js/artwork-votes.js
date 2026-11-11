@@ -10,14 +10,15 @@ const ArtworkVotes = {
         headers: method === "GET" ? {} : { "Content-Type": "application/json", "X-Proposal-CSRF": csrf },
         body: data === undefined ? undefined : JSON.stringify(data)
       });
+      if (response.status === 404) throw new Error("投票接口尚未更新，请重启本地后台或刷新线上页面");
       const body = await response.json();
       if (!response.ok) throw new Error(typeof body.detail === "string" ? body.detail : "票数暂时无法加载，请重试");
       return body;
     } finally { clearTimeout(timer); }
   },
-  render(box, data, message = "同一浏览器一票，可改票或再次点击撤回", busy = false) {
+  render(box, data, message = "", busy = false) {
     const esc = UI.esc;
-    box.innerHTML = `<span class="artwork-vote-note">网友判定 <small>仅供参考，不代表模型身份认证</small></span><div class="artwork-vote-buttons">${[["real", "判真", "✓"], ["fake", "判假", "×"]].map(([choice, label, icon]) => `<button type="button" class="artwork-vote-${choice}" data-artwork-choice="${choice}" aria-pressed="${data?.choice === choice}" ${busy || !data ? "disabled" : ""}><span aria-hidden="true">${icon}</span>${label}<b>${data ? esc(data[choice]) : "—"}</b></button>`).join("")}</div><small role="status" aria-live="polite">${esc(message)}</small>`;
+    box.innerHTML = `<div class="artwork-vote-buttons">${[["real", "判真", "✓"], ["fake", "判假", "×"]].map(([choice, label, icon]) => `<button type="button" class="artwork-vote-${choice}" data-artwork-choice="${choice}" aria-pressed="${data?.choice === choice}" ${busy || !data ? "disabled" : ""}><span aria-hidden="true">${icon}</span>${label}<b>${data ? esc(data[choice]) : "—"}</b></button>`).join("")}</div><small role="status" aria-live="polite" ${message ? "" : "hidden"}>${esc(message)}</small>`;
   },
   async mount() {
     const ticket = ++ArtworkVotes.ticket;
@@ -50,16 +51,16 @@ const ArtworkVotes = {
             const updated = await ArtworkVotes.api(`/api/public/reports/${encodeURIComponent(id)}/artwork-vote`, "PUT", { choice }, session.csrf);
             if (!current()) return;
             state = updated;
-            ArtworkVotes.render(box, state, choice ? "已记录；可改票或再次点击撤回" : "已撤回，可重新投票");
+            ArtworkVotes.render(box, state, choice ? "已记录" : "已撤回");
           } catch (error) {
             if (current()) ArtworkVotes.render(box, state, error.message || "提交失败，请重试");
           } finally { busy = false; }
         };
       });
-    } catch (_) {
+    } catch (error) {
       if (!current()) return;
       boxes.forEach((box) => {
-        ArtworkVotes.render(box, null, "票数暂时无法加载");
+        ArtworkVotes.render(box, null, error.message || "票数暂时无法加载");
         const retry = document.createElement("button");
         retry.type = "button";
         retry.className = "artwork-vote-retry";
