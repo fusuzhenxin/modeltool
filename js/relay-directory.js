@@ -45,12 +45,15 @@ const RelayDirectory = {
     const domain = RelayDirectory.domain(station);
     const value = site?.website_url || (iconOnly && /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::\d+)?$/i.test(domain) ? `https://${domain}` : "");
     if (!value) return "";
+    let href;
     try {
       const url = new URL(value);
       if (!["https:", "http:"].includes(url.protocol) || url.username || url.password) return "";
+      url.searchParams.set("utm_source", "modeltool.cn");
+      href = url.href;
     } catch (_) { return ""; }
-    if (iconOnly) return `<a class="relay-artwork-visit" href="${UI.esc(value)}" target="_blank" rel="noopener noreferrer" aria-label="${UI.esc('访问中转站：' + (station.stationName || station.name || domain))}" title="访问中转站"><span aria-hidden="true">↗</span></a>`;
-    return `<a class="relay-station-visit${button ? " relay-station-visit-button" : ""}" href="${UI.esc(value)}" target="_blank" rel="noopener noreferrer">访问中转站 <span aria-hidden="true">↗</span></a>`;
+    if (iconOnly) return `<a class="relay-artwork-visit" href="${UI.esc(href)}" target="_blank" rel="noopener noreferrer" aria-label="${UI.esc('访问中转站：' + (station.stationName || station.name || domain))}" title="访问中转站"><span aria-hidden="true">↗</span></a>`;
+    return `<a class="relay-station-visit${button ? " relay-station-visit-button" : ""}" href="${UI.esc(href)}" target="_blank" rel="noopener noreferrer">访问中转站 <span aria-hidden="true">↗</span></a>`;
   },
   stationIntro(description) {
     const text = String(description || "").trim();

@@ -159,7 +159,7 @@ test("有报告和未测站点都在站名旁展示访问按钮及后台简介",
   for (const rows of [[], [report]]) {
     const html = d.stationPage(rows, site.domain, "2026-11-09");
     assert.match(html, /class="relay-station-title-row"><h1>档案站<\/h1><a class="relay-station-visit relay-station-visit-button"/);
-    assert.match(html, /href="https:\/\/profile.example\/join" target="_blank" rel="noopener noreferrer"/);
+    assert.match(html, /href="https:\/\/profile.example\/join\?utm_source=modeltool\.cn" target="_blank" rel="noopener noreferrer"/);
     assert.match(html, /站点简介/);
     assert.match(html, /来自后台的站点简介/);
     assert.doesNotMatch(html, /class="entry-actions"/);
@@ -342,7 +342,7 @@ test("访问中转站链接与站内报告链接并存，空站点档案也可�
   const card = d.stationCard(d.group(data.reports)[0],"2026-11-09");
   assert.match(card,/访问中转站/);
   assert.match(card,/target="_blank" rel="noopener noreferrer"/);
-  assert.match(card,/a=1&amp;b=&quot;quoted&quot;/);
+  assert.match(card,/a=1&amp;b=%22quoted%22&amp;utm_source=modeltool\.cn/);
   assert.match(card,/查看该中转站的全部报告/);
   assert.match(d.stationPage(data.reports,site.domain,"2026-11-09"),/访问中转站/);
   assert.match(d.stationPage([],site.domain,"2026-11-09"),/访问中转站/);
@@ -370,11 +370,11 @@ test("作品站名旁直达后台配置的网址，缺省使用站点域名并�
   data.stations = [{ domain: "station.example", website_url: 'https://console.example/register?a=1&b="two"' }];
   const d = directory("?view=artworks", data).directory;
   const html = d.page();
-  assert.match(html, /class="relay-artwork-visit" href="https:\/\/console.example\/register\?a=1&amp;b=&quot;two&quot;"/);
+  assert.match(html, /class="relay-artwork-visit" href="https:\/\/console.example\/register\?a=1&amp;b=%22two%22&amp;utm_source=modeltool\.cn"/);
   assert.match(html, /aria-label="访问中转站：作品站"/);
   assert.match(html, /title="访问中转站"><span aria-hidden="true">↗<\/span>/);
   data.stations[0].website_url = "";
-  assert.match(d.page(), /class="relay-artwork-visit" href="https:\/\/station.example"/);
+  assert.match(d.page(), /class="relay-artwork-visit" href="https:\/\/station.example\/\?utm_source=modeltool\.cn"/);
   for (const url of ["javascript:alert(1)", "https://user:password@example.com", "data:text/html,test"]) {
     data.stations[0].website_url = url;
     assert.doesNotMatch(d.page(), /class="relay-artwork-visit"/);
@@ -400,4 +400,29 @@ test("作品评分按区间突出显示，零分保留，异常分数显示未�
     assert.match(html, /<strong>—<\/strong>/);
     assert.doesNotMatch(html, /<img src=x>/);
   }
+});
+
+
+test("中转站来源参数保留邀请、重复参数和锚点，不重复添加来源或改写站内链接", () => {
+  const site = { domain: "relay.example", name: "测试站", website_url: "https://relay.example/register?invite=a%2Bb&tag=one&tag=two#pricing" };
+  const d = directory("", { live: true, stations: [site], reports: [] }).directory;
+  for (const iconOnly of [false, true]) {
+    for (const value of [
+      "https://relay.example",
+      "https://relay.example/register?invite=a%2Bb&tag=one&tag=two#pricing",
+      "https://relay.example/?utm_source=old&utm_source=duplicate#join"
+    ]) {
+      site.website_url = value;
+      const html = d.stationVisit(site, false, iconOnly);
+      const href = /href="([^"]+)"/.exec(html)[1].replaceAll("&amp;", "&");
+      const url = new URL(href), original = new URL(value);
+      assert.deepEqual(url.searchParams.getAll("utm_source"), ["modeltool.cn"]);
+      assert.equal(url.hash, original.hash);
+      assert.equal(url.pathname, original.pathname);
+      original.searchParams.delete("utm_source");
+      url.searchParams.delete("utm_source");
+      assert.deepEqual([...url.searchParams], [...original.searchParams]);
+    }
+  }
+  assert.equal(d.url({ id: "report-1" }), "relays.html?id=report-1");
 });
