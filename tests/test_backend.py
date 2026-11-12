@@ -210,6 +210,7 @@ class BackendTests(unittest.TestCase):
         result = {"model": "test-model", "time": "2026-11-10T10:00:00Z", "score": 75,
                   "level": "warn", "protocol_tested": True, "summary": "结论",
                   "ability": {"score": 60, "level": "degraded"},
+                  "artwork": {"available": True, "mode": "html2d", "score": 90, "html": "private-artwork-html"},
                   "checks": [{"detail": "证据" * 5000}], "sections": [{"kind": "relay", "checks": []}],
                   "raw": ["private-response"]}
         self.db.save("reports", "perf-report", {"station_id": station["id"], "status": "published", "result": result})
@@ -222,6 +223,8 @@ class BackendTests(unittest.TestCase):
         self.assertIn("checks", full.json()["reports"][0])
         self.assertNotIn("checks", row)
         self.assertNotIn("sections", row)
+        self.assertEqual(row["artwork"], {"available": True, "mode": "html2d", "score": 90})
+        self.assertNotIn("private-artwork-html", summary.text)
         self.assertNotIn("private-response", summary.text)
         self.assertLess(len(summary.content), len(full.content) / 5)
         self.assertEqual(summary.headers["cache-control"], "no-store")
