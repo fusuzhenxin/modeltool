@@ -53,18 +53,18 @@ test("作品缩略预览按完整页面等比例缩放，窗口变窄或高度�
   assert.equal(observer.disconnected, true);
 });
 
-test("中转站作品目录默认展示全部日期，仅完整作品入列，每页六件并使用隔离预览", () => {
+test("中转站作品目录默认展示全部日期，仅完整作品入列，每页八件并使用隔离预览", () => {
   const data = artworkData();
   const html = directory("?view=artworks", data).directory.page();
   assert.match(html, /全部日期 · 9 件作品/);
-  assert.equal((html.match(/<iframe /g) || []).length, 6);
+  assert.equal((html.match(/<iframe /g) || []).length, 8);
   assert.match(html, /loading="lazy" sandbox="allow-scripts" referrerpolicy="no-referrer"/);
   assert.match(html, /target="_blank" rel="noopener noreferrer"/);
   assert.match(html, /报告与分享/);
   assert.doesNotMatch(html, /reports\/(protocol|incomplete)\/artwork/);
   assert.match(html, /page=2/);
   const second = directory("?view=artworks&page=2", data).directory.page();
-  assert.equal((second.match(/<iframe /g) || []).length, 3);
+  assert.equal((second.match(/<iframe /g) || []).length, 1);
   const ids = [...html.matchAll(/src="[^\"]*reports\/([^/]+)\/artwork"/g)].map(m => m[1]);
   assert.ok(ids.every(id => !second.includes('src="/api/public/reports/' + id + '/artwork"')));
 });
@@ -86,7 +86,7 @@ test("作品目录支持模型与站点搜索、日期和作品类型交集，�
 test("作品目录处理无数据、加载失败、非法页码和恶意输入，不回退模拟作品", () => {
   const data = artworkData();
   for (const page of ["-5", "NaN", "9999999999999999999999"]) {
-    assert.equal((directory("?view=artworks&page=" + page, data).directory.page().match(/<iframe /g) || []).length, 6);
+    assert.equal((directory("?view=artworks&page=" + page, data).directory.page().match(/<iframe /g) || []).length, 8);
   }
   assert.match(directory("?view=artworks&q=not-found", data).directory.page(), /暂无符合条件/);
   const failed = directory("?view=artworks", { live: true, failed: true, stations: [], reports: [] }).directory.page();
