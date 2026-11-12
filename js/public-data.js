@@ -9,9 +9,13 @@ const PublicData = {
     PublicData.pending = (async () => {
       const backend = !!document.querySelector('meta[name="modeltool-backend"]');
       const abort = new AbortController();
-      const timer = setTimeout(() => abort.abort(), 5000);
+      const timer = setTimeout(() => abort.abort(), 20000);
       try {
-        const res = await fetch("/api/public/bootstrap" + (summary ? "?summary=true" : ""), { signal: abort.signal, cache: "no-store" });
+        const query = new URLSearchParams();
+        if (summary) query.set("summary", "true");
+        const id = typeof location !== "undefined" ? new URLSearchParams(location.search).get("id") : null;
+        if (!summary && id) query.set("report_id", id);
+        const res = await fetch("/api/public/bootstrap" + (query.size ? "?" + query : ""), { signal: abort.signal, cache: "no-store" });
         if (res.status === 404 && !backend) { PublicData.live = false; return; }
         if (!res.ok) throw new Error("Public data unavailable");
         const data = await res.json();

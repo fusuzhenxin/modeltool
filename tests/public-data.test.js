@@ -5,7 +5,7 @@ const vm = require("node:vm");
 const source = fs.readFileSync(require("node:path").join(__dirname, "../js/public-data.js"), "utf8");
 
 async function load(fetch, backend = true) {
-  const ctx = vm.createContext({ fetch, AbortController, setTimeout: () => 1, clearTimeout: () => {}, document: { querySelector: () => backend ? {} : null } });
+  const ctx = vm.createContext({ fetch, URLSearchParams, AbortController, setTimeout: () => 1, clearTimeout: () => {}, document: { querySelector: () => backend ? {} : null } });
   vm.runInContext(source, ctx);
   await vm.runInContext("PublicData.load()", ctx);
   return vm.runInContext("PublicData", ctx);
@@ -28,7 +28,7 @@ test("后台的空数组是有效数据，不能用模拟报告补齐", async ()
 test("概览请求使用精简数据，默认请求仍保留完整报告", async () => {
   for (const summary of [false, true]) {
     let url;
-    const ctx = vm.createContext({ fetch: async (value) => { url = value; return { ok: true, json: async () => ({ mode: "live", reports: [], stations: [] }) }; }, AbortController, setTimeout: () => 1, clearTimeout() {}, document: { querySelector: () => ({}) } });
+    const ctx = vm.createContext({ URLSearchParams, fetch: async (value) => { url = value; return { ok: true, json: async () => ({ mode: "live", reports: [], stations: [] }) }; }, AbortController, setTimeout: () => 1, clearTimeout() {}, document: { querySelector: () => ({}) } });
     vm.runInContext(source, ctx);
     await vm.runInContext(`PublicData.load(${summary})`, ctx);
     assert.equal(url, "/api/public/bootstrap" + (summary ? "?summary=true" : ""));
@@ -38,7 +38,7 @@ test("概览请求使用精简数据，默认请求仍保留完整报告", async
 test("请求未完成时明确标记加载中，禁止回退演示报告", async () => {
   let resolve;
   let calls = 0;
-  const ctx = vm.createContext({ fetch: () => { calls++; return new Promise((done) => { resolve = done; }); }, AbortController, setTimeout: () => 1, clearTimeout: () => {}, document: { querySelector: () => ({}) } });
+  const ctx = vm.createContext({ URLSearchParams, fetch: () => { calls++; return new Promise((done) => { resolve = done; }); }, AbortController, setTimeout: () => 1, clearTimeout: () => {}, document: { querySelector: () => ({}) } });
   vm.runInContext(source, ctx);
   const pending = vm.runInContext("PublicData.load()", ctx);
   const same = vm.runInContext("PublicData.load()", ctx);
@@ -83,4 +83,13 @@ test("滚动公告保留展示范围、转义文本和颜色边界，重复内�
   assert.match(other, /tabindex="-1"/);
   assert.match(other, /type="checkbox"/);
   assert.match(data.notices(true), /首页专用/);
+});
+
+
+test("报告详情仅请求当前 ID，避免下载所有报告明细", async () => {
+  let url;
+  const ctx = vm.createContext({ URLSearchParams, location: { search: "?id=report-123" }, fetch: async (value) => { url = value; return { ok: true, json: async () => ({ mode: "live", reports: [], stations: [] }) }; }, AbortController, setTimeout: () => 1, clearTimeout() {}, document: { querySelector: () => ({}) } });
+  vm.runInContext(source, ctx);
+  await vm.runInContext("PublicData.load(false)", ctx);
+  assert.equal(url, "/api/public/bootstrap?report_id=report-123");
 });

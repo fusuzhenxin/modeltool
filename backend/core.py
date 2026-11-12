@@ -143,6 +143,24 @@ class Database:
         con.execute("INSERT INTO entities(kind,id,data,created,updated) VALUES(?,?,?,?,?) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data,updated=excluded.updated", (kind, key, json.dumps(data, ensure_ascii=False), now(), now()))
         return dict(data, id=key)
 
+    def report_rows(self, summary=False, key=None, published=False):
+        """Strip heavy private content in SQLite before decoding one report at a time."""
+        paths = ["$.result.raw", "$.result.artwork.html"]
+        if summary:
+            paths += ["$.result.sections", "$.result.checks", "$.result.conditions", "$.result.retest", "$.result.findings"]
+        expression = "json_remove(data," + ",".join("?" for _ in paths) + ")"
+        query = "SELECT id," + expression + " AS data FROM entities WHERE kind='reports'"
+        args = list(paths)
+        if key:
+            query += " AND id=?"
+            args.append(key)
+        if published:
+            query += " AND json_extract(data,'$.status')='published'"
+        query += " ORDER BY updated DESC"
+        with self.connect() as con:
+            for row in con.execute(query, args):
+                yield dict(json.loads(row["data"]), id=row["id"])
+
     def audit(self, actor, action, target, con=None):
         if con is None:
             with self.connect(write=True) as conn:

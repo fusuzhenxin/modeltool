@@ -90,7 +90,8 @@ test("作品目录处理无数据、加载失败、非法页码和恶意输入�
   }
   assert.match(directory("?view=artworks&q=not-found", data).directory.page(), /暂无符合条件/);
   const failed = directory("?view=artworks", { live: true, failed: true, stations: [], reports: [] }).directory.page();
-  assert.match(failed, /0 件作品/);
+  assert.match(failed, /公开记录暂时无法加载/);
+  assert.doesNotMatch(failed, /没有找到这份公开记录/);
   assert.doesNotMatch(failed, /<iframe /);
   data.reports[0].stationName = '<img src=x onerror="bad">';
   data.reports[0].model = '<script>bad</script>';

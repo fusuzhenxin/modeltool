@@ -18,7 +18,7 @@ const App = {
   async start(page) {
     const startToken = {};
     App.startToken = startToken;
-    const publicReady = typeof PublicData !== "undefined" ? PublicData.load(page !== "relays") : null;
+    const publicReady = typeof PublicData !== "undefined" ? PublicData.load(page !== "relays" || typeof location === "undefined" || !new URLSearchParams(location.search).get("id")) : null;
     await Store.init();
     if (App.startToken !== startToken) return;
     UI.bind();

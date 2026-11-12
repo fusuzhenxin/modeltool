@@ -200,7 +200,7 @@ def create_app(data_dir=None):
             counts = {r["status"]: r["count"] for r in con.execute("SELECT status,COUNT(*) AS count FROM jobs GROUP BY status")}
             worker = con.execute("SELECT heartbeat FROM worker WHERE id=1").fetchone()
             audit = [dict(r) for r in con.execute("SELECT * FROM audit ORDER BY id DESC LIMIT 20")]
-        reports = db.list("reports")
+        reports = list(db.report_rows(summary=True))
         return {"day": day(), "usage": usage, "jobs": counts, "stations": len(db.list("stations")), "reports": {state: sum(r["status"] == state for r in reports) for state in ("draft", "published", "rejected")}, "settings": db.get("settings", "site"), "worker": {"online": bool(worker and now() - worker[0] < 100), "heartbeat": worker[0] if worker else None}, "recent_jobs": list_jobs(6), "audit": audit}
 
     @app.get("/api/admin/settings")
@@ -253,7 +253,7 @@ def create_app(data_dir=None):
 
     @app.get("/api/admin/reports")
     def reports(user=Depends(session)):
-        return [{k: v for k, v in r.items() if k != "result"} | {"model": r["result"]["model"], "time": r["result"]["time"], "level": r["result"]["level"], "score": r["result"].get("score"), "ability": r["result"].get("ability"), "test_name": r["result"].get("test_name"), "kind": r["result"].get("kind"), "artwork": {k: v for k, v in r["result"].get("artwork", {}).items() if k != "html"}} for r in db.list("reports")]
+        return [{k: v for k, v in r.items() if k != "result"} | {"model": r["result"]["model"], "time": r["result"]["time"], "level": r["result"]["level"], "score": r["result"].get("score"), "ability": r["result"].get("ability"), "test_name": r["result"].get("test_name"), "kind": r["result"].get("kind"), "artwork": {k: v for k, v in r["result"].get("artwork", {}).items() if k != "html"}} for r in db.report_rows(summary=True)]
 
     def artwork_response(key, public=False):
         row = db.get("reports", key)
@@ -450,9 +450,9 @@ def create_app(data_dir=None):
         return {"ok": True}
 
     @app.get("/api/public/bootstrap")
-    def public_bootstrap(summary: bool = False):
+    def public_bootstrap(summary: bool = False, report_id: str | None = None):
         stations = {r["id"]: r for r in db.list("stations") if r["visible"]}
-        reports = [public_report(r, stations[r["station_id"]]) for r in db.list("reports") if r["status"] == "published" and r["station_id"] in stations]
+        reports = [public_report(r, stations[r["station_id"]]) for r in db.report_rows(summary=summary, key=report_id, published=True) if r["station_id"] in stations]
         if summary:
             # Lists and the homepage need conclusions, not every answer/check in every report.
             reports = [{k: v for k, v in report.items() if k not in ("checks", "sections", "artwork", "conditions", "retest", "findings")} for report in reports]

@@ -20,7 +20,7 @@ function client() {
       querySelector: (selector) => selector.includes("modeltool-backend") ? {} : null,
       getElementById: (id) => ({ app: element, "home-public-overview": overview, "public-notices": notices })[id] || null
     },
-    fetch: () => new Promise((done) => { resolve = done; }),
+    URLSearchParams, fetch: () => new Promise((done) => { resolve = done; }),
     AbortController, setTimeout: () => 1, clearTimeout() {}, clearInterval() {}, applyHead() {}
   });
   vm.runInContext(publicSource, ctx);
