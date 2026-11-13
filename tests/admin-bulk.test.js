@@ -9,6 +9,20 @@ vm.runInContext(fs.readFileSync(path.join(__dirname, "../admin/bulk.js"), "utf8"
 const bulk = vm.runInContext("AdminBulk", context);
 const esc = (s) => String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
 
+test("批量计划修改只提交填写项，校验时间间隔并转义模型", () => {
+  const form = (values) => ({ get: (key) => values[key] });
+  assert.equal(JSON.stringify(bulk.scheduleChanges(form({ change_model: "m2" }))), JSON.stringify({ model: "m2" }));
+  assert.equal(JSON.stringify(bulk.scheduleChanges(form({ change_interval: "360" }))), JSON.stringify({ interval_minutes: 360 }));
+  const changes = bulk.scheduleChanges(form({ change_next_run: "2099-11-13T20:30" }));
+  assert.equal(changes.next_run, new Date("2099-11-13T20:30").toISOString());
+  for (const values of [{}, { change_interval: "0" }, { change_interval: "1.5" }, { change_next_run: "2000-01-01T00:00" }]) assert.throws(() => bulk.scheduleChanges(form(values)));
+  const html = bulk.scheduleFields([{ station_id: "a" }], [{ id: "a", models: ['<script>'] }], esc);
+  assert.match(html, /&lt;script>/);
+  assert.doesNotMatch(html, /<script>/);
+  assert.match(html, /change_next_run/);
+  assert.ok(bulk.actions.schedules.some(([action]) => action === "edit"));
+});
+
 test("跨页勾选、取消本页和刷新剔除失效记录", () => {
   const chosen = new Set();
   bulk.choose(chosen, ["page1-a", "page1-b"], true);

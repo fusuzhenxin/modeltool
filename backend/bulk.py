@@ -1,19 +1,37 @@
 """Bounded admin batch actions; preserve measurements, credentials and audit history."""
 import json
+from datetime import datetime
 
 from fastapi import Depends, HTTPException
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator, ValidationError
 
 from .core import now
-from .models import Run, StrictModel
+from .models import Run, Schedule, StrictModel
 from .proposals import STATUSES
 from .worker import enqueue
+
+
+class ScheduleChanges(StrictModel):
+    model: str | None = Field(default=None, min_length=1, max_length=200)
+    interval_minutes: int | None = Field(default=None, ge=1, le=43200)
+    next_run: datetime | None = None
+
+    @model_validator(mode="after")
+    def valid_changes(self):
+        if not self.model_fields_set or any(getattr(self, key) is None for key in self.model_fields_set):
+            raise ValueError("请至少填写一项要修改的配置，不能设为空值")
+        if self.model is not None and not self.model.strip():
+            raise ValueError("模型不能为空")
+        if self.next_run is not None and (self.next_run.tzinfo is None or self.next_run.timestamp() <= now()):
+            raise ValueError("下次运行时间必须包含时区且晚于当前时间")
+        return self
 
 
 class BulkAction(StrictModel):
     ids: list[str] = Field(min_length=1, max_length=100)
     action: str = Field(min_length=1, max_length=40)
     note: str | None = Field(default=None, max_length=1500)
+    changes: ScheduleChanges | None = None
 
     @field_validator("ids")
     @classmethod
@@ -37,7 +55,7 @@ class RunBatch(StrictModel):
 ACTIONS = {
     "reports": {"published", "draft", "rejected"},
     "stations": {"show", "hide", "enable", "disable", "delete"},
-    "schedules": {"enable", "disable", "delete"},
+    "schedules": {"enable", "disable", "delete", "edit"},
     "jobs": {"cancel", "retry"},
     "announcements": {"enable", "disable", "pin", "unpin", "delete"},
     "ads": {"enable", "disable", "delete"},
@@ -61,6 +79,8 @@ def register_bulk(app, db, session, prepare_schedule):
             raise HTTPException(422, "这个模块不支持所选批量操作")
         if spec.note is not None and kind != "reports":
             raise HTTPException(422, "只有报告审核支持批量审核备注")
+        if (spec.changes is not None) != (kind == "schedules" and spec.action == "edit"):
+            raise HTTPException(422, "批量修改定时计划必须提供修改项，其他操作不能附带修改项")
         updated, skipped, created = [], [], []
         with db.connect(write=True) as con:
             for key in spec.ids:
@@ -94,6 +114,27 @@ def register_bulk(app, db, session, prepare_schedule):
                                 raise ValueError("只能重试失败、取消或中断的任务")
                             new_key = enqueue(db, {"station_id": row["station_id"], "model": row["model"], **json.loads(row["config"])}, user["username"], con=con)
                             created.append(new_key)
+                    elif kind == "schedules" and action == "edit":
+                        changes = spec.changes.model_dump(exclude_unset=True)
+                        requested_time = changes.pop("next_run", None)
+                        data = row | changes
+                        try:
+                            validated = Schedule.model_validate({field: value for field, value in data.items() if field in Schedule.model_fields}).model_dump(mode="json")
+                            data.update(validated)
+                            prepare_schedule(data, con, row)
+                        except HTTPException as exc:
+                            raise ValueError(str(exc.detail)) from exc
+                        except ValidationError as exc:
+                            raise ValueError("计划配置不合法，请检查后单独编辑") from exc
+                        if "interval_minutes" in changes:
+                            data["next_run"] = now() + data["interval_minutes"] * 60
+                            data["first_run"] = None
+                        if requested_time is not None:
+                            data["next_run"] = requested_time.timestamp()
+                            data["first_run"] = requested_time.isoformat()
+                        if data == row:
+                            raise ValueError("配置未变化")
+                        db.save(kind, key, data, con)
                     elif action == "delete":
                         if kind == "stations":
                             in_use = con.execute("SELECT 1 FROM jobs WHERE station_id=? AND status IN ('queued','running')", (key,)).fetchone()

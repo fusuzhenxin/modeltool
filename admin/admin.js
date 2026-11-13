@@ -150,7 +150,8 @@ const Admin = (() => {
       return;
     }
     const rows = state.rows.filter((row) => state.selected.has(row.id));
-    const body = `<div class="bulk-preview"><strong>将对所选 ${rows.length} 条记录执行「${option[1]}」</strong><p>${esc(AdminBulk.explanation(state.route, operation))}</p><small>不满足条件或状态已变化的记录会跳过，并在完成后列出原因。</small><ul>${rows.map((row) => `<li>${esc(row.name || row.title || name(row.station_id))}${row.model ? ` · ${esc(row.model)}` : ""}${row.status ? ` · ${esc(proposalStatuses[row.status] || statuses[row.status]?.[0] || row.status)}` : ""}</li>`).join("")}</ul></div>${rows.map((row) => `<input type="hidden" name="ids" value="${esc(row.id)}">`).join("")}${state.route === "reports" ? area("note", "统一审核备注（选填）", "", "留空保留每份报告原有的审核备注。", 'maxlength="1500"') : ""}`;
+    let body = `<div class="bulk-preview"><strong>将对所选 ${rows.length} 条记录执行「${option[1]}」</strong><p>${esc(AdminBulk.explanation(state.route, operation))}</p><small>不满足条件或状态已变化的记录会跳过，并在完成后列出原因。</small><ul>${rows.map((row) => `<li>${esc(row.name || row.title || name(row.station_id))}${row.model ? ` · ${esc(row.model)}` : ""}${row.status ? ` · ${esc(proposalStatuses[row.status] || statuses[row.status]?.[0] || row.status)}` : ""}</li>`).join("")}</ul></div>${rows.map((row) => `<input type="hidden" name="ids" value="${esc(row.id)}">`).join("")}${state.route === "reports" ? area("note", "统一审核备注（选填）", "", "留空保留每份报告原有的审核备注。", 'maxlength="1500"') : ""}`;
+    if (state.route === "schedules" && operation === "edit") body += AdminBulk.scheduleFields(rows, state.stations, esc);
     openDialog(option[1], body, "bulk-form", operation === "delete" ? "确认删除" : operation === "retry" ? "确认重试并使用额度" : "确认处理", `data-kind="${state.route}" data-operation="${operation}"`);
   }
   function timedStatus(r) {
@@ -364,6 +365,7 @@ const Admin = (() => {
         const label = AdminBulk.actions[kind].find(([action]) => action === operation)[1];
         const body = { ids: f.getAll("ids"), action: operation };
         if (kind === "reports" && String(f.get("note") || "").trim()) body.note = String(f.get("note")).trim();
+        if (kind === "schedules" && operation === "edit") body.changes = AdminBulk.scheduleChanges(f);
         state.bulkBusy = true;
         try {
           const result = await api(`admin/bulk/${kind}`, "POST", body);

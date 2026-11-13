@@ -102,6 +102,34 @@ class BulkTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()["id"]
 
+    def test_bulk_edit_schedule_model_interval_and_time(self):
+        first, unsupported = self.station(), self.station(models=["m1"])
+        a, b = self.plan(first), self.plan(unsupported)
+        before = self.db.get("schedules", a)
+        target = "2099-11-13T20:30:00+08:00"
+        result = self.bulk("schedules", "edit", [a, b, "missing"], changes={"model": "m2", "interval_minutes": 720, "next_run": target})
+        self.assertEqual(result["updated"], [a])
+        self.assertEqual(len(result["skipped"]), 2)
+        after = self.db.get("schedules", a)
+        self.assertEqual(after["model"], "m2")
+        self.assertEqual(after["interval_minutes"], 720)
+        from datetime import datetime
+        self.assertEqual(after["next_run"], datetime.fromisoformat(target).timestamp())
+        for field in ["enabled", "kind", "count", "name", "station_id"]:
+            self.assertEqual(after[field], before[field])
+        self.assertEqual(self.db.get("schedules", b)["model"], "m1")
+        self.bulk("schedules", "edit", [a], changes={"model": "m1"})
+        self.assertEqual(self.db.get("schedules", a)["next_run"], after["next_run"])
+        self.bulk("schedules", "edit", [a], changes={"interval_minutes": 60})
+        self.assertAlmostEqual(self.db.get("schedules", a)["next_run"], now() + 3600, delta=5)
+
+    def test_schedule_edit_rejects_empty_invalid_and_unrelated_changes(self):
+        key = self.plan(self.station())
+        for changes in [{}, {"model": None}, {"model": " "}, {"interval_minutes": 0}, {"interval_minutes": 1.5}, {"next_run": "2099-01-01T00:00"}, {"next_run": "2000-01-01T00:00Z"}, {"enabled": True}]:
+            self.assertEqual(self.post("bulk/schedules", {"ids": [key], "action": "edit", "changes": changes}).status_code, 422)
+        self.assertEqual(self.post("bulk/schedules", {"ids": [key], "action": "edit"}).status_code, 422)
+        self.assertEqual(self.post("bulk/schedules", {"ids": [key], "action": "disable", "changes": {"model": "m2"}}).status_code, 422)
+
     def test_enable_plans_skips_unusable_stations_and_pause_keeps_queued_jobs(self):
         valid, paused, keyless = self.station(), self.station(enabled=False), self.station(api_key=None)
         plans = [self.plan(site) for site in [valid, paused, keyless]]
@@ -206,7 +234,7 @@ class BulkTests(unittest.TestCase):
             self.assertEqual(con.execute("SELECT COUNT(*) FROM usage").fetchone()[0], 0)
 
     def test_bulk_assets_are_served(self):
-        self.assertIn("/admin/bulk.js?v=20261110-bulk-actions", self.client.get("/admin/").text)
+        self.assertIn("/admin/bulk.js?v=20261113-schedule-edit", self.client.get("/admin/").text)
         self.assertEqual(self.client.get("/admin/bulk.js").status_code, 200)
 
     def test_job_list_scores_match_linked_reports_without_raw_measurements(self):
