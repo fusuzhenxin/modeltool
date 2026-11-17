@@ -78,6 +78,7 @@ class Database:
                 CREATE TABLE IF NOT EXISTS entities (kind TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, created REAL NOT NULL, updated REAL NOT NULL, PRIMARY KEY(kind,id));
                 CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, station_id TEXT NOT NULL, schedule_id TEXT, model TEXT NOT NULL, config TEXT NOT NULL, status TEXT NOT NULL, created REAL NOT NULL, started REAL, ended REAL, lease REAL, cancel INTEGER NOT NULL DEFAULT 0, error TEXT NOT NULL DEFAULT '', report_id TEXT, attempts INTEGER NOT NULL DEFAULT 0);
                 CREATE INDEX IF NOT EXISTS jobs_status ON jobs(status,created);
+                CREATE INDEX IF NOT EXISTS jobs_observed ON jobs(COALESCE(started,created));
                 CREATE TABLE IF NOT EXISTS usage (id TEXT PRIMARY KEY, day TEXT NOT NULL, station_id TEXT NOT NULL, job_id TEXT NOT NULL, tokens INTEGER NOT NULL, actual INTEGER NOT NULL DEFAULT 0, created REAL NOT NULL);
                 CREATE INDEX IF NOT EXISTS usage_day ON usage(day,station_id);
                 CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY AUTOINCREMENT, at REAL NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL);

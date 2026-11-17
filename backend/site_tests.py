@@ -12,6 +12,7 @@ from functools import lru_cache
 from urllib.parse import urlsplit
 
 from .core import ROOT, TZ
+from .request_errors import error_issue, stream_error
 from .runner import RunStopped, endpoint, reserve, resolve_public
 from chat_stream import LONG_TIMEOUT
 
@@ -95,8 +96,12 @@ def post_exchange(url, headers, payload, timeout=120):
         if connection.sock:
             connection.sock.settimeout(max(.01, deadline - time.monotonic()))
         response = connection.getresponse()
-        if response.status in (401, 403, 429) or response.status >= 500:
-            raise RunStopped(f"接口返回 HTTP {response.status}，任务已停止，请检查后手动重试")
+        if response.status >= 400:
+            body = response.read(65536)
+            issue = error_issue(response.status, body)
+            if issue or response.status in (401, 403, 429) or response.status >= 500:
+                raise issue or RunStopped(f"接口返回 HTTP {response.status}，任务已停止，请检查后手动重试")
+            return {"status": response.status, "text": body.decode("utf-8", "replace"), "headers": {}, "elapsedMs": round((time.monotonic() - started) * 1000), "error": ""}
         if 300 <= response.status < 400:
             raise RunStopped("接口发生重定向，任务已停止，请核对接口地址")
         kept = {k.lower(): v for k, v in response.getheaders() if k.lower() in ("content-type", "x-request-id", "openai-version", "anthropic-request-id", "cf-ray")}
@@ -149,6 +154,13 @@ def run_site_suite(db, job, station, transport=None):
                     value = value.replace(secret, "[已移除密钥]")
             return value
         response = scrub(response)
+        issue = error_issue(response["status"], response.get("json") or response.get("text"))
+        if issue:
+            raise issue
+        if payload.get("stream"):
+            issue = stream_error(response.get("text", ""))
+            if issue:
+                raise issue
         if response["status"] in (401, 403, 429) or response["status"] >= 500 or 300 <= response["status"] < 400 or response["status"] <= 0:
             raise RunStopped(f"接口返回 HTTP {response['status']}，任务已停止")
         if "json" not in response:

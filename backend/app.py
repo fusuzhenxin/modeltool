@@ -458,6 +458,13 @@ def create_app(data_dir=None):
             reports = [{k: v for k, v in report.items() if k not in ("checks", "sections", "conditions", "retest", "findings")} for report in reports]
         return {"mode": "live", "stations": [{k: r.get(k, "") for k in ("id", "name", "domain", "description", "logo", "models", "website_url")} | {"order": r.get("order", 0)} for r in sorted(stations.values(), key=lambda r: (r.get("order", 0), r["domain"]))], "reports": reports, "announcements": sorted((r for r in db.list("announcements") if active(r)), key=lambda r: (not r["pinned"], r["order"])), "ads": sorted((r for r in db.list("ads") if active(r)), key=lambda r: r["order"])}
 
+    @app.get("/api/public/stability")
+    def public_stability(model: str = "", test: str = ""):
+        if len(model) > 150 or len(test) > 64:
+            raise HTTPException(422, "筛选条件过长")
+        from .stability import snapshot
+        return snapshot(db, model, test)
+
     @app.get("/api/health")
     def health():
         with db.connect() as con:

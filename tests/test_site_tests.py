@@ -94,6 +94,32 @@ class SiteTests(unittest.TestCase):
             self.assertNotIn(option["id"], ("combined", "protocol", "ability"))
         self.assertEqual(self.post("jobs", {"station_id": self.station["id"], "model": "fixture-model", "kind": "site_missing"}).status_code, 422)
 
+    def test_account_errors_stop_real_engine_without_becoming_stability_failures(self):
+        from backend.request_errors import MESSAGES
+        from backend.stability import outcome
+        cases = [
+            {"status": 429, "text": '{"error":{"code":"insufficient_quota","message":"sk-site-secret"}}'},
+            {"status": 403, "text": '{"error":{"message":"余额不足"}}'},
+            {"status": 200, "json": None, "text": '{"error":{"message":"credit balance is too low"}}'},
+            {"status": 200, "text": 'data: {"error":{"type":"insufficient_quota"}}\n\n'},
+        ]
+        for response in cases:
+            with self.subTest(response=response):
+                queued = self.post("jobs", {"station_id": self.station["id"], "model": "fixture-model", "kind": "site_pelican"})
+                self.assertEqual(queued.status_code, 200, queued.text)
+                calls = []
+                def fake_error(*args):
+                    calls.append(args)
+                    return {"headers": {}, "elapsedMs": 1, "error": "", **response}
+                self.assertTrue(work_once(self.db, fake_error))
+                with self.db.connect() as con:
+                    saved = dict(con.execute("SELECT * FROM jobs WHERE id=?", (queued.json()["id"],)).fetchone())
+                self.assertEqual(saved["status"], "cancelled")
+                self.assertEqual(saved["error"], MESSAGES["billing"])
+                self.assertEqual(outcome(saved), "billing")
+                self.assertEqual(len(calls), 1)
+                self.assertFalse(saved["report_id"])
+
     def test_all_single_choices_use_original_questions_and_grading(self):
         for kind in ("site_ability", "site_logic", "site_code", "site_qa", "site_candy"):
             with self.subTest(kind=kind):

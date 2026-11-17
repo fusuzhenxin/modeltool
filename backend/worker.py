@@ -7,6 +7,7 @@ from contextlib import contextmanager
 
 from .core import Database, ident, now
 from .runner import RunStopped, run_suite
+from .request_errors import RequestIssue, safe_exception
 
 
 def renew_lease(db, job_id):
@@ -115,10 +116,9 @@ def work_once(db, transport=None):
     except Exception as exc:
         if isinstance(exc, RunStopped):
             status, message = "cancelled", str(exc)
-        elif isinstance(exc, ValueError) and (str(exc).startswith("接口") or str(exc).startswith("定时检测") or str(exc).startswith("检测")):
-            status, message = "failed", str(exc)
         else:
-            status, message = "failed", "检测请求失败，请检查地址、网络或密钥；上游错误正文未保存"
+            message = safe_exception(exc)
+            status = "cancelled" if isinstance(exc, RequestIssue) and exc.code == "billing" else "failed"
         with db.connect(write=True) as con:
             con.execute("UPDATE jobs SET status=?,ended=?,error=? WHERE id=?", (status, now(), message, job["id"]))
             db.audit("worker", status, job["id"], con)

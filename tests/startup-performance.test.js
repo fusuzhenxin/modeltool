@@ -36,6 +36,16 @@ function client() {
   return { ctx, writes, mounted, overview, notices, finish: (response) => resolve(response || { status: 200, ok: true, json: async () => ({ mode: "live", reports: [], stations: [] }) }) };
 }
 
+test("稳定性观察独立加载，不等待全站报告或下载作品数据", async () => {
+  const c = client();
+  c.ctx.location = { search: "?view=stability" };
+  c.ctx.fetch = () => { throw new Error("不应请求 bootstrap"); };
+  await vm.runInContext('App.start("relays")', c.ctx);
+  assert.deepEqual(c.writes, ["reports:ready"]);
+  assert.deepEqual(c.mounted, ["relays"]);
+  assert.equal(vm.runInContext("PublicData.pending", c.ctx), null);
+});
+
 test("慢接口未返回时首页与状态组件已经挂载，数据返回仅更新统计", async () => {
   const c = client();
   const startup = vm.runInContext('App.start("home")', c.ctx);

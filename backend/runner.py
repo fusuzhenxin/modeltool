@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 
 from datetime import datetime
 from .core import TZ, day, ident, now
+from .request_errors import RequestIssue, error_issue
 
 
 class RunStopped(Exception):
@@ -46,6 +47,10 @@ def post_json(url, headers, payload, timeout=45):
         if connection.sock:
             connection.sock.settimeout(remaining)
         response = connection.getresponse()
+        if response.status >= 300:
+            # Inspect a bounded error body, but persist only the safe category.
+            body = response.read(65536)
+            raise error_issue(response.status, body) or RequestIssue("http_" + str(response.status))
         chunks, size = [], 0
         while True:
             remaining = deadline - time.monotonic()
@@ -60,9 +65,6 @@ def post_json(url, headers, payload, timeout=45):
             if size > 2 * 1024 * 1024:
                 raise ValueError("接口响应超过 2MB 限制")
             chunks.append(chunk)
-        if response.status >= 300:
-            # Never save upstream errors: they can echo Authorization headers or URLs.
-            raise ValueError(f"接口返回 HTTP {response.status}")
         try:
             return json.loads(b"".join(chunks))
         except (ValueError, UnicodeDecodeError) as exc:
@@ -120,6 +122,9 @@ def complete(db, job, station, system, prompt, json_mode=False, transport=post_j
     data = transport(endpoint(station), headers, payload, timeout=120) if transport is post_json and max_tokens > 256 else transport(endpoint(station), headers, payload)
     if not isinstance(data, dict):
         raise ValueError("接口响应结构不合法")
+    issue = error_issue(200, data)
+    if issue:
+        raise issue
     usage = data.get("usage") or {}
     total = usage.get("total_tokens")
     if total is None and "input_tokens" in usage and "output_tokens" in usage:

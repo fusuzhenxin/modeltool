@@ -18,7 +18,8 @@ const App = {
   async start(page) {
     const startToken = {};
     App.startToken = startToken;
-    const publicReady = typeof PublicData !== "undefined" ? PublicData.load(page !== "relays" || typeof location === "undefined" || !new URLSearchParams(location.search).get("id")) : null;
+    const stabilityView = page === "relays" && typeof location !== "undefined" && new URLSearchParams(location.search).get("view") === "stability";
+    const publicReady = typeof PublicData !== "undefined" && !stabilityView ? PublicData.load(page !== "relays" || typeof location === "undefined" || !new URLSearchParams(location.search).get("id")) : null;
     await Store.init();
     if (App.startToken !== startToken) return;
     UI.bind();
@@ -1644,7 +1645,7 @@ const Pages = {
       <div id="trace-result">${shown && typeof Trace !== "undefined" ? Trace.resultHtml(shown) : ""}</div>`);
   },
   mount: {
-    relays() { RelayDirectory.mountArtworkPreviews(); if (typeof ArtworkVotes !== "undefined") ArtworkVotes.mount(); },
+    relays() { RelayDirectory.mountArtworkPreviews(); if (typeof ArtworkVotes !== "undefined") ArtworkVotes.mount(); if (typeof RelayStability !== "undefined") RelayStability.mount(); },
     examples() { Examples.mount(); },
     home() { if (typeof Official !== "undefined") Official.load(false); },
     relay() {
