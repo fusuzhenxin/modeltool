@@ -31,6 +31,25 @@ const Probe = {
     if (location.protocol === "http:" || location.protocol === "https:") return location.origin + "/api/probe";
     return "http://127.0.0.1:8766/api/probe";
   },
+  accountIssue(result) {
+    if (result?.status === 402) return true;
+    let data = result?.json;
+    if (!data && result?.text) {
+      try { data = JSON.parse(result.text); } catch (_) {
+        for (const line of result.text.split(/\r?\n/)) {
+          if (!line.startsWith('data:')) continue;
+          try {
+            const event = JSON.parse(line.slice(5).trim());
+            if (event?.error && Probe.accountIssue({status:200,json:event})) return true;
+          } catch (_) {}
+        }
+      }
+    }
+    const error = data?.error || (result?.status >= 400 ? data || result?.text : null);
+    if (!error) return false;
+    const text = typeof error === "object" ? [error.code, error.type, error.message].join(" ") : String(error);
+    return /余额不足|额度不足|配额不足|余额已用尽|额度已用尽|配额已用尽|欠费|insufficient[_ ](?:quota|balance|funds|credit)|credit balance is too low|not enough (?:credits|quota|balance)|quota (?:is not enough|exhausted)|exceeded your current quota/i.test(text);
+  },
   async call(payload) {
     const cfg = Store.api();
     let response;
@@ -146,6 +165,13 @@ const Probe = {
     const call = async (payload) => {
       const result = await Probe.call(payload);
       Poster.note(report, result);
+      if (Probe.accountIssue(result)) {
+        Store.saveBasicReport(null);
+        Poster.live = null;
+        const error = new Error("账户余额不足或额度已用尽，检测已跳过；不计失败，不判断掺水或降智。");
+        error.code = "billing";
+        throw error;
+      }
       return result;
     };
     const put = (id, status, detail) => {

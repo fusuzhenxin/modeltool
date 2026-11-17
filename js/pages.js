@@ -2065,6 +2065,12 @@ Actions["start-basic-probe"] = async (el) => {
   try {
     await Probe.run(Form.get("basic-model", defaultModelId()));
     UI.toast("基础测试完成");
+  } catch (error) {
+    if (error.code !== "billing") throw error;
+    const box = document.getElementById("relay-report");
+    if (box) box.innerHTML = `<p class="note">${UI.esc(error.message)}</p>`;
+    document.querySelectorAll('[id^="probe-"] .probe-status').forEach(node => { node.className = "probe-status"; node.textContent = "已跳过"; });
+    UI.toast(error.message);
   } finally {
     el.disabled = false;
     el.innerHTML = old;

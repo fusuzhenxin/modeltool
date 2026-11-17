@@ -156,7 +156,7 @@ class Database:
             query += " AND id=?"
             args.append(key)
         if published:
-            query += " AND json_extract(data,'$.status')='published'"
+            query += " AND json_extract(data,'$.status')='published' AND COALESCE(json_extract(data,'$.excluded_reason'),'')!='billing'"
         query += " ORDER BY updated DESC"
         with self.connect() as con:
             for row in con.execute(query, args):

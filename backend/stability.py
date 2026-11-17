@@ -208,6 +208,7 @@ def published_quality(db, sites, model, start, end):
         FROM entities e LEFT JOIN jobs j ON j.id=json_extract(e.data,'$.job_id')
             AND j.station_id=json_extract(e.data,'$.station_id') AND j.model=json_extract(e.data,'$.result.model')
         WHERE e.kind='reports' AND json_extract(e.data,'$.status')='published'
+        AND COALESCE(json_extract(e.data,'$.excluded_reason'),'')!='billing'
         AND COALESCE(json_extract(e.data,'$.demo'),0)=0
         AND json_extract(e.data,'$.result.model')=?
         AND json_extract(e.data,'$.created')>=? AND json_extract(e.data,'$.created')<=?

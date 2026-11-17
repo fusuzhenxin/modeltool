@@ -146,6 +146,8 @@ def register_bulk(app, db, session, prepare_schedule):
                         audit = "deleted_" + kind
                     else:
                         if kind == "reports":
+                            if action == "published" and row.get("excluded_reason") == "billing":
+                                raise ValueError("余额不足的无效检测报告不能公开，请充值后重新检测")
                             site = db.get("stations", row["station_id"], con)
                             if action == "published" and (not site or not site["visible"]):
                                 raise ValueError("中转站未公开，请先将站点设为公开")

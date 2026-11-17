@@ -9,6 +9,31 @@ function client() {
   for (const file of ["engine", "probe"]) vm.runInContext(fs.readFileSync(path.join(__dirname, "../js/" + file + ".js"), "utf8"), ctx);
   return vm.runInContext("Probe", ctx);
 }
+
+test("账户余额错误不作为掺水证据，正常回答和普通限流不被混淆", () => {
+  const probe = client();
+  assert.equal(probe.accountIssue({status:402}), true);
+  assert.equal(probe.accountIssue({status:403,text:JSON.stringify({error:{message:'可用余额不足'}})}), true);
+  assert.equal(probe.accountIssue({status:200,json:{error:{code:'insufficient_quota'}}}), true);
+  assert.equal(probe.accountIssue({status:200,text:'data: {"error":{"code":"insufficient_quota"}}\n\n'}), true);
+  assert.equal(probe.accountIssue({status:200,json:{choices:[{message:{content:'余额不足'}}]}}), false);
+  assert.equal(probe.accountIssue({status:429,json:{error:{code:'rate_limit_exceeded'}}}), false);
+});
+
+test("手动检测遇到账户错误立即停止，清除部分评分且不发后续请求", async () => {
+  let saved, calls = 0;
+  const context = vm.createContext({URL,
+    Store:{api:()=>({}),saveBasicReport:r=>{saved=r;}},
+    DATA:{model:()=>({name:'model'})}, Engine:{now:()=>''},
+    Poster:{note:()=>{},hostOf:()=>'',live:{score:100}}
+  });
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/probe.js'),'utf8'),context);
+  const probe = vm.runInContext('Probe',context);
+  probe.paint=()=>{};
+  probe.call=async()=>{ calls++;return {status:402,json:{error:{message:'余额不足'}}}; };
+  await assert.rejects(probe.run('m'), e=>e.code==='billing');
+  assert.equal(calls,1);assert.equal(saved,null);assert.equal(context.Poster.live,null);
+});
 function reply(tokens, finish = "length", content = "1,2,3,4,5") {
   const json = {choices:[{message:{content},finish_reason:finish}]};
   if (tokens !== undefined) json.usage = {completion_tokens:tokens};

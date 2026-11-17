@@ -157,10 +157,9 @@ def run_site_suite(db, job, station, transport=None):
         issue = error_issue(response["status"], response.get("json") or response.get("text"))
         if issue:
             raise issue
-        if payload.get("stream"):
-            issue = stream_error(response.get("text", ""))
-            if issue:
-                raise issue
+        issue = stream_error(response.get("text", ""))
+        if issue:
+            raise issue
         if response["status"] in (401, 403, 429) or response["status"] >= 500 or 300 <= response["status"] < 400 or response["status"] <= 0:
             raise RunStopped(f"接口返回 HTTP {response['status']}，任务已停止")
         if "json" not in response:
@@ -198,6 +197,10 @@ def run_site_suite(db, job, station, transport=None):
 
 
 def report_from_site(result, config, model):
+    from .report_corrections import billing_evidence
+    from .request_errors import RequestIssue
+    if billing_evidence(result):
+        raise RequestIssue("billing")
     sections = result["sections"]
     relay = next((s for s in sections if s["kind"] == "relay"), None)
     artwork = next((s for s in sections if s["kind"] == "pelican"), None)

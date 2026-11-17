@@ -287,6 +287,8 @@ def create_app(data_dir=None):
             if not row:
                 raise HTTPException(404, "报告不存在")
             station = db.get("stations", row["station_id"], con)
+            if spec.status == "published" and row.get("excluded_reason") == "billing":
+                raise HTTPException(422, "余额不足的无效检测报告不能公开，请充值后重新检测")
             if spec.status == "published" and (not station or not station["visible"]):
                 raise HTTPException(409, "请先将该中转站设为公开，再发布报告")
             row.update(spec.model_dump(), reviewed_by=user["username"], reviewed_at=now())

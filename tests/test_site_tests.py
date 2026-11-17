@@ -98,6 +98,7 @@ class SiteTests(unittest.TestCase):
         from backend.request_errors import MESSAGES
         from backend.stability import outcome
         cases = [
+            {"status": 402, "text": '{"error":{"message":"可用余额不足"}}'},
             {"status": 429, "text": '{"error":{"code":"insufficient_quota","message":"sk-site-secret"}}'},
             {"status": 403, "text": '{"error":{"message":"余额不足"}}'},
             {"status": 200, "json": None, "text": '{"error":{"message":"credit balance is too low"}}'},
@@ -105,7 +106,7 @@ class SiteTests(unittest.TestCase):
         ]
         for response in cases:
             with self.subTest(response=response):
-                queued = self.post("jobs", {"station_id": self.station["id"], "model": "fixture-model", "kind": "site_pelican"})
+                queued = self.post("jobs", {"station_id": self.station["id"], "model": "fixture-model", "kind": "site_relay"})
                 self.assertEqual(queued.status_code, 200, queued.text)
                 calls = []
                 def fake_error(*args):
@@ -119,6 +120,12 @@ class SiteTests(unittest.TestCase):
                 self.assertEqual(outcome(saved), "billing")
                 self.assertEqual(len(calls), 1)
                 self.assertFalse(saved["report_id"])
+
+    def test_corrected_account_report_cannot_be_republished(self):
+        self.db.save("reports", "invalid-balance", {"station_id": self.station["id"], "status": "rejected", "excluded_reason": "billing", "result": {"model": "fixture-model"}})
+        response = self.client.put("/api/admin/reports/invalid-balance", headers=self.headers, json={"status": "published"})
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("余额不足", response.text)
 
     def test_all_single_choices_use_original_questions_and_grading(self):
         for kind in ("site_ability", "site_logic", "site_code", "site_qa", "site_candy"):
