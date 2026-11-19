@@ -232,6 +232,46 @@ class SiteTests(unittest.TestCase):
             usage = con.execute("SELECT tokens FROM usage WHERE actual=0").fetchall()
         self.assertIn(2080, [r[0] for r in usage])
 
+    def test_pelican_worker_handles_both_parameter_rejections_and_counts_each_request(self):
+        def modern_model(url, headers, payload):
+            field = "max_tokens" if "max_tokens" in payload else "temperature" if "temperature" in payload else None
+            if field:
+                self.calls.append(payload)
+                error = {"error": {"param": field, "message": field + " is not supported"}}
+                return {"status": 400, "json": error, "text": json.dumps(error), "headers": {}}
+            return self.fake(url, headers, payload)
+        report = self.run_test("site_pelican", transport=modern_model)["result"]
+        self.assertEqual(report["request_count"], 3)
+        self.assertTrue(report["artwork"]["available"])
+        self.assertEqual(len(report["compatibility"]), 2)
+        self.assertIn("max_completion_tokens", report["conditions"])
+        self.assertEqual(self.calls[-1]["max_completion_tokens"], 8192)
+        self.assertNotIn("max_tokens", self.calls[-1])
+        self.assertNotIn("temperature", self.calls[-1])
+        self.assertIn("max_tokens", report["raw"][0]["payload"])
+        with self.db.connect() as con:
+            self.assertEqual(con.execute("SELECT COUNT(*) FROM usage").fetchone()[0], 3)
+
+    def test_relay_output_control_keeps_its_own_parameter_fallback_evidence(self):
+        def legacy_output_control(url, headers, payload):
+            error = None
+            if "从 1 到 200" in str(payload["messages"]):
+                if "max_completion_tokens" in payload:
+                    error = "max_completion_tokens"
+            elif "max_tokens" in payload:
+                error = "max_tokens"
+            if error:
+                self.calls.append(payload)
+                body = {"error": {"param": error, "message": error + " is not supported"}}
+                return {"status": 400, "json": body, "text": json.dumps(body), "headers": {}}
+            return self.fake(url, headers, payload)
+        report = self.run_test("site_relay", transport=legacy_output_control)["result"]
+        control = report["sections"][0]["outputControl"]
+        self.assertEqual(control["status"], "pass")
+        self.assertEqual([a["parameter"] for a in control["attempts"]], ["max_completion_tokens", "max_tokens"])
+        self.assertEqual(report["request_count"], 12)
+        self.assertEqual(report["score"], 100)
+
     def test_fingerprint_uses_existing_bank_and_bare_numeric_challenges(self):
         report = self.run_test("site_trace")["result"]
         trace = report["sections"][0]

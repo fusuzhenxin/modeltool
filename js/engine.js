@@ -225,33 +225,50 @@ const Engine = {
 
 const Api = {
   temperatureNotice: "接口不支持 temperature，已省略该参数并使用模型默认采样设置；本次不保证 temperature=0。",
-  temperatureStates: new Map(),
-  temperatureState(baseUrl, apiKey, model) {
+  completionTokensNotice: "接口不支持 max_tokens，已改用 max_completion_tokens，输出上限数值保持不变。",
+  compatibilityStates: new Map(),
+  compatibilityState(baseUrl, apiKey, model) {
     const key = JSON.stringify([Api.endpoint(baseUrl), apiKey, String(model).trim()]);
-    if (!Api.temperatureStates.has(key)) {
-      if (Api.temperatureStates.size >= 64) Api.temperatureStates.delete(Api.temperatureStates.keys().next().value);
-      Api.temperatureStates.set(key, { omitted: false });
+    if (!Api.compatibilityStates.has(key)) {
+      if (Api.compatibilityStates.size >= 64) Api.compatibilityStates.delete(Api.compatibilityStates.keys().next().value);
+      Api.compatibilityStates.set(key, { omitted: false, completionTokens: false });
     }
-    return Api.temperatureStates.get(key);
+    return Api.compatibilityStates.get(key);
   },
-  rejectsTemperature(result) {
+  compatibilityNotes(state) {
+    return [state.omitted ? Api.temperatureNotice : "", state.completionTokens ? Api.completionTokensNotice : ""].filter(Boolean);
+  },
+  rejectsParameter(result, parameter) {
     if (![400, 422].includes(result.status)) return false;
     let data = result.json;
     if (!data) { try { data = JSON.parse(result.text); } catch (_) {} }
     const error = data?.error;
     const message = String(error?.message || (typeof error === "string" ? error : "") || data?.message || result.text || "");
-    const named = error?.param === "temperature" || /\btemperature\b/i.test(message);
+    const named = error?.param ? error.param === parameter : new RegExp("\\b" + parameter + "\\b", "i").test(message);
     return named && /not supported|does not support|doesn't support|unsupported|unknown (?:parameter|field)|unrecognized|not (?:allowed|permitted)|不支持/i.test(message);
   },
-  async withTemperature(payload, send, state) {
-    const request = { ...payload };
+  async withCompatibility(payload, send, state, adaptTokens = true) {
+    let request = { ...payload };
     if (state.omitted) delete request.temperature;
-    const result = await send(request);
-    if (!Object.prototype.hasOwnProperty.call(request, "temperature") || !Api.rejectsTemperature(result)) return result;
-    state.omitted = true;
-    const retry = { ...request };
-    delete retry.temperature;
-    return send(retry);
+    const switchTokens = () => {
+      request.max_completion_tokens = request.max_tokens;
+      delete request.max_tokens;
+    };
+    if (adaptTokens && state.completionTokens && "max_tokens" in request && !("max_completion_tokens" in request)) switchTokens();
+    // Each rejected field can change once; retain every actual request for auditing.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const result = await send(request);
+      if (attempt === 2) return result;
+      if ("temperature" in request && Api.rejectsParameter(result, "temperature")) {
+        state.omitted = true;
+        request = { ...request };
+        delete request.temperature;
+      } else if (adaptTokens && "max_tokens" in request && !("max_completion_tokens" in request) && Api.rejectsParameter(result, "max_tokens")) {
+        state.completionTokens = true;
+        request = { ...request };
+        switchTokens();
+      } else return result;
+    }
   },
   endpoint(baseUrl) {
     const raw = String(baseUrl || "").trim().replace(/\/+$/, "");
@@ -390,8 +407,8 @@ const Api = {
         : { model: model.trim(), temperature: long ? 0.4 : 0, max_tokens: limit, messages: [{ role: "system", content: system }, { role: "user", content: asked }] };
     if (!bare && !anthropic && long && !noReasoning) payload.reasoning_effort = quick ? "none" : "low";
     if (long && !arguments[0].noStream) payload.stream = true;
-    const state = Api.temperatureState(baseUrl, apiKey, model);
-    let response = await Api.withTemperature(payload, async (request) => {
+    const state = Api.compatibilityState(baseUrl, apiKey, model);
+    let response = await Api.withCompatibility(payload, async (request) => {
       let upstream;
       try {
         upstream = await fetch(Api.proxyUrl(), {
@@ -405,7 +422,7 @@ const Api = {
       }
       if (long) return Api.readReply(upstream, anthropic, arguments[0].onProgress);
       return { status: upstream.status, ok: upstream.ok, text: await upstream.text() };
-    }, state);
+    }, state, !anthropic);
     const text = response.text;
     let data = null;
     try { data = JSON.parse(text); } catch (err) { data = null; }
@@ -493,7 +510,7 @@ const Api = {
       system: "你在做单项选择题。只输出一个大写字母 A、B、C 或 D，不要输出解释。",
       user: Api.prompt(item)
     });
-    const compatibility = Api.temperatureState(cfg.baseUrl, cfg.apiKey, model).omitted ? Api.temperatureNotice : "";
+    const compatibility = Api.compatibilityNotes(Api.compatibilityState(cfg.baseUrl, cfg.apiKey, model)).join(" ");
     return { content, choice: Api.parseChoice(content, item.options.length), compatibility };
   }
 };

@@ -134,3 +134,47 @@ test("温度兼容与已有流式参数回退组合使用且每项有界", async
   assert.equal(sent[2].stream,undefined);
   assert.equal(sent[2].reasoning_effort,"low");
 });
+
+test("作品兼容新输出上限与温度限制，两种报错顺序都保留原始请求和预算", async () => {
+  for (const order of [["max_tokens","temperature"],["temperature","max_tokens"]]) {
+    const sent=[];
+    const instance=api(async (_,request)=>{
+      const payload=JSON.parse(request.body).payload; sent.push(payload);
+      const field=order[sent.length-1];
+      if (field) return response(envelope(JSON.stringify({error:{param:field,message:field+" is not supported"}}),true,400));
+      return response(envelope('{"choices":[{"message":{"content":"<html>作品</html>"}}]}'));
+    });
+    assert.equal(await instance.complete(options),"<html>作品</html>");
+    assert.equal(sent.length,3);
+    assert.equal(sent[0].max_tokens,8192);
+    assert.equal(sent[0].temperature,0.4);
+    assert.equal(sent[2].max_tokens,undefined);
+    assert.equal(sent[2].max_completion_tokens,8192);
+    assert.equal(sent[2].temperature,undefined);
+    assert.equal(sent[2].reasoning_effort,"low");
+    assert.equal(sent[2].stream,true);
+    await instance.complete(options);
+    assert.deepEqual(sent[3],sent[2]);
+  }
+});
+
+test("上限兼容只针对明确拒绝旧字段，禁止循环切换或改写 Anthropic 请求", async () => {
+  for (const [status,error,count] of [
+    [400,{param:"max_tokens",message:"max_tokens must be >= 64"},1],
+    [400,{param:"max_completion_tokens",message:"Unsupported max_completion_tokens, use max_tokens"},1],
+    [400,{param:"model",message:"Unsupported model max_tokens"},1],
+    [401,{message:"max_tokens is not supported"},1],
+    [429,{message:"max_tokens is not supported"},1],
+    [422,{param:"max_tokens",message:"Unsupported parameter max_tokens"},2]
+  ]) {
+    const sent=[];
+    const instance=api(async (_,request)=>{sent.push(JSON.parse(request.body).payload);return new Response(JSON.stringify({error}),{status});});
+    await assert.rejects(instance.complete({...options,long:false}));
+    assert.equal(sent.length,count);
+    assert.equal(sent[0].max_tokens,256);
+    if (count===2) assert.equal(sent[1].max_completion_tokens,256);
+  }
+  let calls=0;
+  await assert.rejects(api(async ()=>{calls++;return new Response('{"error":{"param":"max_tokens","message":"max_tokens is not supported"}}',{status:400});}).complete({...options,long:false,baseUrl:"https://api.anthropic.com/v1/messages"}));
+  assert.equal(calls,1);
+});

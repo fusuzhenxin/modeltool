@@ -1768,7 +1768,7 @@ const Pages = {
             });
             if (App.runToken !== token) return;
             current.reply = content;
-            current.compatibility = Api.temperatureState(cfg.baseUrl, cfg.apiKey, current.requestedModel || cfg.modelOverride || current.modelId).omitted ? Api.temperatureNotice : "";
+            current.compatibility = Api.compatibilityNotes(Api.compatibilityState(cfg.baseUrl, cfg.apiKey, current.requestedModel || cfg.modelOverride || current.modelId)).join(" ");
             current.html = Api.extractArtwork(content);
             current.score = Api.scoreArtwork(current.html);
             current.cursor = 1;

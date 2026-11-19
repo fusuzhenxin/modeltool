@@ -162,7 +162,7 @@ const Probe = {
       items: {},
       stats: { requests: 0, elapsedMs: 0, firstMs: null, inputTokens: 0, outputTokens: 0, host: Poster.hostOf(cfg.baseUrl) }
     };
-    const temperature = Api.temperatureState(cfg.baseUrl, cfg.apiKey, model);
+    const compatibility = Api.compatibilityState(cfg.baseUrl, cfg.apiKey, model);
     const send = async (payload) => {
       const result = await Probe.call(payload);
       Poster.note(report, result);
@@ -175,9 +175,9 @@ const Probe = {
       }
       return result;
     };
-    const call = async (payload) => {
-      const result = await Api.withTemperature(payload, send, temperature);
-      if (temperature.omitted) report.compatibility = [Api.temperatureNotice];
+    const call = async (payload, adaptTokens = true) => {
+      const result = await Api.withCompatibility(payload, send, compatibility, adaptTokens && !Api.isAnthropic(Api.endpoint(cfg.baseUrl)));
+      report.compatibility = Api.compatibilityNotes(compatibility);
       return result;
     };
     const put = (id, status, detail) => {
@@ -247,7 +247,7 @@ const Probe = {
     const streamOk = stream.status < 400 && /data:\s*\{/.test(stream.text || "") && (/\[DONE\]/.test(stream.text || "") || /delta|content_block_delta/.test(stream.text || ""));
     put("stream", stream.error ? "fail" : streamOk ? "pass" : (Probe.unsupported(stream) ? "skip" : "fail"), streamOk ? "收到 SSE 分片" : (stream.error || "没有解析到流式分片"));
 
-    report.outputControl = await Probe.testOutputLimit(call, model, cfg.baseUrl);
+    report.outputControl = await Probe.testOutputLimit((payload) => call(payload, false), model, cfg.baseUrl);
     put("limit", report.outputControl.status, report.outputControl.detail);
 
     const memory = await call({
@@ -343,7 +343,7 @@ const Probe = {
     const status = (id) => (items[id] && items[id].status) || "idle";
     const detail = (id) => (items[id] && items[id].detail) || "";
     let score = 100;
-    const findings = (report.compatibility || []).map((text) => ({ level: "unknown", title: "采样参数兼容", text }));
+    const findings = (report.compatibility || []).map((text) => ({ level: "unknown", title: "请求参数兼容", text }));
     const cut = (id, amount, title, text) => {
       if (status(id) !== "fail") return;
       score -= amount;
