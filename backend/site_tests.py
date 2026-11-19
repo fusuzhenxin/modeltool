@@ -126,11 +126,14 @@ def post_exchange(url, headers, payload, timeout=120):
 
 
 def run_site_suite(db, job, station, transport=None):
-    key = db.decrypt(station.get("key_cipher"))
+    from .station_keys import entries, key_for_model
+    key = key_for_model(db, station, job["model"])
     if not key:
         raise RunStopped("该站点没有配置检测专用密钥")
     config = json.loads(job["config"])
     config = {"difficulty": "medium", "count": 10, "candy_count": 20, "pelican_mode": "html2d", **config}
+    secrets = sorted({variant for item in entries(station) for raw in [db.decrypt(item["cipher"])]
+                      for variant in (json.dumps(raw)[1:-1], json.dumps(raw, ensure_ascii=False)[1:-1], raw) if variant}, key=len, reverse=True)
     def exchange(payload, mode):
         limit = payload.get("max_completion_tokens", payload.get("max_tokens", 256))
         if payload.get("model") != job["model"] or not isinstance(limit, int) or not 1 <= limit <= 8192:
@@ -150,7 +153,7 @@ def run_site_suite(db, job, station, transport=None):
             if isinstance(value, list):
                 return [scrub(v) for v in value]
             if isinstance(value, str):
-                for secret in (json.dumps(key)[1:-1], json.dumps(key, ensure_ascii=False)[1:-1], key):
+                for secret in secrets:
                     value = value.replace(secret, "[已移除密钥]")
             return value
         response = scrub(response)

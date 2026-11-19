@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from .core import Database, ident, now
 from .runner import RunStopped, run_suite
 from .request_errors import RequestIssue, safe_exception
+from .station_keys import eligible, select_for_job
 
 
 def renew_lease(db, job_id):
@@ -41,8 +42,8 @@ def validate_run(db, spec, con):
         raise ValueError("中转站不存在或已暂停检测")
     if spec["model"] not in station["models"]:
         raise ValueError("请选择站点已登记的模型")
-    if not station.get("key_cipher"):
-        raise ValueError("请先为站点配置检测专用密钥")
+    if not eligible(station, spec["model"]):
+        raise ValueError("请先为该模型配置可用的检测专用密钥")
     if db.get("settings", "site", con)["paused"]:
         raise ValueError("所有检测已暂停，请先到设置中恢复")
     return station
@@ -53,15 +54,15 @@ def enqueue(db, spec, actor, schedule_id=None, con=None):
         with db.connect(write=True) as conn:
             return enqueue(db, spec, actor, schedule_id, conn)
     validate_run(db, spec, con)
-    duplicate = con.execute("SELECT 1 FROM jobs WHERE station_id=? AND model=? AND status IN ('queued','running')", (spec["station_id"], spec["model"])).fetchone()
-    if duplicate:
-        raise ValueError("该站点模型已有排队或运行中的任务")
     key = ident()
     config = {"kind": spec["kind"]}
     if spec["kind"].startswith("site_"):
         config.update({k: spec.get(k, default) for k, default in (("difficulty", "medium"), ("count", 10), ("candy_count", 20), ("pelican_mode", "html2d"))})
     if spec["kind"] == "pelican":
         config["pelican_mode"] = spec.get("pelican_mode", "html2d")
+    active = con.execute("SELECT schedule_id,config FROM jobs WHERE station_id=? AND model=? AND status IN ('queued','running')", (spec["station_id"], spec["model"])).fetchall()
+    if any(json.loads(row["config"]) == config or (schedule_id and row["schedule_id"] == schedule_id) for row in active):
+        raise ValueError("该站点模型已有排队或运行中的相同检测任务")
     con.execute("INSERT INTO jobs(id,station_id,schedule_id,model,config,status,created) VALUES(?,?,?,?,?,'queued',?)", (key, spec["station_id"], schedule_id, spec["model"], json.dumps(config), now()))
     db.audit(actor, "enqueue", key, con)
     return key
@@ -75,15 +76,25 @@ def tick(db):
         if db.get("settings", "site", con)["paused"]:
             return
         for schedule in db.list("schedules", con):
-            if not schedule["enabled"] or schedule["next_run"] > now():
+            if not schedule["enabled"] or schedule.get("next_run") is None or schedule["next_run"] > now():
                 continue
             try:
                 enqueue(db, schedule, "scheduler", schedule["id"], con)
                 schedule["last_error"] = ""
+                if schedule.get("schedule_mode") == "once":
+                    schedule.update(enabled=False, next_run=None, completed_at=now())
             except ValueError as exc:
                 schedule["last_error"] = str(exc)
-            # Missed intervals are skipped, never replayed as a burst.
-            schedule["next_run"] = now() + schedule["interval_minutes"] * 60
+            mode = schedule.get("schedule_mode", "interval")
+            if mode == "once" and schedule["enabled"]:
+                # Retain a due one-off plan when a matching task is still active.
+                schedule["next_run"] = now() + 60
+            elif mode == "daily":
+                from .scheduling import next_daily
+                schedule["next_run"] = next_daily(schedule["daily_time"], now())
+            elif mode == "interval":
+                # Missed intervals are skipped, never replayed as a burst.
+                schedule["next_run"] = now() + schedule["interval_minutes"] * 60
             db.save("schedules", schedule["id"], schedule, con)
 
 
@@ -92,16 +103,21 @@ def work_once(db, transport=None):
     with db.connect(write=True) as con:
         if db.get("settings", "site", con)["paused"]:
             return False
-        job = con.execute("SELECT * FROM jobs WHERE status='queued' ORDER BY created LIMIT 1").fetchone()
+        job = con.execute("""SELECT * FROM jobs AS pending WHERE status='queued' AND NOT EXISTS
+            (SELECT 1 FROM jobs AS active WHERE active.status='running'
+             AND active.station_id=pending.station_id AND active.model=pending.model)
+            ORDER BY created LIMIT 1""").fetchone()
         if not job:
             return False
         job = dict(job)
         con.execute("UPDATE jobs SET status='running',started=?,lease=?,attempts=attempts+1 WHERE id=?", (now(), now() + 180, job["id"]))
         station = db.get("stations", job["station_id"], con)
+        if station and station["enabled"] and job["model"] in station["models"]:
+            station = select_for_job(db, station | {"id": job["station_id"]}, job["model"], con)
     try:
         if not station or not station["enabled"]:
             raise RunStopped("站点已停用或删除")
-        if job["model"] not in station["models"] or not station.get("key_cipher"):
+        if job["model"] not in station["models"] or not eligible(station, job["model"]):
             raise RunStopped("站点模型或检测密钥已变更，请检查后重新创建任务")
         with keep_worker_alive(db, job["id"]):
             result = run_suite(db, job, dict(station, id=job["station_id"]), **({"transport": transport} if transport else {}))

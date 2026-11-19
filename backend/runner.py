@@ -89,6 +89,11 @@ def reserve(db, job, station, token_cap=2304):
         latest = db.get("stations", station["id"], con)
         if not current or current["status"] != "running" or current["cancel"] or settings["paused"] or not latest or not latest["enabled"]:
             raise RunStopped("任务已停止，或检测已暂停")
+        if station.get("_selected_key"):
+            from .station_keys import eligible
+            selected = next((key for key in eligible(station, job["model"]) if key["id"] == station["_selected_key"]), None)
+            if job["model"] not in latest["models"] or not selected or not any(key["id"] == selected["id"] and key["cipher"] == selected["cipher"] for key in eligible(latest, job["model"])):
+                raise RunStopped("站点模型或检测密钥已变更，请检查后重新创建任务")
         for station_id, limits in ((None, settings), (station["id"], latest)):
             query = "SELECT COUNT(*),COALESCE(SUM(tokens),0) FROM usage WHERE day=?"
             args = [day()]
@@ -106,7 +111,8 @@ def reserve(db, job, station, token_cap=2304):
 
 
 def complete(db, job, station, system, prompt, json_mode=False, transport=post_json, max_tokens=256, temperature=0):
-    key = db.decrypt(station.get("key_cipher"))
+    from .station_keys import key_for_model, redact
+    key = key_for_model(db, station, job["model"])
     if not key:
         raise RunStopped("该站点没有配置检测专用密钥")
     usage_id = reserve(db, job, station, token_cap=max_tokens + 2048)
@@ -140,9 +146,9 @@ def complete(db, job, station, system, prompt, json_mode=False, transport=post_j
     if not isinstance(text, str):
         raise ValueError("接口未返回文本回答")
     # Dedicated keys must never appear even when an upstream deliberately echoes them.
-    text = text.replace(key, "[已移除密钥]")[:120000 if max_tokens > 256 else 12000]
+    text = redact(db, station, text)[:120000 if max_tokens > 256 else 12000]
     truncated = data.get("stop_reason") == "max_tokens" or any(c.get("finish_reason") == "length" for c in data.get("choices", []) if isinstance(c, dict))
-    return {"text": text, "model": str(data.get("model", ""))[:150].replace(key, "[已移除密钥]"), "elapsed_ms": round((time.monotonic() - started) * 1000), "usage_reported": isinstance(total, int), "truncated": truncated}
+    return {"text": text, "model": redact(db, station, str(data.get("model", "")))[:150], "elapsed_ms": round((time.monotonic() - started) * 1000), "usage_reported": isinstance(total, int), "truncated": truncated}
 
 
 QUESTIONS = [

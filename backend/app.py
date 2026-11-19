@@ -323,7 +323,12 @@ def create_app(data_dir=None):
                 raise HTTPException(404, "中转站不存在，请重新打开编辑窗口")
             if stored["base_url"].rstrip("/") != spec.base_url:
                 raise HTTPException(422, "接口地址已修改，请重新输入密钥后识别")
-            key = db.decrypt(stored.get("key_cipher"))
+            from .station_keys import entries
+            pool = entries(stored)
+            selected = next((item for item in pool if item["id"] == spec.key_id), None) if spec.key_id else next((item for item in pool if item["enabled"]), None)
+            if not selected:
+                raise HTTPException(422, "请选择已保存的 Key，或填写新的密钥")
+            key = db.decrypt(selected["cipher"])
         if not key:
             raise HTTPException(422, "请先填写检测专用密钥，再识别模型")
         from .catalog import discover
@@ -352,11 +357,18 @@ def create_app(data_dir=None):
             # A paused plan may be stored before its credential is configured.
             if data["enabled"]:
                 raise HTTPException(409, f"{linked['name']}：{exc}") from exc
-        first = datetime.fromisoformat(data["first_run"]).timestamp() if data.get("first_run") else None
-        changed = not previous or any(data.get(k) != previous.get(k) for k in ("first_run", "interval_minutes", "enabled"))
-        data["next_run"] = max(now(), first) if first else now() + data["interval_minutes"] * 60
+        from .scheduling import initial_run
+        changed = not previous or any(data.get(k, default) != previous.get(k, default) for k, default in
+                                     (("schedule_mode", "interval"), ("daily_time", ""), ("first_run", None), ("interval_minutes", 360), ("enabled", True)))
+        data["next_run"] = initial_run(data)
+        if data.get("schedule_mode") == "once" and changed and data["enabled"] and data["next_run"] <= now():
+            raise HTTPException(422, "单次执行时间须晚于当前时间，请选择新的日期和时间")
         if not changed:
             data["next_run"] = previous["next_run"]
+            if previous.get("completed_at"):
+                data["completed_at"] = previous["completed_at"]
+        else:
+            data.pop("completed_at", None)
         data["last_error"] = (previous or {}).get("last_error", "")
         return data
 
@@ -418,9 +430,11 @@ def create_app(data_dir=None):
                 duplicate = [r for r in db.list(kind, con) if r["domain"] == data["domain"] and r["id"] != key]
                 if duplicate:
                     raise HTTPException(409, "这个完整域名已登记，请编辑现有中转站")
-                api_key = data.pop("api_key")
-                clear = data.pop("clear_key")
-                data["key_cipher"] = "" if clear else db.encrypt(api_key) if api_key else (previous or {}).get("key_cipher", "")
+                from .station_keys import save_keys
+                try:
+                    save_keys(db, data, previous)
+                except ValueError as exc:
+                    raise HTTPException(422, str(exc)) from None
             if kind == "schedules":
                 prepare_schedule(data, con, previous)
             saved = db.save(kind, key, data, con)
@@ -497,7 +511,7 @@ def create_app(data_dir=None):
     @app.get("/admin/{path:path}", include_in_schema=False)
     def admin(path: str = ""):
         name = path or "index.html"
-        if name not in ("index.html", "admin.css", "admin.js", "select.js", "models.js", "schedules.js", "bulk.js"):
+        if name not in ("index.html", "admin.css", "admin.js", "select.js", "models.js", "keys.js", "schedules.js", "bulk.js"):
             raise HTTPException(404)
         return FileResponse(ROOT / "admin" / name)
 

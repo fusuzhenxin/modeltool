@@ -5,6 +5,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const context = vm.createContext({});
+context.FormData = function(form) { this.get = (name) => form[name] ?? null; };
 vm.runInContext(fs.readFileSync(path.join(__dirname, "../admin/schedules.js"), "utf8"), context);
 const schedules = vm.runInContext("AdminSchedules", context);
 const stations = [
@@ -83,4 +84,29 @@ test("批量手动检测复用模型选择，只传检测参数并阻止无密�
   assert.deepEqual(JSON.parse(JSON.stringify(batch.runs[1])), { ...spec, station_id: "b", model: "only-b" });
   assert.throws(() => schedules.buildRuns(spec, stations, ["c"], { shared: "only-c" }), /启用站点并配置密钥/);
   assert.throws(() => schedules.buildRuns(spec, stations, ["a", "b"], { shared: "only-a" }), /站点 B/);
+});
+
+test("三种执行方式只提交当前方式的时间字段", () => {
+  const dormant = { interval_minutes: "bad", first_run: "bad", execution_at: "bad", daily_time: "bad" };
+  const daily = schedules.timing({ ...dormant, schedule_mode: "daily", daily_time: "23:15" });
+  assert.deepEqual(JSON.parse(JSON.stringify(daily)), { schedule_mode: "daily", daily_time: "23:15" });
+  const once = schedules.timing({ ...dormant, schedule_mode: "once", execution_at: "2099-11-19T20:30" });
+  assert.deepEqual(JSON.parse(JSON.stringify(once)), { schedule_mode: "once", first_run: new Date("2099-11-19T20:30").toISOString() });
+  const interval = schedules.timing({ ...dormant, schedule_mode: "interval", first_run: "", interval_minutes: "360" });
+  assert.deepEqual(JSON.parse(JSON.stringify(interval)), { schedule_mode: "interval", first_run: null, interval_minutes: 360 });
+  assert.throws(() => schedules.timing({ schedule_mode: "once" }), /日期和时间/);
+});
+
+test("切换方式隐藏并停用其他时间字段，避免隐藏必填项阻止保存", () => {
+  const groups = ["interval", "once", "daily"].map((mode) => ({ dataset: { scheduleTiming: mode } }));
+  for (const mode of ["once", "daily", "interval"]) {
+    schedules.updateTiming({ elements: { namedItem: () => ({ value: mode }) }, querySelectorAll: () => groups });
+    for (const group of groups) {
+      assert.equal(group.hidden, group.dataset.scheduleTiming !== mode);
+      assert.equal(group.disabled, group.hidden);
+    }
+  }
+  assert.equal(schedules.timingLabel({ schedule_mode: "daily", daily_time: "20:00" }), "每天 20:00（北京时间）");
+  assert.match(schedules.timingLabel({ schedule_mode: "once" }), /仅一次/);
+  assert.equal(schedules.timingLabel({ interval_minutes: 360 }), "每 6 小时");
 });

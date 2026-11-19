@@ -2,6 +2,35 @@
 
 /* Batch creation stores independent schedules, using each station's own credentials. */
 const AdminSchedules = {
+  timingFields(plan, select, input, check, localValue) {
+    const mode = plan.schedule_mode || "interval";
+    return select("schedule_mode", "执行方式", [["interval", "按间隔重复"], ["once", "指定时间执行一次"], ["daily", "每天指定时刻"]], mode)
+      + `<fieldset class="schedule-timing" data-schedule-timing="interval" ${mode !== "interval" ? "hidden disabled" : ""}>${input("interval_minutes", "检测间隔（分钟）", plan.interval_minutes ?? 360, "number", "最短 1 分钟；360 分钟 = 6 小时。", 'min="1" max="43200" step="1" required')}${input("first_run", "首次运行时间（选填）", localValue(plan.first_run), "datetime-local", "使用当前设备时区；留空则在一个间隔后首次运行，之后按间隔重复。")}</fieldset>`
+      + `<fieldset class="schedule-timing" data-schedule-timing="once" ${mode !== "once" ? "hidden disabled" : ""}>${input("execution_at", "执行日期和时间", mode === "once" ? localValue(plan.first_run) : "", "datetime-local", "使用当前设备时区；到时只加入一次检测队列，随后自动停用计划。", "required")}</fieldset>`
+      + `<fieldset class="schedule-timing" data-schedule-timing="daily" ${mode !== "daily" ? "hidden disabled" : ""}>${input("daily_time", "每天执行时刻（北京时间）", plan.daily_time || "", "time", "每天北京时间此时加入队列；当天已过则从明天开始。", "required")}</fieldset>`
+      + check("enabled", "启用此检测计划", plan.enabled ?? true);
+  },
+  updateTiming(form) {
+    const mode = form.elements.namedItem("schedule_mode")?.value || "interval";
+    form.querySelectorAll("[data-schedule-timing]").forEach((group) => {
+      group.hidden = group.disabled = group.dataset.scheduleTiming !== mode;
+    });
+  },
+  timing(form) {
+    const fields = new FormData(form);
+    const mode = String(fields.get("schedule_mode") || "interval");
+    if (mode === "daily") return { schedule_mode: mode, daily_time: String(fields.get("daily_time") || "") };
+    const first = String(fields.get(mode === "once" ? "execution_at" : "first_run") || "");
+    if (mode === "once" && !first) throw new Error("请选择执行日期和时间");
+    const first_run = first ? new Date(first).toISOString() : null;
+    return mode === "once" ? { schedule_mode: mode, first_run }
+      : { schedule_mode: mode, first_run, interval_minutes: Number(fields.get("interval_minutes")) };
+  },
+  timingLabel(plan) {
+    if (plan.schedule_mode === "once") return "指定时间 · 仅一次";
+    if (plan.schedule_mode === "daily") return `每天 ${plan.daily_time}（北京时间）`;
+    return `每 ${plan.interval_minutes >= 60 && plan.interval_minutes % 60 === 0 ? plan.interval_minutes / 60 + " 小时" : plan.interval_minutes + " 分钟"}`;
+  },
   selected(stations, ids) { return stations.filter((station) => ids.includes(station.id)); },
   stationField(stations, ids, esc, task = false) {
     return `<div class="field"><label for="f-station_ids">中转站（可多选）</label><select id="f-station_ids" name="station_ids" multiple required>${stations.map((station) => `<option value="${esc(station.id)}" ${ids.includes(station.id) ? "selected" : ""}>${esc(station.name)}${station.has_key ? "" : "（未配置密钥）"}${station.enabled ? "" : "（已暂停）"}</option>`).join("")}</select><small>支持搜索、全选搜索结果；每个站点创建一条独立${task ? "检测任务" : "计划"}，最多一次选择 100 家。</small></div>`;

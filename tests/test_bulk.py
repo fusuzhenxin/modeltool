@@ -234,7 +234,7 @@ class BulkTests(unittest.TestCase):
             self.assertEqual(con.execute("SELECT COUNT(*) FROM usage").fetchone()[0], 0)
 
     def test_bulk_assets_are_served(self):
-        self.assertIn("/admin/bulk.js?v=20261113-schedule-edit", self.client.get("/admin/").text)
+        self.assertIn("/admin/bulk.js?v=20261119-schedule-modes", self.client.get("/admin/").text)
         self.assertEqual(self.client.get("/admin/bulk.js").status_code, 200)
 
     def test_job_list_scores_match_linked_reports_without_raw_measurements(self):

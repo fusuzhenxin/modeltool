@@ -45,10 +45,13 @@ const AdminModels = (() => {
       ticket++; models = []; selected.clear(); panel.hidden = true; list.replaceChildren();
       button.disabled = false; button.textContent = "识别模型"; say("");
     }
-    for (const name of ["base_url", "api_key", "protocol", "clear_key"]) {
+    for (const name of ["base_url", "protocol", "discovery_key"]) {
       const input = form.elements.namedItem(name);
       if (input) { input.addEventListener("input", invalidate); input.addEventListener("change", invalidate); }
     }
+    form.addEventListener("keyschange", invalidate);
+    form.addEventListener("input", (event) => { if (event.target.closest(".station-key")) invalidate(); });
+    form.addEventListener("change", (event) => { if (event.target.closest(".station-key")) invalidate(); });
     search.addEventListener("input", draw);
     search.addEventListener("keydown", (event) => { if (event.key === "Enter") event.preventDefault(); });
     panel.addEventListener("click", (event) => {
@@ -61,23 +64,24 @@ const AdminModels = (() => {
         draw();
       }
       if (action === "apply") {
-        field.value = [...selected].join("\n"); field.dispatchEvent(new Event("input", { bubbles: true }));
-        panel.hidden = true; say(`已填入 ${selected.size} 个模型，保存中转站后生效。`);
+        const merged = [...new Set([...AdminKeys.splitModels(field.value), ...selected])];
+        if (merged.length > 30) { say("合并后超过 30 个模型，请先在模型 ID 中移除不需要的模型。", true); return; }
+        field.value = merged.join("\n"); field.dispatchEvent(new Event("input", { bubbles: true }));
+        panel.hidden = true; say(`已合并所选模型，共 ${merged.length} 个，保存中转站后生效。`);
       }
     });
     button.addEventListener("click", async () => {
       const base = form.elements.namedItem("base_url");
       if (!base.value.trim() || !base.reportValidity()) { say("请先填写有效的接口基础地址。", true); base.focus(); return; }
-      const key = form.elements.namedItem("api_key").value;
-      if (form.elements.namedItem("clear_key")?.checked) { say("已勾选移除密钥，请取消勾选后再识别。", true); return; }
-      if (!key.trim() && !form.dataset.hasKey) { say("请先填写检测专用密钥。", true); form.elements.namedItem("api_key").focus(); return; }
+      const selectedKey = AdminKeys.discovery(form);
+      if (!selectedKey || (!selectedKey.api_key && !selectedKey.id)) { say("请先添加并填写 Key，或选择一个已保存的 Key。", true); return; }
       const current = ++ticket;
       button.disabled = true; button.textContent = "识别中…"; panel.hidden = true;
       say("正在读取接口提供的模型列表…");
       try {
         const result = await api("admin/stations/discover-models", "POST", {
           base_url: base.value.trim(), protocol: form.elements.namedItem("protocol").value,
-          api_key: key || null, station_id: form.dataset.id || null
+          api_key: selectedKey.api_key, key_id: selectedKey.id, station_id: form.dataset.id || null
         });
         if (current !== ticket || !form.isConnected) return;
         models = result.models; selected.clear(); search.value = "";

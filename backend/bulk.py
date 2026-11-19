@@ -1,6 +1,7 @@
 """Bounded admin batch actions; preserve measurements, credentials and audit history."""
 import json
 from datetime import datetime
+from typing import Literal
 
 from fastapi import Depends, HTTPException
 from pydantic import Field, field_validator, model_validator, ValidationError
@@ -15,6 +16,8 @@ class ScheduleChanges(StrictModel):
     model: str | None = Field(default=None, min_length=1, max_length=200)
     interval_minutes: int | None = Field(default=None, ge=1, le=43200)
     next_run: datetime | None = None
+    schedule_mode: Literal["interval", "once", "daily"] | None = None
+    daily_time: str | None = Field(default=None, pattern=r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$")
 
     @model_validator(mode="after")
     def valid_changes(self):
@@ -24,6 +27,16 @@ class ScheduleChanges(StrictModel):
             raise ValueError("模型不能为空")
         if self.next_run is not None and (self.next_run.tzinfo is None or self.next_run.timestamp() <= now()):
             raise ValueError("下次运行时间必须包含时区且晚于当前时间")
+        if self.schedule_mode == "once" and self.next_run is None:
+            raise ValueError("切换为单次执行时请填写执行日期和时间")
+        if self.schedule_mode == "daily" and not self.daily_time:
+            raise ValueError("切换为每天执行时请填写北京时间的执行时刻")
+        if self.daily_time and self.schedule_mode != "daily":
+            raise ValueError("每天执行时刻需要选择每天执行方式")
+        if self.schedule_mode in ("once", "daily") and self.interval_minutes is not None:
+            raise ValueError("仅按间隔重复时设置检测间隔")
+        if self.schedule_mode == "daily" and self.next_run is not None:
+            raise ValueError("每天执行时请只设置每日时刻")
         return self
 
 
@@ -55,7 +68,7 @@ class RunBatch(StrictModel):
 ACTIONS = {
     "reports": {"published", "draft", "rejected"},
     "stations": {"show", "hide", "enable", "disable", "delete"},
-    "schedules": {"enable", "disable", "delete", "edit"},
+    "schedules": {"run", "enable", "disable", "delete", "edit"},
     "jobs": {"cancel", "retry"},
     "announcements": {"enable", "disable", "pin", "unpin", "delete"},
     "ads": {"enable", "disable", "delete"},
@@ -114,10 +127,19 @@ def register_bulk(app, db, session, prepare_schedule):
                                 raise ValueError("只能重试失败、取消或中断的任务")
                             new_key = enqueue(db, {"station_id": row["station_id"], "model": row["model"], **json.loads(row["config"])}, user["username"], con=con)
                             created.append(new_key)
+                    elif kind == "schedules" and action == "run":
+                        new_key = enqueue(db, row, user["username"], schedule_id=key, con=con)
+                        created.append(new_key)
                     elif kind == "schedules" and action == "edit":
                         changes = spec.changes.model_dump(exclude_unset=True)
                         requested_time = changes.pop("next_run", None)
                         data = row | changes
+                        if "interval_minutes" in changes and "schedule_mode" not in changes:
+                            data.update(schedule_mode="interval", daily_time="", first_run=None)
+                        if changes.get("schedule_mode") == "interval" and (row.get("schedule_mode", "interval") != "interval" or "interval_minutes" in changes):
+                            data["first_run"] = None
+                        if requested_time is not None and data.get("schedule_mode") == "once":
+                            data["first_run"] = requested_time.isoformat()
                         try:
                             validated = Schedule.model_validate({field: value for field, value in data.items() if field in Schedule.model_fields}).model_dump(mode="json")
                             data.update(validated)
@@ -126,12 +148,13 @@ def register_bulk(app, db, session, prepare_schedule):
                             raise ValueError(str(exc.detail)) from exc
                         except ValidationError as exc:
                             raise ValueError("计划配置不合法，请检查后单独编辑") from exc
-                        if "interval_minutes" in changes:
+                        if "interval_minutes" in changes and data.get("schedule_mode", "interval") == "interval":
                             data["next_run"] = now() + data["interval_minutes"] * 60
                             data["first_run"] = None
                         if requested_time is not None:
                             data["next_run"] = requested_time.timestamp()
-                            data["first_run"] = requested_time.isoformat()
+                            if data.get("schedule_mode") != "daily":
+                                data["first_run"] = requested_time.isoformat()
                         if data == row:
                             raise ValueError("配置未变化")
                         db.save(kind, key, data, con)

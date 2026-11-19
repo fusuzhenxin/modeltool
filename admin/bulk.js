@@ -4,7 +4,7 @@ const AdminBulk = {
   actions: {
     reports: [["published", "批量通过并公开"], ["draft", "批量撤回待审核"], ["rejected", "批量驳回"]],
     stations: [["run", "批量检测"], ["show", "批量公开"], ["hide", "批量隐藏"], ["enable", "允许检测"], ["disable", "暂停检测"], ["delete", "批量删除"]],
-    schedules: [["edit", "批量修改模型和时间"], ["enable", "批量启用"], ["disable", "批量暂停"], ["delete", "批量删除"]],
+    schedules: [["run", "批量立即执行"], ["edit", "批量修改模型和时间"], ["enable", "批量启用"], ["disable", "批量暂停"], ["delete", "批量删除"]],
     jobs: [["cancel", "批量取消"], ["retry", "批量重试"]],
     announcements: [["enable", "批量启用"], ["disable", "批量停用"], ["pin", "批量置顶"], ["unpin", "取消置顶"], ["delete", "批量删除"]],
     ads: [["enable", "批量启用"], ["disable", "批量停用"], ["delete", "批量删除"]],
@@ -17,26 +17,42 @@ const AdminBulk = {
   scheduleFields(rows, stations, esc) {
     const sites = stations.filter((site) => rows.some((row) => row.station_id === site.id));
     const models = [...new Set(sites.flatMap((site) => site.models || []))].sort();
-    return `<div><label class="field"><span>统一模型</span><select name="change_model"><option value="">保持各计划原模型</option>${models.map((model) => `<option value="${esc(model)}">${esc(model)}（${sites.filter((site) => site.models.includes(model)).length}/${sites.length} 家支持）</option>`).join("")}</select></label><label class="field"><span>检测间隔（分钟）</span><input type="number" name="change_interval" min="1" max="43200" step="1" placeholder="留空保持原间隔"><small>360 分钟 = 6 小时；修改后重新计时。</small></label><label class="field"><span>下次运行时间</span><input type="datetime-local" name="change_next_run"><small>使用当前设备时区，留空不单独指定；暂停计划仍保持暂停。</small></label></div>`;
+    return `<div><label class="field"><span>统一模型</span><select name="change_model"><option value="">保持各计划原模型</option>${models.map((model) => `<option value="${esc(model)}">${esc(model)}（${sites.filter((site) => site.models.includes(model)).length}/${sites.length} 家支持）</option>`).join("")}</select></label><label class="field"><span>执行方式</span><select name="change_mode"><option value="">保持各计划原方式</option value="interval">按间隔重复</option><option value="once">指定时间执行一次</option><option value="daily">每天指定时刻</option></select></label><label class="field" data-bulk-timing="interval"><span>检测间隔（分钟）</span><input type="number" name="change_interval" min="1" max="43200" step="1" placeholder="留空保持原间隔"><small>360 分钟 = 6 小时；修改后重新计时。</small></label><label class="field" data-bulk-timing="date"><span>下次运行时间 / 单次执行时间</span><input type="datetime-local" name="change_next_run"><small>使用当前设备时区，留空不单独指定；暂停计划仍保持暂停。</small></label><label class="field" data-bulk-timing="daily" hidden><span>每天执行时刻（北京时间）</span><input type="time" name="change_daily_time" disabled><small>切换为每天执行时必填。</small></label></div>`;
   },
   scheduleChanges(form) {
     const changes = {};
     const model = String(form.get("change_model") || "").trim();
     const interval = String(form.get("change_interval") || "").trim();
     const next = String(form.get("change_next_run") || "").trim();
+    const mode = String(form.get("change_mode") || "");
+    const daily = String(form.get("change_daily_time") || "");
+    if (mode) changes.schedule_mode = mode;
+    if (mode === "daily") {
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(daily)) throw new Error("请填写每天执行时刻（北京时间）");
+      changes.daily_time = daily;
+    }
+    if (mode === "once" && !next) throw new Error("请选择执行日期和时间");
     if (model) changes.model = model;
-    if (interval) {
+    if (interval && !["once", "daily"].includes(mode)) {
       const value = Number(interval);
       if (!Number.isInteger(value) || value < 1 || value > 43200) throw new Error("检测间隔须为 1～43200 分钟的整数");
       changes.interval_minutes = value;
     }
-    if (next) {
+    if (next && mode !== "daily") {
       const value = new Date(next);
       if (!Number.isFinite(value.getTime()) || value.getTime() <= Date.now()) throw new Error("下次运行时间须晚于当前时间");
       changes.next_run = value.toISOString();
     }
     if (!Object.keys(changes).length) throw new Error("请至少选择一项要修改的配置");
     return changes;
+  },
+  updateTiming(form) {
+    const mode = form.elements.namedItem("change_mode").value;
+    form.querySelectorAll("[data-bulk-timing]").forEach((group) => {
+      const type = group.dataset.bulkTiming;
+      group.hidden = (type === "daily" && mode !== "daily") || (type === "interval" && ["once", "daily"].includes(mode)) || (type === "date" && mode === "daily");
+      group.querySelectorAll("input").forEach((input) => { input.disabled = group.hidden; });
+    });
   },
   prune(selected, rows) {
     const valid = new Set(rows.map((row) => row.id));
@@ -51,10 +67,11 @@ const AdminBulk = {
     return `<div class="bulk-toolbar" aria-label="批量操作"><div class="bulk-selection"><strong>已选 <span id="bulk-count" aria-live="polite">${selected.size}</span> 条</strong><button class="text-btn" data-action="bulk-filter" ${!total ? "disabled" : ""}>${total > 100 ? "选择筛选结果前 100 条" : "全选筛选结果"}</button><button class="text-btn" data-action="bulk-clear" ${!selected.size ? "disabled" : ""}>清空</button><small>支持跨页选择 · 最多 100 条</small></div><div class="bulk-actions">${(AdminBulk.actions[kind] || []).map(([action, label]) => `<button type="button" class="btn small${action === "delete" ? " bulk-danger" : ""}" data-action="bulk-open" data-operation="${action}" ${!selected.size ? "disabled" : ""}>${label}</button>`).join("")}</div></div>`;
   },
   explanation(kind, action) {
-    if (kind === "schedules" && action === "edit") return "只修改填写的项目。修改间隔后从保存时重新计时；同时填写下次运行时间时，以该时间为准。未登记所选模型或配置不可用的计划会跳过并说明原因。已排队和运行中的任务不受影响。";
+    if (kind === "schedules" && action === "run") return "按各计划已保存的站点、模型和检测参数立即加入队列，使用对应 Key 的额度。同站同模型的不同项目依次执行，相同任务已在排队或运行时会跳过。此操作不改变计划启停状态和下次执行时间。";
+    if (kind === "schedules" && action === "edit") return "只修改填写的项目。可切换执行方式，按所选方式填写时间。仅调整间隔时改为间隔重复；保持方式时填写下次时间仅调整下一次触发。未登记所选模型或配置不可用的计划会跳过并说明原因。已排队和运行中的任务不受影响。";
     if (action === "delete") return "删除后无法恢复。有关联任务、计划或报告的中转站会跳过；删除定时计划只停止后续调度，已排队的任务需到任务记录取消。";
     if (kind === "reports") return action === "published" ? "审核通过的报告会公开到中转日报与站点档案。未公开站点的报告会跳过；检测原始结果保持不变。" : "报告会从公开页面移除，原始检测结果与历史记录保留。";
-    if (kind === "jobs") return action === "retry" ? "只重试失败、取消或中断的任务，会创建新任务并使用站点专用密钥额度；已有同站模型在排队或运行时会跳过。" : "只取消排队或运行中的任务；运行中的任务在当前请求结束后停止。定时计划仍会继续调度，可到定时检测中暂停。";
+    if (kind === "jobs") return action === "retry" ? "只重试失败、取消或中断的任务，会创建新任务并使用站点专用密钥额度；已有同站同模型的相同检测在排队或运行时会跳过。" : "只取消排队或运行中的任务；运行中的任务在当前请求结束后停止。定时计划仍会继续调度，可到定时检测中暂停。";
     if (kind === "schedules") return action === "enable" ? "按原计划的模型、检测内容和时间配置启用；站点、模型或密钥配置不完整的计划会跳过。" : "暂停后不再调度新任务，已排队或运行的任务可到任务记录中取消。";
     if (kind === "stations") return ["show", "hide"].includes(action) ? "同时影响该站点及其报告在前台的可见性，检测设置不受影响。" : "调整站点是否允许检测，前台公开状态不受影响。暂停后运行中的任务会在当前请求结束后停止。";
     if (kind === "ads") return "只调整广告配置状态，前台广告位仍按当前站点设置保持暂停展示。";

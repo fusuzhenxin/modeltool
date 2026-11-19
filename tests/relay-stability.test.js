@@ -54,19 +54,54 @@ test('无样本使用破折号，不以百分比冒充检测结果', () => {
   assert.ok(html.includes('未测，不能判断'));
   assert.ok(!html.includes('>0%') && !html.includes('>100%') && !html.includes('eligible"'));
 });
-test('默认把存在异常的站点提前，搜索内容和站点信息安全转义', () => {
+test('默认把表现好的站点提前，仍可选择异常优先，搜索内容和站点信息安全转义', () => {
   const c = client(), a = row('<img src=x onerror=alert(1)>'), b = row('乙站', false);
   b.station.domain = 'b.example'; b.periods.evening.rate = 100;
   b.failed = 0; b.excluded.unknown = 0; b.failure_streak = 0;
   let html = c.render(data([a, b]), new URLSearchParams());
-  assert.ok(html.indexOf('&lt;img') < html.indexOf('乙站'));
+  assert.ok(html.indexOf('乙站') < html.indexOf('&lt;img'));
+  assert.ok(html.includes('value="health" selected'));
   assert.ok(!html.includes('<img src=x'));
+  html = c.render(data([b, a]), new URLSearchParams('sort=risk'));
+  assert.ok(html.indexOf('&lt;img') < html.indexOf('乙站'));
   html = c.render(data([a, b]), new URLSearchParams('q=乙'));
   assert.ok(html.includes('乙站')); assert.ok(!html.includes('&lt;img'));
   html = c.render(data(), new URLSearchParams('q=%22%3E%3Cscript%3E'));
   assert.ok(!html.includes('<script>'));
   assert.ok(html.includes('暂无符合条件的中转站'));
   assert.ok(html.includes('&quot;&gt;&lt;script&gt;'));
+});
+
+test('表现排序把旧记录和无有效样本放后面，不把空样本当成零风险好站', () => {
+  const c = client(), recent = row('近期站'), stale = row('旧记录站'), empty = row('无样本站', false);
+  Object.assign(stale, bucket(30, 100), { last_outcome: 'completed', last_sample: data().generated_at - 86401 });
+  stale.excluded.unknown = 0;
+  Object.assign(empty, bucket(0), { last_sample: null, last_outcome: null });
+  empty.excluded.unknown = 0;
+  const rows = [empty, stale, recent], before = JSON.stringify(rows);
+  const html = c.render(data(rows), new URLSearchParams());
+  assert.ok(html.indexOf('近期站') < html.indexOf('旧记录站'));
+  assert.ok(html.indexOf('旧记录站') < html.indexOf('无样本站'));
+  assert.equal(JSON.stringify(rows), before);
+  assert.ok(c.render(data(rows), new URLSearchParams('sort=invalid')).includes('value="health" selected'));
+});
+
+test('表现排序综合质量信号、最近结果、完成率和采样覆盖', () => {
+  const c = client(), now = data().generated_at;
+  const healthy = (name, n = 30, rate = 100) => Object.assign(row(name), bucket(n, rate), {
+    last_outcome: 'completed', failure_streak: 0, excluded: { local: 0, configuration: 0, unknown: 0 }
+  });
+  const good = healthy('好站'), flagged = healthy('有掺水信号站'), failed = healthy('最近失败站');
+  flagged.quality = { protocol: { status: 'bad' } };
+  failed.last_outcome = 'failed';
+  const lowerRate = healthy('较低完成率站', 30, 80), lessCoverage = healthy('少覆盖站');
+  lessCoverage.covered_days = 3;
+  const fewerSamples = healthy('少样本站', 20);
+  for (const worse of [flagged, failed, lowerRate, lessCoverage, fewerSamples]) {
+    assert.ok(c.compareHealth(good, worse, now) < 0, worse.station.name);
+    assert.ok(c.compareHealth(worse, good, now) > 0, worse.station.name);
+  }
+  assert.equal(c.compareHealth(good, good, now), 0);
 });
 test('独立读取聚合接口、不下载报告，失败可重试且不回退演示数据', async () => {
   const requests = [], c = client(async (url, options) => { requests.push([url, options]); return { ok: false }; }), r = root();

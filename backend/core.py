@@ -176,7 +176,12 @@ class Database:
 
 
 def safe_station(row):
-    return {k: v for k, v in row.items() if k != "key_cipher"} | {"has_key": bool(row.get("key_cipher"))}
+    from .station_keys import entries
+    pool = entries(row)
+    result = {k: v for k, v in row.items() if k not in ("key_cipher", "key_pool", "key_cursors", "_selected_key")}
+    if "key_pool" in row:
+        result["api_keys"] = [{k: key[k] for k in ("id", "name", "models", "enabled")} for key in pool]
+    return result | {"has_key": any(key["enabled"] and key.get("cipher") for key in pool)}
 
 
 def public_report(row, station):

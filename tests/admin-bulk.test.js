@@ -23,6 +23,18 @@ test("批量计划修改只提交填写项，校验时间间隔并转义模型",
   assert.ok(bulk.actions.schedules.some(([action]) => action === "edit"));
 });
 
+test("批量立即执行入口说明费用与计划时间，批量时间按选择的方式提交", () => {
+  assert.ok(bulk.actions.schedules.some(([action]) => action === "run"));
+  assert.match(bulk.explanation("schedules", "run"), /不改变计划启停状态和下次执行时间/);
+  const form = (values) => ({ get: (name) => values[name] });
+  const daily = bulk.scheduleChanges(form({ change_mode: "daily", change_daily_time: "19:30", change_interval: "bad", change_next_run: "bad" }));
+  assert.deepEqual(JSON.parse(JSON.stringify(daily)), { schedule_mode: "daily", daily_time: "19:30" });
+  const once = bulk.scheduleChanges(form({ change_mode: "once", change_next_run: "2099-01-01T20:00", change_interval: "bad" }));
+  assert.equal(once.schedule_mode, "once"); assert.ok(once.next_run); assert.equal(once.interval_minutes, undefined);
+  assert.throws(() => bulk.scheduleChanges(form({ change_mode: "once" })), /日期和时间/);
+  assert.throws(() => bulk.scheduleChanges(form({ change_mode: "daily", change_daily_time: "24:00" })), /时刻/);
+});
+
 test("跨页勾选、取消本页和刷新剔除失效记录", () => {
   const chosen = new Set();
   bulk.choose(chosen, ["page1-a", "page1-b"], true);
@@ -85,6 +97,7 @@ test("真实列表渲染在七个模块都含逐行勾选，并在翻页后保�
     document: { getElementById() { return { addEventListener() {} }; }, addEventListener() {} },
     window: { addEventListener() {} }, setInterval() {}, AdminBulk: bulk
   });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../admin/schedules.js"), "utf8"), ui);
   const source = fs.readFileSync(path.join(__dirname, "../admin/admin.js"), "utf8")
     .replace(/  start\(\);\s+return \{ refresh: loadPage \};/, "  return { state, listContent };");
   vm.runInContext(source, ui);

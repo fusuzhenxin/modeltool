@@ -293,14 +293,29 @@ const RelayStability = {
     return { title, tone, evidence, stale, eveningDrop };
   },
   risk(r) { return RelayStability.qualityRisk(r) + (r.failed ? 100 + r.failure_streak * 5 : 0) + (r.excluded.unknown ? 40 : 0) + (r.timing?.slow_count ? 20 : 0); },
+  compareHealth(a, b, now) {
+    // Recent valid observations come first; missing evidence never counts as success.
+    const freshness = r => !r.samples || !r.last_sample ? 2 : now - r.last_sample > 86400 ? 1 : 0;
+    return freshness(a) - freshness(b)
+      || RelayStability.qualityRisk(a) - RelayStability.qualityRisk(b)
+      || Number(b.last_outcome === 'completed') - Number(a.last_outcome === 'completed')
+      || (b.rate ?? -1) - (a.rate ?? -1)
+      || RelayStability.risk(a) - RelayStability.risk(b)
+      || Number(b.eligible) - Number(a.eligible)
+      || b.covered_days - a.covered_days
+      || b.samples - a.samples
+      || (b.last_sample || 0) - (a.last_sample || 0)
+      || a.station.domain.localeCompare(b.station.domain);
+  },
   render(data, query) {
     const esc = UI.esc, search = (query.get('q') || query.get('station') || '').trim().slice(0, 120);
     const focus = ['issues', 'unknown', 'night', 'billing'].includes(query.get('focus')) ? query.get('focus') : 'all';
-    const sort = ['evening', 'slow', 'new', 'quality'].includes(query.get('sort')) ? query.get('sort') : 'risk';
+    const sort = ['health', 'risk', 'evening', 'slow', 'new', 'quality'].includes(query.get('sort')) ? query.get('sort') : 'health';
     const found = data.stations.filter(r => `${r.station.name} ${r.station.domain}`.toLowerCase().includes(search.toLowerCase()));
     const counts = { billing: found.filter(r => r.excluded.billing).length, all: found.length, issues: found.filter(r => r.failed).length, unknown: found.filter(r => r.excluded.unknown).length, night: found.filter(r => RelayStability.missing(r).length).length };
     const rows = found.filter(r => focus === 'all' || (focus === 'issues' ? r.failed : focus === 'unknown' ? r.excluded.unknown : focus === 'billing' ? r.excluded.billing : RelayStability.missing(r).length));
     rows.sort((a, b) => {
+      if (sort === 'health') return RelayStability.compareHealth(a, b, data.generated_at);
       if (sort === 'quality') return RelayStability.qualityRisk(b) - RelayStability.qualityRisk(a) || (b.last_sample || 0) - (a.last_sample || 0);
       if (sort === 'new') return (b.last_sample || 0) - (a.last_sample || 0);
       if (sort === 'evening') return (b.periods.evening.rate ?? -1) - (a.periods.evening.rate ?? -1);
@@ -317,14 +332,14 @@ const RelayStability = {
       return measured ? `${name}信号 ${flagged} 家（${measured} 家有报告）` : `${name}暂无对应报告，不能判断`;
     }).join('；') + '。';
     const facts = `${counts.issues} 家有明确接口失败记录，${counts.unknown} 家有失败记录未保存详细原因。${qualityFacts}晚间至少 3 次记录的有 ${evening} 家，凌晨有 ${night} 家。`;
-    const filter = `<form class="stability-filters" data-stability-form action="relays.html" method="get"><input type="hidden" name="view" value="stability"><input type="hidden" name="focus" value="${focus}">${RelayStability.picker('model', '检测模型', data.models.map(m => ({ value: m, label: m })), data.selected_model, true)}${RelayStability.picker('test', '测试配置', data.tests.map(v => ({ value: v.id, label: v.label })), data.selected_test)}<label>查找中转站<input class="text-input" type="search" name="q" value="${esc(search)}" maxlength="120" placeholder="名称或完整域名"></label>${RelayStability.picker('sort', '优先看什么', [['risk', '有异常的站点'], ['quality', '掺水 / 降智信号'], ['evening', '晚间完成率'], ['slow', '耗时波动'], ['new', '最新记录']].map(([value, label]) => ({value, label})), sort)}<button class="btn btn-primary" type="submit">查看</button></form>`;
+    const filter = `<form class="stability-filters" data-stability-form action="relays.html" method="get"><input type="hidden" name="view" value="stability"><input type="hidden" name="focus" value="${focus}">${RelayStability.picker('model', '检测模型', data.models.map(m => ({ value: m, label: m })), data.selected_model, true)}${RelayStability.picker('test', '测试配置', data.tests.map(v => ({ value: v.id, label: v.label })), data.selected_test)}<label>查找中转站<input class="text-input" type="search" name="q" value="${esc(search)}" maxlength="120" placeholder="名称或完整域名"></label>${RelayStability.picker('sort', '优先看什么', [['health', '表现好的站点'], ['risk', '有异常的站点'], ['quality', '掺水 / 降智信号'], ['evening', '晚间完成率'], ['slow', '耗时波动'], ['new', '最新记录']].map(([value, label]) => ({value, label})), sort)}<button class="btn btn-primary" type="submit">查看</button></form>`;
     const tabs = [['all', '全部站点'], ['issues', '接口失败'], ['unknown', '原因未记录'], ['night', '夜间待验证'], ['billing', '账户额度']].map(([k, label]) => `<button type="button" data-stability-focus="${k}" aria-pressed="${focus === k}">${label}<b>${counts[k]}</b></button>`).join('');
     const t = data.thresholds;
     return `<aside class="stability-verdict"><span class="stability-notice-icon" aria-hidden="true">!</span><div><h2>${title}</h2><p>${latest ? `最近有效记录 ${esc(RelayStability.time(latest))} · ${RelayStability.age(latest, data.generated_at)}。` : ''}${facts}</p></div></aside>
       <div class="panel stability-workspace">${filter}<div class="stability-results-head"><div class="stability-tabs" role="group" aria-label="选择需要观察的站点">${tabs}</div><span>${esc(data.start)} — ${esc(data.end)}<small>北京时间</small></span></div>
       <div class="stability-columns" aria-hidden="true"><span>中转站</span><span>接口表现 · 近 7 天</span><span>掺水 / 降智 · 近 7 天</span><span>整轮检测耗时</span><span>最近有效记录</span><span></span></div>
       <div class="stability-cards">${rows.length ? rows.map(r => RelayStability.row(r, data.generated_at)).join('') : '<div class="stability-loading"><h3>暂无符合条件的中转站</h3><p>试试其他分类、模型或清除搜索条件。</p><a href="relays.html?view=stability">重置筛选 →</a></div>'}</div><div class="stability-list-foot"><span>当前显示 <b>${rows.length}</b> 家中转站</span><span>点击站点行，展开昼夜记录与耗时趋势</span></div></div>
-      <details class="panel stability-method"><summary>统计口径与观察边界</summary><p>掺水与降智分开展示：仅汇总同站点、同模型近 7 天已公开且非演示的报告，涵盖不同测试配置；保留最严重信号，并提供对应依据报告及检测时间。未测和结论不足不能视为正常，未见信号也不能保证全天质量；这些结论不改变接口完成率。评分按测试项目、版本和条件分组比较，未公开或未测评分显示破折号；分数不是稳定性总分。</p><p>这不是全天在线率，也不是单次请求成功率。每个点是一整次后台检测；完成不代表答对或模型身份真实。限流 HTTP 429、5xx、连接/超时和明确响应格式错误计入接口失败；余额不足、账户额度用尽（包括以 429 返回的额度错误）单独展示，不计成功或失败，也不影响连续失败统计；本地停止、预算、鉴权/配置及详细原因未记录的错误不进入失败率分母，这些记录会单独警示。</p><p>耗时从任务开始到结束，可能包含多次模型调用；只在同模型、同配置下观察整轮耗时。至少 5 次完成记录后才提示“超过自身耗时中位数 2 倍”的波动，不能据此证明接口降速。图中只连接实际观测点，未采样时段不作推断。</p><p>只有覆盖至少 ${t.days} 天、至少 ${t.samples} 次有效样本、各时段至少 ${t.period_samples} 次且最近 ${t.fresh_hours} 小时有记录，才具备基本比较条件。晚间对比白天还要求各至少 5 次记录、覆盖 3 天且完成率相差至少 20 个百分点；只是已有记录的差异，不代表因果。最近连败、失败后完成仅描述相邻有效样本，不推算持续故障或恢复耗时。</p></details>`;
+      <details class="panel stability-method"><summary>统计口径与观察边界</summary><p>默认优先展示表现好的站点：先看最近 24 小时有有效样本的站点，再比较掺水 / 降智信号、最近检测是否完成、任务完成率和异常记录；条件相同时优先采样更充分的站点。旧记录和无有效样本的站点靠后，未测不视为正常。可切换为异常优先等其他排序。</p><p>掺水与降智分开展示：仅汇总同站点、同模型近 7 天已公开且非演示的报告，涵盖不同测试配置；保留最严重信号，并提供对应依据报告及检测时间。未测和结论不足不能视为正常，未见信号也不能保证全天质量；这些结论不改变接口完成率。评分按测试项目、版本和条件分组比较，未公开或未测评分显示破折号；分数不是稳定性总分。</p><p>这不是全天在线率，也不是单次请求成功率。每个点是一整次后台检测；完成不代表答对或模型身份真实。限流 HTTP 429、5xx、连接/超时和明确响应格式错误计入接口失败；余额不足、账户额度用尽（包括以 429 返回的额度错误）单独展示，不计成功或失败，也不影响连续失败统计；本地停止、预算、鉴权/配置及详细原因未记录的错误不进入失败率分母，这些记录会单独警示。</p><p>耗时从任务开始到结束，可能包含多次模型调用；只在同模型、同配置下观察整轮耗时。至少 5 次完成记录后才提示“超过自身耗时中位数 2 倍”的波动，不能据此证明接口降速。图中只连接实际观测点，未采样时段不作推断。</p><p>只有覆盖至少 ${t.days} 天、至少 ${t.samples} 次有效样本、各时段至少 ${t.period_samples} 次且最近 ${t.fresh_hours} 小时有记录，才具备基本比较条件。晚间对比白天还要求各至少 5 次记录、覆盖 3 天且完成率相差至少 20 个百分点；只是已有记录的差异，不代表因果。最近连败、失败后完成仅描述相邻有效样本，不推算持续故障或恢复耗时。</p></details>`;
   },
   calendar(row) {
     const esc = UI.esc, dates = Object.keys(row.days);

@@ -16,6 +16,7 @@ function setup() {
     window: { addEventListener() {} }, setInterval() {}
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../admin/bulk.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../admin/schedules.js"), "utf8"), context);
   const source = fs.readFileSync(path.join(__dirname, "../admin/admin.js"), "utf8");
   const patched = source.replace(/  start\(\);\s+return \{ refresh: loadPage \};/, "  return { state, visibleRows, testFilters, listContent, listPage };");
   assert.notEqual(patched, source);

@@ -85,6 +85,7 @@ class ModelDiscovery(StrictModel):
     protocol: Literal["openai", "anthropic"] = "openai"
     api_key: str | None = Field(default=None, max_length=1000)
     station_id: str | None = Field(default=None, max_length=100)
+    key_id: str | None = Field(default=None, max_length=100)
 
     @field_validator("base_url")
     @classmethod
@@ -94,6 +95,21 @@ class ModelDiscovery(StrictModel):
 
 class StationOrder(StrictModel):
     order: int = Field(ge=-10000, le=10000)
+
+
+class StationKey(StrictModel):
+    id: str | None = Field(default=None, min_length=1, max_length=100)
+    name: str = Field(default="检测 Key", min_length=1, max_length=80)
+    api_key: str | None = Field(default=None, max_length=1000)
+    models: list[str] = Field(default_factory=list, max_length=30)
+    enabled: bool = True
+
+    @field_validator("api_key")
+    @classmethod
+    def key_text(cls, value):
+        if value and any(ord(c) < 32 or ord(c) == 127 for c in value):
+            raise ValueError("密钥不能包含换行或控制字符")
+        return value or None
 
 
 class Station(StrictModel):
@@ -108,6 +124,7 @@ class Station(StrictModel):
     visible: bool = True
     enabled: bool = True
     api_key: str | None = Field(default=None, max_length=1000)
+    api_keys: list[StationKey] | None = Field(default=None, max_length=20)
     clear_key: bool = False
     daily_calls: int = Field(default=60, ge=0, le=100000)
     daily_tokens: int = Field(default=60000, ge=0, le=100000000)
@@ -139,6 +156,11 @@ class Station(StrictModel):
 
     @model_validator(mode="after")
     def valid_baselines(self):
+        if self.api_keys is not None:
+            if self.api_key:
+                raise ValueError("请使用单 Key 或多 Key 字段之一")
+            if any(model not in self.models for key in self.api_keys for model in key.models):
+                raise ValueError("Key 绑定的模型必须在本站模型 ID 列表中")
         if any(k not in self.models or not 0 <= v <= 100 for k, v in self.baselines.items()):
             raise ValueError("基线需对应已登记模型，分数应在 0–100 之间")
         return self
@@ -175,10 +197,35 @@ class Run(StrictModel):
 
 class Schedule(Run):
     name: str = Field(min_length=1, max_length=100)
+    schedule_mode: Literal["interval", "once", "daily"] = "interval"
+    daily_time: str = Field(default="", pattern=r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$|^$")
     interval_minutes: int = Field(default=360, ge=1, le=43200)
     enabled: bool = True
     # Start at an explicit time; subsequent runs use the fixed interval.
     first_run: datetime | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def active_timing(cls, value):
+        if not isinstance(value, dict):
+            return value
+        value = dict(value)
+        mode = value.get("schedule_mode", "interval")
+        if mode != "interval":
+            value.pop("interval_minutes", None)
+        if mode != "daily":
+            value["daily_time"] = ""
+        else:
+            value["first_run"] = None
+        return value
+
+    @model_validator(mode="after")
+    def timing_required(self):
+        if self.schedule_mode == "once" and not self.first_run:
+            raise ValueError("指定时间执行一次时，请填写执行日期和时间")
+        if self.schedule_mode == "daily" and not self.daily_time:
+            raise ValueError("每天执行时，请填写北京时间的执行时刻")
+        return self
 
     @field_validator("first_run")
     @classmethod
