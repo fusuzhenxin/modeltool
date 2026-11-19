@@ -82,3 +82,55 @@ test("收到部分作品就更新进度，无需等待最终响应", async () =>
   } });
   assert.equal(result, "部分作品");
 });
+
+test("明确拒绝 temperature 才省略重试，同接口模型后续直接兼容且保留其他参数", async () => {
+  const sent = [];
+  const instance = api(async (_, request) => {
+    const body = JSON.parse(request.body); sent.push(body.payload);
+    return sent.length === 1
+      ? new Response(JSON.stringify({error:{param:"temperature",message:"Unsupported parameter: 'temperature' is not supported with this model."}}), {status:400})
+      : new Response(JSON.stringify({choices:[{message:{content:"OK"}}]}));
+  });
+  const opts = {...options,long:false};
+  assert.equal(await instance.complete(opts), "OK");
+  assert.equal(await instance.complete(opts), "OK");
+  assert.equal(sent.length, 3);
+  assert.equal(sent[0].temperature, 0);
+  const expected = {...sent[0]}; delete expected.temperature;
+  assert.deepEqual(sent[1], expected);
+  assert.deepEqual(sent[2], expected);
+  assert.equal(opts.long, false);
+  assert.match(instance.temperatureNotice, /默认采样/);
+});
+
+test("temperature 拒绝重复出现只重试一次，无关错误不重试", async () => {
+  for (const [status,message,expectedCalls] of [
+    [400,"temperature is not supported",2], [422,"Unsupported parameter: temperature",2],
+    [400,"temperature must be between 0 and 2",1], [400,"Unsupported model",1],
+    [401,"temperature is not supported",1], [429,"temperature is not supported",1]
+  ]) {
+    let calls = 0;
+    await assert.rejects(api(async () => {calls++; return new Response(JSON.stringify({error:{message}}),{status});}).complete({...options,long:false}));
+    assert.equal(calls,expectedCalls,message);
+  }
+  let calls = 0;
+  await assert.rejects(api(async () => {calls++; throw new Error("network");}).complete({...options,long:false}));
+  assert.equal(calls,1);
+});
+
+test("温度兼容与已有流式参数回退组合使用且每项有界", async () => {
+  const sent=[];
+  const instance=api(async (_,request)=>{
+    const payload=JSON.parse(request.body).payload; sent.push(payload);
+    if ("temperature" in payload) return response(envelope('{"error":{"message":"temperature is not supported"}}',true,400));
+    if (payload.stream) return response(envelope('{"error":{"message":"stream is not supported"}}',true,400));
+    return response(envelope('{"choices":[{"message":{"content":"OK"}}]}'));
+  });
+  assert.equal(await instance.complete(options),"OK");
+  assert.equal(sent.length,3);
+  assert.equal(sent[0].temperature,0.4);
+  assert.equal(sent[1].temperature,undefined);
+  assert.equal(sent[1].stream,true);
+  assert.equal(sent[2].stream,undefined);
+  assert.equal(sent[2].reasoning_effort,"low");
+});

@@ -23,11 +23,11 @@ test("账户余额错误不作为掺水证据，正常回答和普通限流不�
 test("手动检测遇到账户错误立即停止，清除部分评分且不发后续请求", async () => {
   let saved, calls = 0;
   const context = vm.createContext({URL,
-    Store:{api:()=>({}),saveBasicReport:r=>{saved=r;}},
+    Store:{api:()=>({baseUrl:'https://fixture.example/v1'}),saveBasicReport:r=>{saved=r;}},
     DATA:{model:()=>({name:'model'})}, Engine:{now:()=>''},
     Poster:{note:()=>{},hostOf:()=>'',live:{score:100}}
   });
-  vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/probe.js'),'utf8'),context);
+  for (const file of ['engine','probe']) vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/'+file+'.js'),'utf8'),context);
   const probe = vm.runInContext('Probe',context);
   probe.paint=()=>{};
   probe.call=async()=>{ calls++;return {status:402,json:{error:{message:'余额不足'}}}; };

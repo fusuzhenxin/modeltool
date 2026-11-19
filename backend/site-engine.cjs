@@ -105,7 +105,8 @@ async function main() {
   const abilitySections = sections.filter((s) => ["ability", "logic", "code", "qa"].includes(s.kind));
   const scored = abilitySections.length ? abilitySections : sections.filter((s) => s.kind === "candy");
   const abilityScore = scored.length ? Math.round(scored.reduce((sum, s) => sum + s.score, 0) / scored.length) : null;
-  send({ type: "result", result: { name: labels[config.kind], sections, raw, calls: serial,
+  const compatibility = [...Api.temperatureStates.values()].some((state) => state.omitted) ? [Api.temperatureNotice] : [];
+  send({ type: "result", result: { name: labels[config.kind], sections, raw, calls: serial, compatibility,
     ability: abilityScore == null ? null : {score: abilityScore, questions: scored.reduce((sum, s) => sum + s.count, 0), judgement: Engine.judgeText(abilityScore, "detect")}
   } });
 }

@@ -387,7 +387,7 @@ function questionBlock(item, index, opened) {
       <span class="q-stem">${UI.esc(item.stem)}</span>
       ${item.correct ? UI.statusBadge("done").replace("已完成", "答对") : (item.choice == null ? '<span class="badge idle"><i></i>未识别</span>' : '<span class="badge bad"><i></i>答错</span>')}
     </button>
-    <div class="q-detail">${code}${options}<div class="explain">${UI.esc(item.explain)}</div>${item.reply ? `<div class="explain">模型原文：${UI.esc(item.reply)}</div>` : ""}</div>
+    <div class="q-detail">${code}${options}<div class="explain">${UI.esc(item.explain)}</div>${item.compatibility ? `<p class="note">${UI.esc(item.compatibility)}</p>` : ""}${item.reply ? `<div class="explain">模型原文：${UI.esc(item.reply)}</div>` : ""}</div>
   </div>`;
 }
 function artworkResult(task) {
@@ -421,6 +421,7 @@ function artworkResult(task) {
       <div class="panel-bd">
         ${task.html ? `<iframe id="art-frame" class="art-frame" sandbox="allow-scripts" title="鹈鹕骑车预览"></iframe>` : `<div class="empty"><h3>没有提取出可展示的页面</h3><p>${UI.esc(info.desc)}</p></div>`}
         <p class="note mt16">${UI.esc(info.desc)} 长嘴、喉囊和是不是骑在车上，要看上面的画面。</p>
+        ${task.compatibility ? `<p class="note">${UI.esc(task.compatibility)}</p>` : ""}
       </div>
     </article>
     <article class="panel mt16">
@@ -1767,6 +1768,7 @@ const Pages = {
             });
             if (App.runToken !== token) return;
             current.reply = content;
+            current.compatibility = Api.temperatureState(cfg.baseUrl, cfg.apiKey, current.requestedModel || cfg.modelOverride || current.modelId).omitted ? Api.temperatureNotice : "";
             current.html = Api.extractArtwork(content);
             current.score = Api.scoreArtwork(current.html);
             current.cursor = 1;
@@ -1819,6 +1821,7 @@ const Pages = {
           const result = await Api.ask(item, current.requestedModel || current.modelId);
           if (App.runToken !== token) return;
           item.reply = result.content;
+          item.compatibility = result.compatibility;
           item.choice = result.choice;
           item.correct = result.choice === item.answer;
           Store.save();

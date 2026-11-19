@@ -225,7 +225,8 @@ def report_from_site(result, config, model):
             "level": relay["level"] if relay else "unknown", "score": relay["score"] if relay else None,
             "title": relay["title"] if relay else result["name"] + "已完成", "runs": 1,
             "summary": "调用本站原有题库和检测代码；基础能力、糖果、中转站、指纹与作品分别展示结果。",
-            "conditions": "本站原版检测 / " + {"easy": "简单", "medium": "中等", "hard": "困难"}[config["difficulty"]] + " / 单选题 temperature=0、max_tokens=256；指纹与作品 max_tokens=8192。",
+            "conditions": "本站原版检测 / " + {"easy": "简单", "medium": "中等", "hard": "困难"}[config["difficulty"]] + " / 单选题请求 temperature=0、max_tokens=256；指纹与作品 max_tokens=8192。" + " ".join(result.get("compatibility", [])),
+            "compatibility": result.get("compatibility", []),
             "retest": "采用本站原版流程。指纹最多 6 次收集 3 份有效回答；作品参数兼容重试沿用前台。鉴权、网络或预算错误会停止任务。",
             "findings": findings, "checks": checks, "ability": ability, "sections": sections,
             **({"artwork": artwork} if artwork else {}), "raw": result["raw"], "request_count": result["calls"]}

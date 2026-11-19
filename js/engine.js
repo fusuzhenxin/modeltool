@@ -224,6 +224,35 @@ const Engine = {
 };
 
 const Api = {
+  temperatureNotice: "接口不支持 temperature，已省略该参数并使用模型默认采样设置；本次不保证 temperature=0。",
+  temperatureStates: new Map(),
+  temperatureState(baseUrl, apiKey, model) {
+    const key = JSON.stringify([Api.endpoint(baseUrl), apiKey, String(model).trim()]);
+    if (!Api.temperatureStates.has(key)) {
+      if (Api.temperatureStates.size >= 64) Api.temperatureStates.delete(Api.temperatureStates.keys().next().value);
+      Api.temperatureStates.set(key, { omitted: false });
+    }
+    return Api.temperatureStates.get(key);
+  },
+  rejectsTemperature(result) {
+    if (![400, 422].includes(result.status)) return false;
+    let data = result.json;
+    if (!data) { try { data = JSON.parse(result.text); } catch (_) {} }
+    const error = data?.error;
+    const message = String(error?.message || (typeof error === "string" ? error : "") || data?.message || result.text || "");
+    const named = error?.param === "temperature" || /\btemperature\b/i.test(message);
+    return named && /not supported|does not support|doesn't support|unsupported|unknown (?:parameter|field)|unrecognized|not (?:allowed|permitted)|不支持/i.test(message);
+  },
+  async withTemperature(payload, send, state) {
+    const request = { ...payload };
+    if (state.omitted) delete request.temperature;
+    const result = await send(request);
+    if (!Object.prototype.hasOwnProperty.call(request, "temperature") || !Api.rejectsTemperature(result)) return result;
+    state.omitted = true;
+    const retry = { ...request };
+    delete retry.temperature;
+    return send(retry);
+  },
   endpoint(baseUrl) {
     const raw = String(baseUrl || "").trim().replace(/\/+$/, "");
     if (!raw) throw new Error("请填写接口地址");
@@ -361,22 +390,23 @@ const Api = {
         : { model: model.trim(), temperature: long ? 0.4 : 0, max_tokens: limit, messages: [{ role: "system", content: system }, { role: "user", content: asked }] };
     if (!bare && !anthropic && long && !noReasoning) payload.reasoning_effort = quick ? "none" : "low";
     if (long && !arguments[0].noStream) payload.stream = true;
-    let response;
-    try {
-      response = await fetch(Api.proxyUrl(), {
-        method: "POST",
-        signal: arguments[0].signal,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ baseUrl, apiKey, payload, ...(long ? { streamResponse: true } : {}) })
-      });
-    } catch (err) {
-      throw new Error(UI.offlineForward());
-    }
-    let text;
-    if (long) {
-      const reply = await Api.readReply(response, anthropic, arguments[0].onProgress);
-      response = reply; text = reply.text;
-    } else text = await response.text();
+    const state = Api.temperatureState(baseUrl, apiKey, model);
+    let response = await Api.withTemperature(payload, async (request) => {
+      let upstream;
+      try {
+        upstream = await fetch(Api.proxyUrl(), {
+          method: "POST",
+          signal: arguments[0].signal,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ baseUrl, apiKey, payload: request, ...(long ? { streamResponse: true } : {}) })
+        });
+      } catch (err) {
+        throw new Error(UI.offlineForward());
+      }
+      if (long) return Api.readReply(upstream, anthropic, arguments[0].onProgress);
+      return { status: upstream.status, ok: upstream.ok, text: await upstream.text() };
+    }, state);
+    const text = response.text;
     let data = null;
     try { data = JSON.parse(text); } catch (err) { data = null; }
     if (!response.ok) {
@@ -463,6 +493,7 @@ const Api = {
       system: "你在做单项选择题。只输出一个大写字母 A、B、C 或 D，不要输出解释。",
       user: Api.prompt(item)
     });
-    return { content, choice: Api.parseChoice(content, item.options.length) };
+    const compatibility = Api.temperatureState(cfg.baseUrl, cfg.apiKey, model).omitted ? Api.temperatureNotice : "";
+    return { content, choice: Api.parseChoice(content, item.options.length), compatibility };
   }
 };

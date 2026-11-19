@@ -193,6 +193,33 @@ class SiteTests(unittest.TestCase):
         with self.db.connect() as con:
             self.assertEqual(con.execute("SELECT COUNT(*) FROM usage").fetchone()[0], 12)
 
+    def test_temperature_compatibility_runs_in_original_worker_engine_and_counts_retry(self):
+        for kind, count in (("site_relay", 11), ("site_ability", 4), ("site_pelican", 2)):
+            with self.subTest(kind=kind):
+                self.calls = []
+                def reject_temperature(url, headers, payload):
+                    if "temperature" in payload:
+                        self.calls.append(payload)
+                        error = {"error": {"param": "temperature", "message": "Unsupported parameter: temperature is not supported with this model."}}
+                        return {"status": 400, "json": error, "text": json.dumps(error), "headers": {}}
+                    return self.fake(url, headers, payload)
+                with self.db.connect() as con:
+                    before = con.execute("SELECT COUNT(*) FROM usage").fetchone()[0]
+                report = self.run_test(kind, transport=reject_temperature)["result"]
+                self.assertEqual(report["request_count"], count)
+                self.assertEqual(len(self.calls), count)
+                self.assertIn("temperature", self.calls[0])
+                self.assertTrue(all("temperature" not in p for p in self.calls[1:]))
+                self.assertIn("模型默认采样", report["conditions"])
+                self.assertTrue(report["compatibility"])
+                self.assertIn("temperature", report["raw"][0]["payload"])
+                if kind == "site_relay":
+                    self.assertEqual(report["score"], 100)
+                    self.assertEqual(report["sections"][0]["stats"]["requests"], count)
+                    self.assertTrue(any("默认采样" in f["text"] for f in report["sections"][0]["findings"]))
+                with self.db.connect() as con:
+                    self.assertEqual(con.execute("SELECT COUNT(*) FROM usage").fetchone()[0] - before, count)
+
     def test_output_limit_budget_reserves_the_requested_new_parameter(self):
         self.post("jobs", {"station_id": self.station["id"], "model": "fixture-model", "kind": "site_relay"})
         def no_usage(url, headers, payload):

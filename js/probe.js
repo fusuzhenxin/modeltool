@@ -162,7 +162,8 @@ const Probe = {
       items: {},
       stats: { requests: 0, elapsedMs: 0, firstMs: null, inputTokens: 0, outputTokens: 0, host: Poster.hostOf(cfg.baseUrl) }
     };
-    const call = async (payload) => {
+    const temperature = Api.temperatureState(cfg.baseUrl, cfg.apiKey, model);
+    const send = async (payload) => {
       const result = await Probe.call(payload);
       Poster.note(report, result);
       if (Probe.accountIssue(result)) {
@@ -172,6 +173,11 @@ const Probe = {
         error.code = "billing";
         throw error;
       }
+      return result;
+    };
+    const call = async (payload) => {
+      const result = await Api.withTemperature(payload, send, temperature);
+      if (temperature.omitted) report.compatibility = [Api.temperatureNotice];
       return result;
     };
     const put = (id, status, detail) => {
@@ -337,7 +343,7 @@ const Probe = {
     const status = (id) => (items[id] && items[id].status) || "idle";
     const detail = (id) => (items[id] && items[id].detail) || "";
     let score = 100;
-    const findings = [];
+    const findings = (report.compatibility || []).map((text) => ({ level: "unknown", title: "采样参数兼容", text }));
     const cut = (id, amount, title, text) => {
       if (status(id) !== "fail") return;
       score -= amount;
