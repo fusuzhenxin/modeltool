@@ -23,6 +23,24 @@ function data(rows = [row()]) {
 }
 function root() { return { innerHTML: '', isConnected: true, setAttribute() {}, removeAttribute() {} }; }
 
+test('站名旁外跳箭头优先使用配置网址，保留邀请参数和锚点，缺省访问站点域名', () => {
+  const c = client(), r = row('甲<站');
+  r.station.website_url = 'https://console.example/join?invite=a%2Bb&tag=one&tag=two#pricing';
+  const link = c.stationVisit(r.station);
+  assert.ok(link.includes('class="stability-site-visit"'));
+  assert.ok(link.includes('invite=a%2Bb&amp;tag=one&amp;tag=two&amp;utm_source=modeltool.cn#pricing'));
+  assert.ok(link.includes('target="_blank" rel="noopener noreferrer"'));
+  assert.ok(link.includes('aria-label="访问中转站：甲&lt;站"'));
+  assert.ok(c.row(r).includes(link));
+  r.station.website_url = '';
+  assert.ok(c.stationVisit(r.station).includes('href="https://a.example/?utm_source=modeltool.cn"'));
+  for (const url of ['javascript:alert(1)', '//evil.example', 'https://user:secret@example.com', 'https://example.com/\nsecret']) {
+    r.station.website_url = url;
+    assert.equal(c.stationVisit(r.station), '', url);
+  }
+  assert.equal(c.stationVisit({ domain: 'bad/path' }), '');
+});
+
 test('中转站显示已上传图标，缺失或非法图片地址保留文字占位', () => {
   const c = client();
   const html = c.stationMark({ name: '甲站', logo: '/media/0123456789abcdef01234567.webp' });

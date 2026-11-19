@@ -1,6 +1,17 @@
 /* Job samples only. Never fabricate online status or substitute fixtures. */
 const RelayStability = {
   data: null, controller: null,
+  stationVisit(station) {
+    const domain = String(station.domain || '').trim();
+    const value = station.website_url || (/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::\d+)?$/i.test(domain) ? `https://${domain}` : '');
+    if (!value || /[\x00-\x1f\x7f]/.test(value)) return '';
+    try {
+      const url = new URL(value);
+      if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) return '';
+      url.searchParams.set('utm_source', 'modeltool.cn');
+      return `<a class="stability-site-visit" href="${UI.esc(url.href)}" target="_blank" rel="noopener noreferrer" aria-label="${UI.esc('访问中转站：' + (station.name || domain))}" title="访问中转站（新标签页）"><span aria-hidden="true">↗</span></a>`;
+    } catch (_) { return ''; }
+  },
   stationMark(station) {
     const esc = UI.esc, logo = String(station.logo || '').trim();
     let src = '';
@@ -380,7 +391,7 @@ const RelayStability = {
     const badge = row.failed ? ['warn', row.last_outcome === 'failed' ? '接口失败' : '失败后测通'] : row.excluded.unknown ? ['uncertain', '原因未记录'] : (timing.slow_count || 0) ? ['warn', '耗时波动'] : row.excluded.billing && !row.samples ? ['unobserved', '账户额度不足'] : a.stale ? ['unobserved', '待复测'] : row.eligible ? ['good', '采样内完成'] : ['unobserved', '待观察'];
     const legend = '<div class="stability-legend"><span><i class="good"></i>完成</span><span><i class="bad"></i>失败</span><span><i class="warn"></i>有成功也有失败</span><span><i class="uncertain"></i>原因未记录 / 配置问题</span><span><i class="skipped"></i>账户/检测端，不计失败</span><span><i class="unobserved"></i>未测，不能判断</span></div>';
     return `<article class="stability-station-card ${a.tone}"><details class="stability-station-details">
-      <summary class="stability-compact-summary"><span class="stability-compact-site">${RelayStability.stationMark(row.station)}<span><strong class="stability-site-name">${esc(row.station.name)}</strong><span class="stability-domain">${esc(row.station.domain)}</span></span></span>
+      <summary class="stability-compact-summary"><span class="stability-compact-site">${RelayStability.stationMark(row.station)}<span><span class="stability-site-title"><strong class="stability-site-name">${esc(row.station.name)}</strong>${RelayStability.stationVisit(row.station)}</span><span class="stability-domain">${esc(row.station.domain)}</span></span></span>
       <span class="stability-compact-status"><span class="stability-tags"><span class="stability-state-badge ${badge[0]}"><i aria-hidden="true"></i>${badge[1]}</span>${causes}${(row.excluded.unknown && !row.diagnostic_types?.unrecorded) ? `<span class="stability-uncertain-tag">${row.excluded.unknown} 次原因未记录</span>` : ''}</span><span class="stability-card-conclusion"><strong>${a.title}</strong></span></span>
       ${RelayStability.qualitySummary(row)}
       <span class="stability-compact-timing"><b>${esc(RelayStability.duration(timing.median_ms))}</b><small>最慢 ${esc(RelayStability.duration(timing.max_ms))}</small></span><span class="stability-recency"><strong>${esc(RelayStability.time(row.last_sample))}</strong><small>${esc(RelayStability.age(row.last_sample, now))}</small></span><span class="stability-detail-toggle"><span class="stability-show-label">详情</span><span class="stability-hide-label">收起</span><span class="stability-chevron" aria-hidden="true">⌄</span></span></summary>

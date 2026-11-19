@@ -51,6 +51,11 @@
 .stability-compact-site > span:last-child { min-width:0; }
 .stability-avatar { display:grid; place-items:center; width:36px; height:36px; border-radius:10px; background:var(--blue-soft); border:1px solid var(--blue-line); color:var(--blue); font-size:15px; font-weight:700; flex-shrink:0; }
 .stability-site-name { display:block; color:var(--ink); font-size:14px; line-height:1.6; font-weight:650; overflow-wrap:anywhere; }
+.stability-site-title { display:flex; align-items:center; gap:6px; min-width:0; }
+.stability-site-title .stability-site-name { min-width:0; }
+.stability-site-visit { display:inline-flex; align-items:center; justify-content:center; flex:0 0 26px; width:26px; height:26px; border:1px solid var(--line); border-radius:7px; color:var(--blue); background:var(--card); font-size:16px; line-height:1; text-decoration:none; transition:background .15s,border-color .15s; }
+.stability-site-visit:hover { background:var(--blue-soft); border-color:var(--blue-line); }
+.stability-site-visit:focus-visible { outline:2px solid var(--blue); outline-offset:2px; }
 .stability-domain { display:block; color:var(--st-muted); font-size:11px; margin-top:3px; overflow-wrap:anywhere; }
 .stability-compact-status { min-width:0; }
 .stability-tags { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }

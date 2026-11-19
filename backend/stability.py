@@ -100,7 +100,7 @@ def add(target, success):
 
 
 def station_stats(site, dates):
-    return {"station": {k: site.get(k, "") for k in ("id", "name", "domain", "logo")},
+    return {"station": {k: site.get(k, "") for k in ("id", "name", "domain", "logo", "website_url")},
             **bucket(), "excluded": {"local": 0, "configuration": 0, "unknown": 0, "billing": 0}, "pending": 0,
             "periods": {k: bucket() for k in PERIODS}, "days": {k: bucket() for k in dates},
             "failure_streak": 0, "recoveries": 0, "last_success": None, "last_failure": None,

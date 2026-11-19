@@ -154,7 +154,7 @@ class StabilityTests(unittest.TestCase):
             self.assertIsNone(configuration(raw))
 
     def test_public_endpoint_is_read_only_bounded_and_never_loads_full_reports(self):
-        self.site("a", logo="/media/0123456789abcdef01234567.webp")
+        self.site("a", logo="/media/0123456789abcdef01234567.webp", website_url="https://console.example/join?invite=abc")
         self.site("secret", visible=False, name="private-station", models=["private-model"])
         self.job("secret", model="private-model")
         self.job()
@@ -166,6 +166,7 @@ class StabilityTests(unittest.TestCase):
             response = self.client.get("/api/public/stability")
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["stations"][0]["station"]["logo"], "/media/0123456789abcdef01234567.webp")
+        self.assertEqual(response.json()["stations"][0]["station"]["website_url"], "https://console.example/join?invite=abc")
         self.assertEqual(response.headers["cache-control"], "no-store")
         for value in ("private-station", "private-model", "private-key", "key_cipher", '"error"', '"config"', '"report_id"'):
             self.assertNotIn(value, response.text)
