@@ -20,7 +20,7 @@ from PIL import Image, UnidentifiedImageError
 from .core import Database, ROOT, day, digest, ident, now, password_hash, password_ok, public_report, safe_station
 from .models import Ad, Announcement, Credentials, ModelDiscovery, PasswordChange, Review, Run, Schedule, ScheduleBatch, Settings, Setup, Station, StationOrder
 from .worker import enqueue, validate_run
-from . import advertising, ad_analytics, sponsors, mailing
+from . import advertising, ad_analytics, sponsors, mailing, station_traffic
 
 MODELS = {"announcements": Announcement, "stations": Station, "ads": Ad, "schedules": Schedule}
 COOKIE = "modeltool_session"
@@ -408,6 +408,7 @@ def create_app(data_dir=None):
     advertising.register(app, db, session)
     ad_analytics.register(app, db, session, active)
     sponsors.register(app, db, session)
+    station_traffic.register(app, db, session)
 
     @app.get("/api/admin/{kind}")
     def get_items(kind: str, user=Depends(session)):
@@ -537,7 +538,7 @@ def create_app(data_dir=None):
     @app.get("/admin/{path:path}", include_in_schema=False)
     def admin(path: str = ""):
         name = path or "index.html"
-        if name not in ("index.html", "admin.css", "admin.js", "select.js", "models.js", "keys.js", "schedules.js", "bulk.js", "ads.js", "ad-ops.js", "ad-analytics.js", "sponsors.js", "applications.js", "mail.js"):
+        if name not in ("index.html", "admin.css", "admin.js", "select.js", "models.js", "keys.js", "schedules.js", "bulk.js", "ads.js", "ad-ops.js", "ad-analytics.js", "sponsors.js", "applications.js", "mail.js", "station-traffic.js", "station-traffic.css"):
             raise HTTPException(404)
         return FileResponse(ROOT / "admin" / name)
 

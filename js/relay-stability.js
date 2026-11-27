@@ -9,7 +9,7 @@ const RelayStability = {
       const url = new URL(value);
       if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) return '';
       url.searchParams.set('utm_source', 'modeltool.cn');
-      return `<a class="stability-site-visit" href="${UI.esc(url.href)}" target="_blank" rel="noopener noreferrer" aria-label="${UI.esc('访问中转站：' + (station.name || domain))}" title="访问中转站（新标签页）"><span aria-hidden="true">↗</span></a>`;
+      return `<a class="stability-site-visit" data-relay-click="outbound" href="${UI.esc(url.href)}" target="_blank" rel="noopener noreferrer" aria-label="${UI.esc('访问中转站：' + (station.name || domain))}" title="访问中转站（新标签页）"><span aria-hidden="true">↗</span></a>`;
     } catch (_) { return ''; }
   },
   stationMark(station) {
@@ -403,12 +403,12 @@ const RelayStability = {
     const why = !row.eligible ? row.ineligible_reasons.map(esc).join('；') : '达到基本采样门槛，但仍不等于全天在线率。';
     const badge = row.failed ? ['warn', row.last_outcome === 'failed' ? '接口失败' : '失败后测通'] : row.excluded.unknown ? ['uncertain', '原因未记录'] : (timing.slow_count || 0) ? ['warn', '耗时波动'] : row.excluded.billing && !row.samples ? ['unobserved', '账户额度不足'] : a.stale ? ['unobserved', '待复测'] : row.eligible ? ['good', '采样内完成'] : ['unobserved', '待观察'];
     const legend = '<div class="stability-legend"><span><i class="good"></i>完成</span><span><i class="bad"></i>失败</span><span><i class="warn"></i>有成功也有失败</span><span><i class="uncertain"></i>原因未记录</span><span><i class="skipped"></i>配置/排除，不计失败</span><span><i class="unobserved"></i>未测，不能判断</span></div>';
-    return `<article class="stability-station-card ${a.tone}"><details class="stability-station-details">
-      <summary class="stability-compact-summary"><span class="stability-compact-site">${RelayStability.stationMark(row.station)}<span><span class="stability-site-title"><strong class="stability-site-name">${esc(row.station.name)}</strong>${RelayStability.stationVisit(row.station)}</span><span class="stability-domain">${esc(row.station.domain)}</span></span></span>
+    return `<article class="stability-station-card ${a.tone}" ${row.station.id ? `data-relay-id="${esc(row.station.id)}" data-relay-placement="${row.eligible ? 'stability_ranked' : 'stability_observing'}"` : ''}><details class="stability-station-details">
+      <summary class="stability-compact-summary" data-relay-click="details"><span class="stability-compact-site">${RelayStability.stationMark(row.station)}<span><span class="stability-site-title"><strong class="stability-site-name">${esc(row.station.name)}</strong>${RelayStability.stationVisit(row.station)}</span><span class="stability-domain">${esc(row.station.domain)}</span></span></span>
       <span class="stability-compact-status"><span class="stability-tags"><span class="stability-state-badge ${badge[0]}"><i aria-hidden="true"></i>${badge[1]}</span>${causes}${(row.excluded.unknown && !row.diagnostic_types?.unrecorded) ? `<span class="stability-uncertain-tag">${row.excluded.unknown} 次原因未记录</span>` : ''}</span><span class="stability-card-conclusion"><strong>${a.title}</strong></span></span>
       ${RelayStability.qualitySummary(row)}
       <span class="stability-compact-timing"><b>${esc(RelayStability.duration(timing.median_ms))}</b><small>最慢 ${esc(RelayStability.duration(timing.max_ms))}</small></span><span class="stability-recency"><strong>${esc(RelayStability.time(row.last_sample))}</strong><small>${esc(RelayStability.age(row.last_sample, now))}</small></span><span class="stability-detail-toggle"><span class="stability-show-label">详情</span><span class="stability-hide-label">收起</span><span class="stability-chevron" aria-hidden="true">⌄</span></span></summary>
-      <div class="stability-detail-body"><div class="stability-detail-intro"><p class="stability-evidence">${esc(a.evidence)}${missing.length ? ` ${missing.join('、')}记录不足，暂不能判断夜间稳定性。` : ''}</p><a href="${esc(href)}">查看站点档案 ↗</a></div>
+      <div class="stability-detail-body"><div class="stability-detail-intro"><p class="stability-evidence">${esc(a.evidence)}${missing.length ? ` ${missing.join('、')}记录不足，暂不能判断夜间稳定性。` : ''}</p><a data-relay-click="profile" href="${esc(href)}">查看站点档案 ↗</a></div>
       ${RelayStability.metrics(row)}
       ${RelayStability.qualityDetails(row, now)}
       <div class="stability-card-evidence"><section><h3>哪天、哪个时段出过问题</h3>${RelayStability.calendar(row)}${legend}<p class="stability-cell-detail" data-stability-cell-detail aria-live="polite">点击色块，查看该时段实际发生了什么。</p></section><section><h3>整轮检测耗时 <small>非首字响应速度</small></h3><div class="stability-timing-numbers"><span>通常 <b>${esc(RelayStability.duration(timing.median_ms))}</b></span><span>最慢 <b>${esc(RelayStability.duration(timing.max_ms))}</b></span></div>${RelayStability.sparkline(row)}</section></div>

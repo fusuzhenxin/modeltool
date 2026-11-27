@@ -24,6 +24,15 @@ function data(rows = [row()]) {
 }
 function root() { return { innerHTML: '', isConnected: true, setAttribute() {}, removeAttribute() {} }; }
 
+test('稳定性两种采样区分别标记曝光位置并区分外跳、展开和档案入口', () => {
+  const c = client(), ranked = row(), observing = row('新站', false);
+  ranked.station.id = 'ranked-id'; observing.station.id = 'observing-id';
+  const rankedHtml = c.row(ranked, data().generated_at), observingHtml = c.row(observing, data().generated_at);
+  assert.match(rankedHtml, /data-relay-id="ranked-id" data-relay-placement="stability_ranked"/);
+  assert.match(observingHtml, /data-relay-id="observing-id" data-relay-placement="stability_observing"/);
+  for (const kind of ['outbound', 'details', 'profile']) assert.ok(rankedHtml.includes(`data-relay-click="${kind}"`));
+});
+
 test('站名旁外跳箭头优先使用配置网址，保留邀请参数和锚点，缺省访问站点域名', () => {
   const c = client(), r = row('甲<站');
   r.station.website_url = 'https://console.example/join?invite=a%2Bb&tag=one&tag=two#pricing';

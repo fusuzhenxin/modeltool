@@ -29,6 +29,17 @@ function artworkData() {
   return { live: true, stations: [], reports };
 }
 
+test("日报和完整列表的真实站点使用独立位置标记，演示卡片不采集", () => {
+  const report = { id: "r", domain: "tracking.example", stationName: "真实站点", time: "2026-11-27 10:00", model: "m", level: "ok" };
+  const { directory: d } = directory("", { live: true, stations: [{ id: "station-1", domain: "tracking.example", name: "真实站点", website_url: "https://tracking.example", models: [] }], reports: [report] });
+  const group = { domain: report.domain, name: report.stationName, reports: [report], level: "ok", abilityCount: 0 };
+  const daily = d.stationCard(group, "2026-11-27");
+  assert.match(daily, /data-relay-id="station-1" data-relay-placement="daily_card"/);
+  for (const kind of ["profile", "report", "outbound"]) assert.ok(daily.includes(`data-relay-click="${kind}"`));
+  assert.match(d.stationCard(group, "2026-11-27", "directory_card"), /data-relay-placement="directory_card"/);
+  assert.equal(d.trafficAttrs({ ...group, reports: [{ ...report, demo: true }] }, "daily_card"), "");
+});
+
 test("作品缩略预览按完整页面等比例缩放，窗口变窄或高度受限时居中且不裁切", () => {
   let onResize;
   const frame = { style: {} };

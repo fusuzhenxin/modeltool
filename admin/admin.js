@@ -5,7 +5,7 @@ const Admin = (() => {
   const app = document.getElementById("admin-app");
   const editor = document.getElementById("editor");
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const titles = { dashboard: "运营总览", announcements: "公告管理", stations: "中转站管理", schedules: "定时检测", jobs: "任务记录", reports: "报告审核", proposals: "收录提案", applications: "收录申请", ads: "广告位管理", "ad-analytics": "广告流量分析", sponsors: "赞助商账号", mail: "邮件通知", settings: "系统设置" };
+  const titles = { dashboard: "运营总览", announcements: "公告管理", stations: "中转站管理", schedules: "定时检测", jobs: "任务记录", reports: "报告审核", proposals: "收录提案", applications: "收录申请", ads: "广告位管理", "ad-analytics": "广告流量分析", "station-traffic": "中转站流量统计", sponsors: "赞助商账号", mail: "邮件通知", settings: "系统设置" };
   const subtitles = { dashboard: "看一眼运行情况，再开始今天的运营。", announcements: "维护全宽滚动公告，支持颜色、置顶、展示范围与生效时间。", stations: "维护站点资料与检测密钥；排序数字越小，前台展示越靠前，修改后点击保存。", schedules: "设置检测频率，按计划采集，审核后公开。", jobs: "查看任务进度、失败原因与检测用量；确认配置问题后可排除统计或恢复。", reports: "先核对逐项结果，再决定是否公开到中转日报。", proposals: "处理用户提名、测试需求、投票与评论，同步公开进度。", ads: "管理六类广告位及顶部＋底部、全包套餐，统一定价和排期。", "ad-analytics": "按广告、展示位置与所在页面查看曝光、点击和投放效果。", settings: "控制检测预算、全局暂停与管理员账户。" };
   const paths = { dashboard: "M3 3h7v7H3zm11 0h7v7h-7zM3 14h7v7H3zm11 0h7v7h-7z", announcements: "m4 10 12-5v14L4 14Zm0 0v4M7 15l2 6h3l-2-5M20 9v6", stations: "M4 4h16v6H4zm0 10h16v6H4zM7 7h.01M7 17h.01M11 7h6M11 17h6", schedules: "M12 8v5l3 2M4 5 2 7m18-2 2 2M7 2h10M12 2v3", jobs: "M8 6h12M8 12h12M8 18h12M3 6h.01M3 12h.01M3 18h.01", reports: "M6 3h9l4 4v14H6ZM14 3v5h5M9 12h7M9 16h5", ads: "M3 5h18v14H3ZM3 14l5-5 6 6 3-3 4 4M16 8h.01", settings: "M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6", arrow: "M5 12h14m-5-5 5 5-5 5", plus: "M12 5v14M5 12h14", out: "M14 3h7v7M21 3 10 14M10 4H4v16h16v-6", close: "m6 6 12 12M18 6 6 18", search: "M16 16l5 5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0", refresh: "M20 11a8 8 0 1 0-2 6M20 4v7h-7", play: "m8 4 12 8-12 8Z", shield: "m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Zm-4 9 3 3 5-6", menu: "M4 6h16M4 12h16M4 18h16", clock: "M12 7v6l4 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0" };
   const icon = (key) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[key] || paths.reports}"/></svg>`;
@@ -298,7 +298,7 @@ const Admin = (() => {
     if (!state.user) return;
     const ticket = ++state.ticket;
     try {
-      const [stations, data, tests] = await Promise.all([api("admin/stations"), api("admin/" + (state.route === "applications" ? "station-applications?" + AdminApplications.query() : state.route === "ads" ? "advertising/overview" : state.route === "ad-analytics" ? "advertising/analytics?" + AdminAdAnalytics.query() : state.route === "dashboard" ? "dashboard" : state.route)), api("admin/test-options")]);
+      const [stations, data, tests] = await Promise.all([api("admin/stations"), api("admin/" + (state.route === "applications" ? "station-applications?" + AdminApplications.query() : state.route === "ads" ? "advertising/overview" : state.route === "station-traffic" ? "station-traffic?" + AdminStationTraffic.query() : state.route === "ad-analytics" ? "advertising/analytics?" + AdminAdAnalytics.query() : state.route === "dashboard" ? "dashboard" : state.route)), api("admin/test-options")]);
       if (ticket !== state.ticket || !state.user) return;
       state.stations = stations; state.tests = tests;
       if (state.route === "dashboard") shell(dashboard(data));
@@ -306,6 +306,7 @@ const Admin = (() => {
       else if (state.route === "mail") { shell(AdminMail.render(data)); AdminMail.mount(app, { api, input, select, toast, refresh: loadPage }); }
       else if (state.route === "applications") { shell(AdminApplications.render(data)); AdminApplications.mount(app, { api, openDialog, input, area, select, toast, refresh: loadPage }); }
       else if (state.route === "sponsors") { shell(AdminSponsors.render(data)); AdminSponsors.mount(app, { api, openDialog, input, toast, refresh: loadPage }); }
+      else if (state.route === "station-traffic") { shell(AdminStationTraffic.render(data)); AdminStationTraffic.mount(app, { refresh: loadPage }); }
       else if (state.route === "ad-analytics") { shell(AdminAdAnalytics.render(data)); AdminAdAnalytics.mount(app, api); }
       else if (state.route === "ads") { state.rows = data.records; shell(heading() + AdminAdOps.render(data)); AdminAdOps.mount(app, { api, openDialog, input, area, select, localValue, toast, refresh: loadPage }); }
       else { state.rows = data; AdminBulk.prune(state.selected, data); shell(listPage()); }
