@@ -23,6 +23,9 @@
 .relay-metrics td{font-size:12px}
 .relay-metrics :is(th,td){padding:13px 16px;text-align:left;border-bottom:1px solid var(--line)}
 .relay-metrics-empty{color:var(--muted);text-align:center!important;padding:35px!important}
+.relay-metrics-ranking-controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:14px 20px;border-bottom:1px solid var(--line)}
+.relay-metrics-ranking-controls .btn{font-size:11px;padding:8px 12px}.relay-metrics-ranking-controls [aria-pressed=true]{background:#edf2ff;color:#3b5ffa;border-color:#cbd5ff}.relay-metrics-ranking-controls>span{font-size:10px;color:var(--muted);margin-left:auto}
+.relay-metrics-rank{display:inline-grid;place-items:center;min-width:25px;height:25px;background:#f1f4f9;border-radius:7px;color:var(--muted);font-weight:700}.relay-metrics-rank.leading{background:#eef1ff;color:#3b5ffa}
 .relay-metrics-chart{display:flex;gap:4px;height:200px;padding:20px 24px 16px}
 .relay-metrics-day{flex:1;min-width:0;display:flex;flex-direction:column}
 .relay-metrics-day>div{height:140px;display:flex;align-items:end;justify-content:center;gap:2px;border-bottom:1px solid var(--line)}

@@ -120,3 +120,52 @@ test('后台报表使用独立接口并展示页面、位置、不同点击，�
   assert.match(html, /&lt;script&gt;站点/);
   assert.ok(!ui.query().includes('ad_id'));
 });
+
+test('每站曝光点击可独立查看，流量排行可按四个维度切换且不修改原始数据', () => {
+  const ctx = vm.createContext({ Date, URLSearchParams });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../admin/station-traffic.js'), 'utf8'), ctx);
+  const ui = vm.runInContext('AdminStationTraffic', ctx);
+  const rows = [
+    { station_id: 'a', impressions: 100, outbound: 2, visitors: 10, internal_clicks: 2, ctr: 2 },
+    { station_id: 'b', impressions: 20, outbound: 7, visitors: 8, internal_clicks: 1, ctr: 35 },
+    { station_id: 'c', impressions: 50, outbound: 1, visitors: 15, internal_clicks: 10, ctr: 2 }
+  ];
+  ui.data = { stations: rows, options: { stations: ['a', 'b', 'c'].map(id => ({ id, name: '站点' + id, domain: id + '.example' })) } };
+  const before = JSON.stringify(rows);
+  for (const [metric, order] of [['outbound', ['b', 'a', 'c']], ['impressions', ['a', 'c', 'b']], ['visitors', ['c', 'a', 'b']], ['internal_clicks', ['c', 'a', 'b']]]) {
+    ui.sort = metric;
+    const html = ui.stationRows();
+    assert.ok(html.indexOf('站点' + order[0]) < html.indexOf('站点' + order[1]));
+    assert.ok(html.indexOf('站点' + order[1]) < html.indexOf('站点' + order[2]));
+    assert.ok(html.includes('data-relay-station-detail="a"'));
+    assert.ok(html.includes('100'));
+    assert.ok(html.includes('35.00%'));
+  }
+  assert.equal(JSON.stringify(rows), before);
+});
+
+test('排序立即更新列表而不请求接口，查看单站明细保留日期页面筛选', () => {
+  const filters = { start: '2026-11-01', end: '2026-11-27', page: 'stability', placement: '', traffic: 'clean', station_id: '' };
+  const ctx = vm.createContext({ Date, URLSearchParams, FormData: class { *[Symbol.iterator]() { yield* Object.entries(filters); } } });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../admin/station-traffic.js'), 'utf8'), ctx);
+  const ui = vm.runInContext('AdminStationTraffic', ctx), handlers = new Set(), body = { innerHTML: '' }, form = { addEventListener() {} };
+  ui.data = { stations: [{ station_id: 'a', impressions: 100, outbound: 1 }], options: { stations: [{ id: 'a', name: '站点甲', domain: 'a.example' }] } };
+  const generic = { addEventListener() {} }, button = { dataset: { relaySort: 'impressions' }, setAttribute() {} };
+  const root = { addEventListener: (_, fn) => handlers.add(fn), removeEventListener: (_, fn) => handlers.delete(fn),
+    querySelector: selector => selector === '[data-relay-stats-form]' ? form : selector === '[data-relay-station-rows]' ? body : generic,
+    querySelectorAll: selector => selector === '[data-relay-sort]' ? [button] : [] };
+  let refreshes = 0;
+  ui.mount(root, { refresh: () => refreshes++ });
+  ui.mount(root, { refresh: () => refreshes++ });
+  assert.equal(handlers.size, 1);
+  const click = [...handlers][0];
+  click({ target: { closest: selector => selector === '[data-relay-sort]' ? button : null } });
+  assert.equal(ui.sort, 'impressions');
+  assert.ok(body.innerHTML.includes('站点甲'));
+  assert.equal(refreshes, 0);
+  click({ target: { closest: selector => selector === '[data-relay-station-detail]' ? { dataset: { relayStationDetail: 'a' } } : null } });
+  assert.equal(refreshes, 1);
+  assert.equal(ui.filters.station_id, 'a');
+  assert.equal(ui.filters.page, 'stability');
+  assert.equal(ui.filters.start, '2026-11-01');
+});
