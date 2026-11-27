@@ -81,7 +81,7 @@ test("批量手动检测复用模型选择，只传检测参数并阻止无密�
   const spec = { station_id: "", model: "", kind: "site_relay", difficulty: "hard", count: 3, candy_count: 5, pelican_mode: "svg" };
   const batch = schedules.buildRuns(spec, stations, ["a", "b"], { mode: "separate", models: { a: "only-a", b: "only-b" } });
   assert.equal(batch.runs.length, 2);
-  assert.deepEqual(JSON.parse(JSON.stringify(batch.runs[1])), { ...spec, station_id: "b", model: "only-b" });
+  assert.deepEqual(JSON.parse(JSON.stringify(batch.runs[1])), { ...spec, station_id: "b", model: "only-b", models:["only-b"], kinds:[spec.kind] });
   assert.throws(() => schedules.buildRuns(spec, stations, ["c"], { shared: "only-c" }), /启用站点并配置密钥/);
   assert.throws(() => schedules.buildRuns(spec, stations, ["a", "b"], { shared: "only-a" }), /站点 B/);
 });
@@ -114,24 +114,25 @@ test("切换方式隐藏并停用其他时间字段，避免隐藏必填项阻�
 test("一站多模型和多站多模型按组合创建，保留各项检测与时间设置", () => {
   const sites = stations.slice(0,2).map(s => ({...s, models:["gpt","claude","extra"]}));
   const plans = schedules.build({...spec,schedule_mode:"daily",daily_time:"09:00"},sites,["a","b"],{mode:"shared",shared:["gpt","claude","extra"]}).schedules;
-  assert.equal(plans.length,6);
-  assert.deepEqual(Array.from(plans,p => `${p.station_id}/${p.model}`), ["a/gpt","a/claude","a/extra","b/gpt","b/claude","b/extra"]);
-  assert.equal(new Set(plans.map(p=>p.name)).size,6);
+  assert.equal(plans.length,2);
+  assert.deepEqual(Array.from(plans,p => `${p.station_id}/${p.model}`), ["a/gpt","b/gpt"]);
+  assert.equal(new Set(plans.map(p=>p.name)).size,2);
+  assert.deepEqual(Array.from(plans[0].models),["gpt","claude","extra"]);
   assert.ok(plans.every(p=>p.daily_time==="09:00" && p.kind===spec.kind && p.count===10));
   const separate = schedules.build(spec,sites,["a","b"],{mode:"separate",shared:[],models:{a:["gpt","claude"],b:["extra"]}}).schedules;
-  assert.equal(separate.length,3);
-  assert.equal(separate[2].model,"extra");
+  assert.equal(separate.length,2);
+  assert.equal(separate[1].model,"extra");
   const hint = schedules.selectionHint(sites,["a","b"],{mode:"shared",shared:["gpt","claude","extra"]},esc);
-  assert.match(hint,/将创建 <strong>6/);
+  assert.match(hint,/将创建 <strong>2/);
 });
 
 test("去重所选模型，空模型、未登记组合与超出 100 条都禁止整批提交", () => {
-  assert.equal(schedules.build(spec,stations,["a"],{mode:"shared",shared:["shared","shared","only-a"]}).schedules.length,2);
+  assert.equal(schedules.build(spec,stations,["a"],{mode:"shared",shared:["shared","shared","only-a"]}).schedules.length,1);
   assert.throws(()=>schedules.build(spec,stations,["a"],{mode:"separate",models:{a:[]}}),/至少一个/);
   assert.throws(()=>schedules.build(spec,stations,["a","b"],{mode:"shared",shared:["shared","only-a"]}),/站点 B/);
-  const sites = Array.from({length:51},(_,i)=>({...stations[0],id:String(i)}));
-  assert.throws(()=>schedules.build(spec,sites,sites.map(s=>s.id),{mode:"shared",shared:["shared","only-a"]}),/102.*100/);
-  assert.equal(schedules.build(spec,sites.slice(0,50),sites.slice(0,50).map(s=>s.id),{mode:"shared",shared:["shared","only-a"]}).schedules.length,100);
+  const sites = Array.from({length:101},(_,i)=>({...stations[0],id:String(i)}));
+  assert.throws(()=>schedules.build(spec,sites,sites.map(s=>s.id),{mode:"shared",shared:["shared","only-a"]}),/1–100/);
+  assert.equal(schedules.build(spec,sites.slice(0,50),sites.slice(0,50).map(s=>s.id),{mode:"shared",shared:["shared","only-a"]}).schedules.length,50);
 });
 
 test("重建多选控件保留明确清空的选择，失效模型显示警告而不自动换模型", () => {
@@ -144,10 +145,10 @@ test("重建多选控件保留明确清空的选择，失效模型显示警告�
   assert.match(old,/未登记统一模型 removed/);
 });
 
-test("批量手动检测按模型展开，名称和定时设置不混入运行参数", () => {
+test("批量手动检测按站点合并，保留模型和测试数组", () => {
   const runs = schedules.buildRuns({kind:"site_candy",count:3},stations,["a"],{mode:"shared",shared:["shared","only-a"]}).runs;
-  assert.equal(runs.length,2);
-  assert.deepEqual(JSON.parse(JSON.stringify(runs)),[{kind:"site_candy",count:3,station_id:"a",model:"shared"},{kind:"site_candy",count:3,station_id:"a",model:"only-a"}]);
+  assert.equal(runs.length,1);
+  assert.deepEqual(JSON.parse(JSON.stringify(runs)),[{kind:"site_candy",count:3,station_id:"a",model:"shared",models:["shared","only-a"],kinds:["site_candy"]}]);
 });
 
 test("切换模型设置停用隐藏必填多选框，并保留两种模式的所选值", () => {

@@ -57,7 +57,10 @@ def bridge(init, exchange=None):
                 code = message.get("code")
                 raise RequestIssue(code if code in ("output_exhausted", "empty_response") else "internal")
             requests += 1
-            if exchange is None or requests > 200:
+            # Single-token fingerprints use 200 samples + up to 4 adapter probes.
+            # Reserve room for the other sections of site_all; each call still uses normal budgets.
+            maximum_requests = 512 if init.get("config", {}).get("kind") in ("site_trace", "site_all") else 200
+            if exchange is None or requests > maximum_requests:
                 raise RunStopped("本站检测请求数量超出范围")
             result = exchange(message["payload"], message["mode"])
             process.stdin.write(json.dumps({"type": "response", "id": message["id"], "result": result}, ensure_ascii=True) + "\n")
@@ -201,6 +204,8 @@ def run_site_suite(db, job, station, transport=None):
             response["status"], response["text"] = status, body.decode()
         return response
     result = bridge({"action": "run", "config": config, "model": job["model"], "endpoint": endpoint(station), "seed": job["id"]}, exchange)
+    if config["kind"] == "site_trace" and any(s.get("coverage") == "unsupported" for s in result["sections"]):
+        raise RunStopped("本站检测指纹库暂未覆盖此模型版本，未发送请求；请改用能力或中转站功能测试")
     return report_from_site(result, config, job["model"])
 
 
@@ -231,8 +236,8 @@ def report_from_site(result, config, model):
             "level": relay["level"] if relay else "unknown", "score": relay["score"] if relay else None,
             "title": relay["title"] if relay else result["name"] + "已完成", "runs": 1,
             "summary": "调用本站原有题库和检测代码；基础能力、糖果、中转站、指纹与作品分别展示结果。",
-            "conditions": "本站原版检测 / " + {"easy": "简单", "medium": "中等", "hard": "困难"}[config["difficulty"]] + " / 单次输出：" + ("本站不设上限，跟随接口默认。" if config.get("output_token_limit") == 0 else str(config["output_token_limit"]) + " Token。" if config.get("output_token_limit") is not None else "按模型与项目适配（单选题 256 或 4096 Token；指纹与作品 8192 Token）。") + "单选题请求 temperature=0；中转站协议检查保留各项固定参数。" + " ".join(result.get("compatibility", [])),
+            "conditions": "本站原版检测 / " + {"easy": "简单", "medium": "中等", "hard": "困难"}[config["difficulty"]] + " / 单次输出：" + ("本站不设上限，跟随接口默认。" if config.get("output_token_limit") == 0 else str(config["output_token_limit"]) + " Token。" if config.get("output_token_limit") is not None else "按模型与项目适配（单选题 256 或 4096 Token；指纹与作品 8192 Token）。") + "单选题请求 temperature=0；ModelTrace 不额外设置温度；单词指纹参考比对固定 temperature=1、max_tokens=16，不继承单次输出上限；中转站协议检查保留各项固定参数。" + " ".join(result.get("compatibility", [])),
             "compatibility": result.get("compatibility", []),
-            "retest": "采用本站原版流程。指纹最多 6 次收集 3 份有效回答；作品参数兼容重试沿用前台。鉴权、网络或预算错误会停止任务。",
+            "retest": "采用本站原版流程。ModelTrace 最多 6 次收集 3 份有效回答；其他已覆盖版本采样 200 次并额外进行最多 4 次参数探测，仅作参考比对；作品参数兼容重试沿用前台。鉴权、网络或预算错误会停止任务。",
             "findings": findings, "checks": checks, "ability": ability, "sections": sections,
             **({"artwork": artwork} if artwork else {}), "raw": result["raw"], "request_count": result["calls"]})

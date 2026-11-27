@@ -120,7 +120,7 @@ test("真实列表渲染在七个模块都含逐行勾选，并在翻页后保�
     assert.equal((first.match(/data-bulk-id=/g) || []).length, 12, kind);
     assert.match(first, /data-bulk-id="row0"[^>]*checked/);
     if (kind === "jobs") {
-      assert.match(first, /<th>检测分数<\/th>/);
+      assert.match(first, /<th>结果 \/ 用量<\/th>/);
       assert.match(first, /中转站<\/small><strong>0<\/strong>/);
       assert.match(first, /能力<\/small><strong>85<\/strong>/);
       assert.match(first, /未计分/);

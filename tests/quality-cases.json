@@ -260,5 +260,125 @@
     },
     "model": "different",
     "expected": "inconclusive"
+  },
+  {
+    "name": "新版拒绝归因不被高候选占比覆盖",
+    "section": {
+      "kind": "trace",
+      "claimed": "m",
+      "prediction": "m",
+      "known": true,
+      "method": "api",
+      "used_outputs": 3,
+      "probability": 0.99,
+      "runner_up": 0.01,
+      "engine": "modeltrace-v6",
+      "decision": "reject"
+    },
+    "model": "m",
+    "expected": "inconclusive"
+  },
+  {
+    "name": "新版接受归因仍须符合本站展示条件",
+    "section": {
+      "kind": "trace",
+      "claimed": "m",
+      "prediction": "m",
+      "known": true,
+      "method": "api",
+      "used_outputs": 3,
+      "probability": 0.99,
+      "runner_up": 0.01,
+      "engine": "modeltrace-v6",
+      "decision": "accept",
+      "accepted_model": "m"
+    },
+    "model": "m",
+    "expected": "consistent"
+  },
+  {
+    "name": "新版缺少归因判定不冒充正式结果",
+    "section": {
+      "kind": "trace",
+      "claimed": "m",
+      "prediction": "m",
+      "known": true,
+      "method": "api",
+      "used_outputs": 3,
+      "probability": 0.99,
+      "runner_up": 0.01,
+      "engine": "modeltrace-v6"
+    },
+    "model": "m",
+    "expected": "inconclusive"
+  },
+  {
+    "name": "示例基准不能产生正式身份判定",
+    "section": {
+      "kind": "trace",
+      "claimed": "m",
+      "prediction": "m",
+      "known": true,
+      "method": "api",
+      "used_outputs": 3,
+      "probability": 0.99,
+      "runner_up": 0.01,
+      "engine": "one-token",
+      "reference_only": true,
+      "coverage": "sample"
+    },
+    "model": "m",
+    "expected": "inconclusive"
+  },
+  {
+    "name": "已知混淆组合不判定身份 gpt-6-astra / gpt-6.1-sol",
+    "model": "gpt-6-astra",
+    "expected": "inconclusive",
+    "section": {
+      "claimed": "gpt-6-astra",
+      "prediction": "gpt-6.1-sol",
+      "known": true,
+      "method": "api",
+      "used_outputs": 3,
+      "probability": 0.99,
+      "runner_up": 0.01,
+      "engine": "modeltrace-v6",
+      "decision": "accept",
+      "accepted_model": "gpt-6.1-sol"
+    }
+  },
+  {
+    "name": "已知混淆组合不判定身份 gpt-6.1-sol / gpt-6-astra",
+    "model": "gpt-6.1-sol",
+    "expected": "inconclusive",
+    "section": {
+      "claimed": "gpt-6.1-sol",
+      "prediction": "gpt-6-astra",
+      "known": true,
+      "method": "api",
+      "used_outputs": 3,
+      "probability": 0.99,
+      "runner_up": 0.01,
+      "engine": "modeltrace-v6",
+      "decision": "accept",
+      "accepted_model": "gpt-6-astra"
+    }
+  },
+  {
+    "name": "已知混淆组合不判定身份 gpt-6-astra / gpt-6-astra",
+    "model": "gpt-6-astra",
+    "expected": "inconclusive",
+    "section": {
+      "claimed": "gpt-6-astra",
+      "prediction": "gpt-6-astra",
+      "known": true,
+      "method": "api",
+      "used_outputs": 3,
+      "probability": 0.99,
+      "runner_up": 0.01,
+      "engine": "modeltrace-v6",
+      "decision": "accept",
+      "accepted_model": "gpt-6-astra"
+    }
   }
 ]

@@ -60,6 +60,25 @@ class ReportSummariesTests(unittest.TestCase):
             con.execute("DELETE FROM entities WHERE kind='reports' AND id='r'")
         self.assertEqual(list(other.report_rows(summary=True)), [])
 
+    def test_fingerprint_engine_and_rejection_survive_lightweight_projection(self):
+        for extra in ({"engine": "modeltrace-v6", "decision": "reject", "accepted_model": None},
+                      {"engine": "one-token", "reference_only": True, "coverage": "sample"}):
+            self.report["result"]["sections"][0] = self.trace | extra
+            self.db.save("reports", "r", self.report)
+            summary = list(self.db.report_rows(summary=True))[0]
+            self.assertEqual(summary["result"]["identity"]["status"], "inconclusive")
+
+    def test_legacy_triggers_are_upgraded_before_new_fingerprint_reports(self):
+        with self.db.connect(write=True) as con:
+            for event in ("insert", "update"):
+                con.execute("DROP TRIGGER report_summaries_" + event)
+            con.execute("CREATE TRIGGER report_summaries_insert AFTER INSERT ON entities BEGIN SELECT 1; END")
+            con.execute("CREATE TRIGGER report_summaries_update AFTER UPDATE ON entities BEGIN SELECT 1; END")
+        upgraded = Database(self.temp.name)
+        self.report["result"]["sections"][0] = self.trace | {"engine": "modeltrace-v6", "decision": "reject"}
+        upgraded.save("reports", "r", self.report)
+        self.assertEqual(list(upgraded.report_rows(summary=True))[0]["result"]["identity"]["status"], "inconclusive")
+
     def test_existing_database_backfill_preserves_originals_and_is_repeatable(self):
         with self.db.connect(write=True) as con:
             for event in ("insert", "update", "delete"):

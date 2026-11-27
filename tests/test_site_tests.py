@@ -36,7 +36,7 @@ class SiteTests(unittest.TestCase):
         token = (self.db.directory / "setup.token").read_text()
         result = self.client.post("/api/auth/setup", json={"username": "admin", "password": "temporary-test-password", "token": token})
         self.headers = {"X-CSRF-Token": result.json()["csrf"]}
-        self.station = self.post("stations", {"name": "本站题组测试", "base_url": "https://site-fixture.example/v1", "api_key": "sk-site-secret", "models": ["fixture-model"], "daily_calls": 1000, "daily_tokens": 1000000}).json()
+        self.station = self.post("stations", {"name": "本站题组测试", "base_url": "https://site-fixture.example/v1", "api_key": "sk-site-secret", "models": ["fixture-model", "gpt-5.4", "deepseek-chat"], "daily_calls": 1000, "daily_tokens": 1000000}).json()
         self.client.put("/api/admin/settings", headers=self.headers, json={"daily_calls": 1000, "daily_tokens": 1000000, "paused": False})
         self.calls = []
 
@@ -58,7 +58,7 @@ class SiteTests(unittest.TestCase):
             q = next(q for q in self.questions if q["stem"] in user)
             correct = q["options"][q["answer"]]
             answer = next(letter for letter, text in re.findall(r"^([A-D])\. (.*)$", user, re.M) if text == correct)
-        elif "1 到 355" in user:
+        elif "禁止调用或借助任何工具" in user:
             answer = ", ".join(str((i * 73 + len(self.calls) * 41) % 355 + 1) for i in range(330))
         elif "HTML" in user or "SVG" in user or "Three.js" in user:
             answer = '<html><body><svg><circle/><path/></svg><script>requestAnimationFrame(draw)</script></body></html>'
@@ -78,7 +78,7 @@ class SiteTests(unittest.TestCase):
         return data
 
     def run_test(self, kind, transport=None, **kwargs):
-        result = self.post("jobs", {"station_id": self.station["id"], "model": "fixture-model", "kind": kind, "count": 3, "candy_count": 3, **kwargs})
+        result = self.post("jobs", {"station_id": self.station["id"], "model": kwargs.pop("model", "fixture-model"), "kind": kind, "count": 3, "candy_count": 3, **kwargs})
         self.assertEqual(result.status_code, 200, result.text)
         self.assertTrue(work_once(self.db, transport or self.fake))
         job = next(j for j in self.client.get("/api/admin/jobs").json() if j["id"] == result.json()["id"])
@@ -431,18 +431,42 @@ class SiteTests(unittest.TestCase):
         self.assertEqual(report["score"], 100)
 
     def test_fingerprint_uses_existing_bank_and_bare_numeric_challenges(self):
-        report = self.run_test("site_trace")["result"]
+        report = self.run_test("site_trace", model="gpt-5.4")["result"]
         trace = report["sections"][0]
         self.assertEqual(trace["used_outputs"], 3)
         self.assertEqual(report["request_count"], 3)
         self.assertGreater(len(trace["results"]), 2)
-        self.assertFalse(trace["known"])
+        self.assertTrue(trace["known"])
+        self.assertEqual(trace["engine"], "modeltrace-v6")
+        self.assertEqual(trace["model_count"], 22)
         self.assertIsNone(report["ability"])
         for payload in self.calls:
             self.assertNotIn("temperature", payload)
             self.assertEqual(payload["max_tokens"], 8192)
             self.assertEqual(len(payload["messages"]), 1)
             self.assertIn("禁止调用或借助任何工具", payload["messages"][0]["content"])
+
+    def test_single_token_fingerprint_uses_worker_budgets_and_stays_reference_only(self):
+        report = self.run_test("site_trace", model="deepseek-chat")["result"]
+        trace = report["sections"][0]
+        self.assertEqual(trace["engine"], "one-token")
+        self.assertTrue(trace["reference_only"])
+        self.assertTrue(trace["reference_comparison"]["protocolMismatch"])
+        self.assertEqual(report["identity"]["status"], "inconclusive")
+        self.assertEqual(report["request_count"], 201)
+        self.assertEqual(len(self.calls), 201)
+        for payload in self.calls:
+            self.assertEqual(payload["temperature"], 1)
+            self.assertEqual(payload["max_tokens"], 16)
+
+    def test_unsupported_fingerprint_sends_no_request_and_is_not_a_completed_sample(self):
+        self.post("jobs", {"station_id": self.station["id"], "model": "fixture-model", "kind": "site_trace"})
+        self.assertTrue(work_once(self.db, self.fake))
+        self.assertEqual(self.calls, [])
+        job = self.client.get("/api/admin/jobs").json()[0]
+        self.assertEqual(job["status"], "cancelled")
+        self.assertIn("暂未覆盖", job["error"])
+        self.assertEqual(self.db.list("reports"), [])
 
     def test_site_pelican_supports_all_three_original_prompts(self):
         for mode in ("svg", "html2d", "three"):
@@ -552,7 +576,8 @@ class SiteTests(unittest.TestCase):
         row = self.run_test("site_all")
         result = row["result"]
         self.assertEqual([s["kind"] for s in result["sections"]], ["ability", "logic", "code", "qa", "candy", "relay", "trace", "pelican"])
-        self.assertEqual(result["request_count"], 29)
+        self.assertEqual(result["request_count"], 26)
+        self.assertEqual(next(s for s in result["sections"] if s["kind"] == "trace")["coverage"], "unsupported")
         self.assertTrue(result["artwork"]["available"])
         self.assertEqual(self.client.get(f"/api/public/reports/{row['id']}/artwork").status_code, 404)
         self.client.put(f"/api/admin/reports/{row['id']}", headers=self.headers, json={"status": "published"})
@@ -565,7 +590,7 @@ class SiteTests(unittest.TestCase):
         self.assertIn("全部测试", self.client.get("/api/admin/reports").text)
 
     def test_scheduled_site_configuration_and_budget_stop_do_not_fall_back(self):
-        plan = self.post("schedules", {"name": "原版指纹", "station_id": self.station["id"], "model": "fixture-model", "kind": "site_trace", "difficulty": "hard", "count": 5, "pelican_mode": "svg", "interval_minutes": 60, "first_run": "2020-01-01T00:00:00Z"})
+        plan = self.post("schedules", {"name": "原版指纹", "station_id": self.station["id"], "model": "gpt-5.4", "kind": "site_trace", "difficulty": "hard", "count": 5, "pelican_mode": "svg", "interval_minutes": 60, "first_run": "2020-01-01T00:00:00Z"})
         self.assertEqual(plan.status_code, 200, plan.text)
         self.client.put("/api/admin/settings", headers=self.headers, json={"daily_calls": 1000, "daily_tokens": 10000, "paused": False})
         self.assertTrue(work_once(self.db, self.fake))

@@ -224,6 +224,25 @@ class Run(StrictModel):
     difficulty: Literal["easy", "medium", "hard"] = "medium"
     count: int = Field(default=10, ge=1, le=30)
     candy_count: int = Field(default=20, ge=1, le=30)
+    models: list[str] | None = Field(default=None, min_length=1, max_length=30)
+    kinds: list[str] | None = Field(default=None, min_length=1, max_length=10)
+
+    @model_validator(mode="after")
+    def grouped_targets(self):
+        if self.models is not None:
+            if len(set(self.models)) != len(self.models) or any(not m.strip() or len(m) > 150 or any(ord(c) < 32 for c in m) for m in self.models):
+                raise ValueError("请选择不重复的有效模型 ID")
+            self.model = self.models[0]
+        if self.kinds is not None:
+            allowed = {"site_basic", "site_ability", "site_logic", "site_code", "site_qa", "site_candy", "site_relay", "site_trace", "site_pelican", "site_all"}
+            if len(set(self.kinds)) != len(self.kinds) or not set(self.kinds) <= allowed:
+                raise ValueError("请选择不重复的本站测试项目")
+            if "site_all" in self.kinds and len(self.kinds) != 1 or "site_basic" in self.kinds and set(self.kinds) & {"site_ability", "site_logic", "site_code", "site_qa"}:
+                raise ValueError("全部测试或基础四项已包含对应子项目，请勿重复勾选")
+            self.kind = self.kinds[0]
+        if len(self.models or [self.model]) * len(self.kinds or [self.kind]) > 100:
+            raise ValueError("每站最多 100 个模型与测试组合")
+        return self
 
 
 class Schedule(Run):

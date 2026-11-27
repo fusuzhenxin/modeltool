@@ -33,6 +33,12 @@ def keep_worker_alive(db, job_id):
 
 
 def validate_run(db, spec, con):
+    from .executions import grouped, targets
+    if grouped(spec):
+        station = None
+        for child in targets(spec):
+            station = validate_run(db, child, con)
+        return station
     if spec.get("publish_mode", "review") not in ("review", "auto"):
         raise ValueError("请选择完成后待审核或直接公开")
     if spec["kind"].startswith("site_"):
@@ -55,6 +61,9 @@ def enqueue(db, spec, actor, schedule_id=None, con=None):
     if con is None:
         with db.connect(write=True) as conn:
             return enqueue(db, spec, actor, schedule_id, conn)
+    from .executions import grouped, enqueue_group
+    if grouped(spec):
+        return enqueue_group(db, spec, actor, schedule_id, con)
     validate_run(db, spec, con)
     key = ident()
     config = {"kind": spec["kind"]}
@@ -63,7 +72,8 @@ def enqueue(db, spec, actor, schedule_id=None, con=None):
     if spec["kind"] == "pelican":
         config["pelican_mode"] = spec.get("pelican_mode", "html2d")
     active = con.execute("SELECT schedule_id,config FROM jobs WHERE station_id=? AND model=? AND status IN ('queued','running')", (spec["station_id"], spec["model"])).fetchall()
-    if any({k: v for k, v in json.loads(row["config"]).items() if k not in ("publish_mode", "output_token_limit")} == config or (schedule_id and row["schedule_id"] == schedule_id) for row in active):
+    if any({k: v for k, v in json.loads(row["config"]).items() if k not in ("publish_mode", "output_token_limit", "execution_id", "execution_index")} == config
+           or schedule_id and row["schedule_id"] == schedule_id and not json.loads(row["config"]).get("execution_id") for row in active):
         raise ValueError("该站点模型已有排队或运行中的相同检测任务")
     output_limit = db.get("settings", "site", con).get("output_token_limit")
     if spec["kind"].startswith("site_") and spec["kind"] != "site_relay" and output_limit is not None:
@@ -113,6 +123,11 @@ def work_once(db, transport=None):
         job = con.execute("""SELECT * FROM jobs AS pending WHERE status='queued' AND NOT EXISTS
             (SELECT 1 FROM jobs AS active WHERE active.status='running'
              AND active.station_id=pending.station_id AND active.model=pending.model)
+            AND NOT EXISTS (SELECT 1 FROM jobs AS earlier WHERE
+                json_extract(pending.config,'$.execution_id') IS NOT NULL
+                AND json_extract(earlier.config,'$.execution_id')=json_extract(pending.config,'$.execution_id')
+                AND json_extract(earlier.config,'$.execution_index')<json_extract(pending.config,'$.execution_index')
+                AND earlier.status IN ('queued','running'))
             ORDER BY created LIMIT 1""").fetchone()
         if not job:
             return False
@@ -121,6 +136,14 @@ def work_once(db, transport=None):
         station = db.get("stations", job["station_id"], con)
         if station and station["enabled"] and job["model"] in station["models"]:
             station = select_for_job(db, station | {"id": job["station_id"]}, job["model"], con)
+            execution_id = json.loads(job["config"]).get("execution_id")
+            if execution_id:
+                from .station_keys import entries
+                execution = db.get("executions", execution_id, con)
+                if execution:
+                    selected = next((key for key in entries(station) if key["id"] == station.get("_selected_key")), {})
+                    execution.setdefault("matched_keys", {})[job["id"]] = selected.get("name", "检测 Key")
+                    db.save("executions", execution_id, execution, con)
     try:
         if not station or not station["enabled"]:
             raise RunStopped("站点已停用或删除")

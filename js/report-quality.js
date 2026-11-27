@@ -1,5 +1,9 @@
 /* Identity evidence, answer accuracy and protocol compatibility are independent. */
 const ReportQuality = {
+  knownConfusion(section) {
+    const pair = ["gpt-6-astra", "gpt-6.1-sol"];
+    return !!section && pair.includes(section.claimed) && pair.includes(section.prediction);
+  },
   identityLabels: { untested: "未测指纹", inconclusive: "暂无法判断", consistent: "指纹相符", mismatch: "疑似模型不符" },
   protocolTitles: { ok: "功能正常", warn: "部分功能异常", bad: "多项功能异常", unknown: "未测接口功能" },
   fingerprint(section, model = "") {
@@ -7,7 +11,10 @@ const ReportQuality = {
     if (section) {
       const p = section.probability, second = section.runner_up ?? section.results?.[1]?.probability;
       const numeric = v => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1;
-      if (section.known === true && section.claimed && (!model || section.claimed === model) && section.prediction &&
+      const eligible = !ReportQuality.knownConfusion(section) && !section.reference_only && section.engine !== "one-token" && section.coverage !== "sample" &&
+        (!section.decision || section.decision === "accept") &&
+        (section.engine !== "modeltrace-v6" || section.decision === "accept" && section.accepted_model === section.prediction);
+      if (eligible && section.known === true && section.claimed && (!model || section.claimed === model) && section.prediction &&
           section.method !== "manual" && Number.isInteger(section.used_outputs) && section.used_outputs >= 3 &&
           numeric(p) && numeric(second) && p >= .8 && p - second >= .2) {
         status = section.claimed === section.prediction ? "consistent" : "mismatch";
@@ -27,6 +34,6 @@ const ReportQuality = {
   },
   protocolLevel(report) { return ReportQuality.protocolTested(report) ? report.level || "unknown" : "unknown"; },
   title(report) { return ReportQuality.protocolTested(report) ? ReportQuality.protocolTitles[report.level] || "功能情况暂无法判断" : report.title || "检测已完成"; },
-  identityNote: "指纹只提供模型身份线索，不是鉴定证明。库外模型、回答不足或候选接近时暂无法判断；疑似不符需同条件复测。",
-  ruleNote: "自动初筛要求宣称模型在库、3 份有效回答、第一候选占比至少 80% 且领先第二候选至少 20 个百分点。这是展示规则，候选占比不是模型真伪准确率。手动粘贴结果只供参考。"
+  identityNote: "指纹只提供模型身份线索，不是鉴定证明。库外模型、回答不足或候选接近时暂无法判断；疑似不符需同条件复测。ModelTrace 已知 GPT-6 Astra 与 GPT-6.1 Sol 难以区分，这组候选不作相符或换模判定。",
+  ruleNote: "ModelTrace 自动初筛要求宣称模型在库、3 份有效回答、第一候选占比至少 80% 且领先第二候选至少 20 个百分点；新版还需通过归因阈值。候选占比不是模型真伪准确率。手动结果和其他模型的示例基准比对只供参考。"
 };

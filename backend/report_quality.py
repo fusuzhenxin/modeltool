@@ -5,7 +5,10 @@ TRACE_SQL = """(SELECT json_object('claimed',json_extract(t.value,'$.claimed'),
     'known',json_extract(t.value,'$.known'),'prediction',json_extract(t.value,'$.prediction'),
     'prediction_name',json_extract(t.value,'$.prediction_name'),'probability',json_extract(t.value,'$.probability'),
     'runner_up',json_extract(t.value,'$.results[1].probability'),'used_outputs',json_extract(t.value,'$.used_outputs'),
-    'method',json_extract(t.value,'$.method'),'built_at',json_extract(t.value,'$.built_at'))
+    'method',json_extract(t.value,'$.method'),'built_at',json_extract(t.value,'$.built_at'),
+    'engine',json_extract(t.value,'$.engine'),'decision',json_extract(t.value,'$.decision'),
+    'accepted_model',json_extract(t.value,'$.accepted_model'),'coverage',json_extract(t.value,'$.coverage'),
+    'reference_only',json_extract(t.value,'$.reference_only'))
     FROM json_each(e.data,'$.result.sections') t WHERE json_extract(t.value,'$.kind')='trace' LIMIT 1)"""
 
 IDENTITY_LABELS = {"untested": "未测指纹", "inconclusive": "暂无法判断",
@@ -29,7 +32,13 @@ def fingerprint(section, model=""):
     numeric = lambda v: type(v) in (float, int) and math.isfinite(v) and 0 <= v <= 1
     enough = type(section.get("used_outputs")) is int and section["used_outputs"] >= 3
     # A conservative display rule, not a calibrated identity accuracy estimate.
-    if (section.get("known") in (True, 1) and section.get("claimed")
+    pair = {"gpt-6-astra", "gpt-6.1-sol"}
+    known_confusion = section.get("claimed") in pair and section.get("prediction") in pair
+    eligible = (not known_confusion and not section.get("reference_only") and section.get("engine") != "one-token"
+                and section.get("coverage") != "sample" and section.get("decision") in (None, "accept")
+                and (section.get("engine") != "modeltrace-v6" or section.get("decision") == "accept"
+                     and section.get("accepted_model") == section.get("prediction")))
+    if (eligible and section.get("known") in (True, 1) and section.get("claimed")
             and (not model or section["claimed"] == model) and section.get("prediction")
             and section.get("method") != "manual" and enough
             and numeric(p) and numeric(second) and p >= .8 and p - second >= .2):

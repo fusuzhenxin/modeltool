@@ -1,0 +1,22 @@
+"use strict";
+const AdminExecutions = {
+  testFields(tests, selected, esc) {
+    return `<fieldset class="execution-tests"><legend>测试项目（可多选）</legend><div>${tests.map(t => `<label><input type="checkbox" name="kinds" value="${esc(t.id)}" ${selected.includes(t.id) ? "checked" : ""}>${esc(t.label)}</label>`).join("")}</div><small>按下列项目顺序逐项执行；“全部测试”和“基础四项”已包含的子项不能重复选择。</small></fieldset>`;
+  },
+  synchronizeTests(form, changed) {
+    const fields = [...form.querySelectorAll('input[name="kinds"]')];
+    if (!changed.checked) return;
+    for (const input of fields) {
+      if (input === changed) continue;
+      if (changed.value === "site_all" || input.value === "site_all" || changed.value === "site_basic" && ["site_ability","site_logic","site_code","site_qa"].includes(input.value) || input.value === "site_basic" && ["site_ability","site_logic","site_code","site_qa"].includes(changed.value)) input.checked = false;
+    }
+  },
+  models(row) { return row.models || [row.model]; },
+  kinds(row) { return row.kinds || [row.kind]; },
+  row(row, {esc, name, kindLabel, badge, date}, compact = false) {
+    return `<tr><td><span class="main-text">${esc(row.name || name(row.station_id))}</span><span class="sub">${esc(name(row.station_id))} · ${row.models.length} 个模型 / ${row.total} 个测试组合</span></td>${compact ? "" : `<td>${row.kinds.map(kind => `<span class="chip blue">${esc(kindLabel(kind))}</span>`).join(" ")}</td>`}<td>${badge(row.status)}<span class="sub">${row.finished} / ${row.total} 已结束 · ${row.completed} 项成功</span><progress max="${row.total}" value="${row.finished}" aria-label="执行进度"></progress></td>${compact ? "" : `<td><span class="main-text">${row.usage.calls} 次请求</span><span class="sub">${row.usage.tokens} Token</span></td>`}<td>${date(row.created)}</td><td class="actions"><button class="text-btn" data-action="execution" data-id="${esc(row.id)}">执行详情</button>${["queued","running"].includes(row.status) ? `<button class="text-btn danger" data-action="cancel-job" data-id="${esc(row.id)}">取消剩余项目</button>` : row.completed < row.total ? `<button class="text-btn" data-action="retry-job" data-id="${esc(row.id)}">重试未完成项</button>` : ""}</td></tr>`;
+  },
+  detail(run, {esc, name, kindLabel, badge, date}) {
+    return `<section class="execution-detail"><div class="execution-overview"><div>${badge(run.status)}<strong>${run.finished} / ${run.total} 已结束</strong><span>${run.completed} 项成功 · ${run.usage.calls} 次请求 · ${run.usage.tokens} Token</span></div><button class="btn small" type="button" data-action="execution" data-id="${esc(run.id)}">刷新进度</button>${!["queued","running"].includes(run.status) && run.children.some(c => c.report_id && c.report_status !== "published") ? `<button class="btn primary small" type="button" data-action="execution-publish" data-id="${esc(run.id)}">公开已完成报告</button>` : ""}</div><progress max="${run.total}" value="${run.finished}" aria-label="执行进度"></progress><p class="tabs-note">${esc(name(run.station_id))} · ${esc(run.actor)} · ${date(run.created)} · 配置版本 ${run.snapshot.version || 1}。同站模型和测试按顺序执行；已完成结果独立保存。</p><div class="execution-children">${run.children.map((child,index) => `<details><summary><span class="execution-order">${index + 1}</span>${badge(child.status)}<strong>${esc(child.model)}</strong><span>${esc(kindLabel(child.kind))}</span><b>${child.ability?.score ?? child.score ?? "—"}${child.ability?.score != null || child.score != null ? " 分" : ""}</b></summary><div><p>本次匹配的 Key：${esc(child.key_name)} · ${child.request_count ?? "—"} 次请求</p>${child.started ? `<p>开始 ${date(child.started)}${child.ended ? " · 结束 " + date(child.ended) : ""}</p>` : ""}${child.error ? `<p class="execution-error">${esc(child.error)}</p>` : ""}${["failed","cancelled","interrupted"].includes(child.status) ? `<button class="btn small" type="button" data-action="execution-${child.exclusion?.active ? "restore" : "exclude"}" data-id="${esc(child.id)}">${child.exclusion?.active ? "恢复此项统计" : "排除此项统计"}</button>` : ""}${child.report_id ? `<button class="btn small" type="button" data-action="report" data-id="${esc(child.report_id)}">查看独立报告</button><span class="sub">${esc(child.report_status === "published" ? "已公开" : child.report_status === "rejected" ? "已驳回" : "待审核")}</span>` : ""}</div></details>`).join("")}</div><details class="execution-snapshot"><summary>本次执行的配置快照</summary><pre>${esc(JSON.stringify(run.snapshot,null,2))}</pre></details></section>`;
+  }
+};

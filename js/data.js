@@ -36,6 +36,8 @@ const DATA = {
     pelican: { label: "鹈鹕骑车测试", group: "pelican", typeName: "鹈鹕骑车测试", desc: "让模型写出一只鹈鹕骑自行车的 HTML，看画面是否稳定。" }
   },
   models: [
+    { id: "gpt-6.2-astra", name: "GPT-6.2 Astra", short: "G", color: "#0d8a68" },
+    { id: "gpt-6.2-sol", name: "GPT-6.2 Sol", short: "G", color: "#0f9d78" },
     { id: "gpt-6-astra", name: "GPT-6 Astra", short: "G", color: "#0d8a68" },
     { id: "gpt-6.1-sol", name: "GPT-6.1 Sol", short: "G", color: "#0f9d78" },
     { id: "gpt-6.1-terra", name: "GPT-6.1 Terra", short: "G", color: "#14b88a" },
@@ -74,6 +76,7 @@ const DATA = {
     { id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5", short: "C", color: "#d97757" },
     { id: "claude-sonnet-4-5-20250929", name: "Claude Sonnet 4.5 0929", short: "C", color: "#e08a66" },
     { id: "claude-haiku-4-5", name: "Claude Haiku 4.5", short: "C", color: "#fb923c" },
+    { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5 1001", short: "C", color: "#fb923c" },
     { id: "claude-3-7-sonnet-20250219", name: "Claude 3.7 Sonnet", short: "C", color: "#ea8a4b" },
     { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet", short: "C", color: "#e07a3d" },
     { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", short: "C", color: "#fdba74" },
@@ -89,6 +92,7 @@ const DATA = {
     { id: "kimi-k2.6", name: "Kimi K2.6", short: "K", color: "#374151" },
     { id: "kimi-k2.5", name: "Kimi K2.5", short: "K", color: "#4b5563" },
     { id: "kimi-k2-thinking", name: "Kimi K2 Thinking", short: "K", color: "#6b7280" },
+    { id: "kimi-k2", name: "Kimi K2", short: "K", color: "#111827" },
     { id: "kimi-k2-turbo-preview", name: "Kimi K2 Turbo", short: "K", color: "#111827" },
     { id: "moonshot-v1-auto", name: "Kimi moonshot-auto", short: "K", color: "#4b5563" },
     { id: "moonshot-v1-128k", name: "Kimi 128K", short: "K", color: "#6b7280" },
@@ -101,6 +105,7 @@ const DATA = {
     { id: "qwen-plus", name: "通义 Qwen-Plus", short: "Q", color: "#8b84f5" },
     { id: "qwen-turbo", name: "通义 Qwen-Turbo", short: "Q", color: "#c4b5fd" },
     { id: "qwen3-coder-plus", name: "通义 Qwen3-Coder", short: "Q", color: "#7c3aed" },
+    { id: "qwen3-30b-a3b-instruct-2507", name: "通义 Qwen3 30B A3B Instruct 2507", short: "Q", color: "#615ef0" },
     { id: "gemini-4-argon", name: "Gemini 4 Argon", short: "Ge", color: "#172554" },
     { id: "gemini-3.8-pro", name: "Gemini 3.8 Pro", short: "Ge", color: "#1d4ed8" },
     { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", short: "Ge", color: "#3b82f6" },
@@ -138,8 +143,10 @@ const DATA = {
     { id: "llama-4-maverick", name: "Llama 4 Maverick", short: "L", color: "#6b7280" },
     { id: "llama-4-scout", name: "Llama 4 Scout", short: "L", color: "#9ca3af" },
     { id: "llama-3.3-70b", name: "Llama 3.3 70B", short: "L", color: "#4b5563" },
+    { id: "llama-3.1-8b-instruct", name: "Llama 3.1 8B Instruct", short: "L", color: "#4b5563" },
     { id: "mistral-large-latest", name: "Mistral Large", short: "Mi", color: "#f59e0b" },
-    { id: "mistral-small-latest", name: "Mistral Small", short: "Mi", color: "#fbbf24" }
+    { id: "mistral-small-latest", name: "Mistral Small", short: "Mi", color: "#fbbf24" },
+    { id: "mistral-small-3.2-24b-instruct", name: "Mistral Small 3.2 24B Instruct", short: "Mi", color: "#f59e0b" }
   ],
   pelicanModes: [
     {

@@ -40,7 +40,7 @@ const AdminSchedules = {
   },
   selected(stations, ids) { return stations.filter((station) => ids.includes(station.id)); },
   stationField(stations, ids, esc, task = false) {
-    return `<div class="field"><label for="f-station_ids">中转站（可多选）</label><select id="f-station_ids" name="station_ids" multiple required>${stations.map((station) => `<option value="${esc(station.id)}" ${ids.includes(station.id) ? "selected" : ""}>${esc(station.name)}${station.has_key ? "" : "（未配置密钥）"}${station.enabled ? "" : "（已暂停）"}</option>`).join("")}</select><small>支持搜索、全选搜索结果；每个站点与所选模型分别创建独立${task ? "检测任务" : "计划"}，最多一次选择 100 家。</small></div>`;
+    return `<div class="field"><label for="f-station_ids">中转站（可多选）</label><select id="f-station_ids" name="station_ids" multiple required>${stations.map((station) => `<option value="${esc(station.id)}" ${ids.includes(station.id) ? "selected" : ""}>${esc(station.name)}${station.has_key ? "" : "（未配置密钥）"}${station.enabled ? "" : "（已暂停）"}</option>`).join("")}</select><small>支持搜索、全选搜索结果；每个站点创建一条组合${task ? "执行记录" : "计划"}，其中模型和测试逐项执行，最多一次选择 100 家。</small></div>`;
   },
   modelList(value) { return [...new Set((Array.isArray(value) ? value : value ? [value] : []).filter(Boolean))]; },
   modelSelect(name, label, options, selected, esc) {
@@ -91,13 +91,13 @@ const AdminSchedules = {
       }
     }
     if (missing.length) throw new Error(missing.join("；") + "，请先登记模型或按站点分别选择");
-    if (pairs.length > 100) throw new Error(`将生成 ${pairs.length} 条，超过单批 100 条上限，请减少站点或模型数量`);
+    if (pairs.length > 3000) throw new Error("单批模型选择过多，请减少站点或模型数量");
     return pairs;
   },
   selectionHint(stations, ids, selection, esc, task = false) {
     try {
       const pairs = AdminSchedules.pairs(stations, ids, selection);
-      return `<p class="schedule-model-hint" role="status">已选 <strong>${ids.length}</strong> 家中转站，将创建 <strong>${pairs.length}</strong> 条独立${task ? "检测任务" : "计划"}（每个站点 × 每个所选模型各一条）。每条单独计入调用与 Token 用量，单批最多 100 条。</p>`;
+      return `<p class="schedule-model-hint" role="status">已选 <strong>${ids.length}</strong> 家中转站，将创建 <strong>${ids.length}</strong> 条组合${task ? "执行记录" : "计划"}，共 ${pairs.length} 个站点模型；同站多个模型与测试合并一条，逐项执行。调用与 Token 仍按实际请求记录。</p>`;
     } catch (error) {
       return `<p class="schedule-model-hint schedule-model-warning" role="status">${esc(error.message)}；当前不能保存。</p>`;
     }
@@ -111,13 +111,17 @@ const AdminSchedules = {
   },
   build(spec, stations, ids, selection) {
     const pairs = AdminSchedules.pairs(stations, ids, selection);
-    const multiModel = new Set(pairs.map(({model}) => model)).size > 1;
-    return { schedules: pairs.map(({station, model}) => {
+    const kinds = AdminSchedules.modelList(spec.kinds || spec.kind);
+    if (!kinds.length) throw new Error("请至少选择一种测试项目");
+    if (kinds.includes("site_all") && kinds.length > 1 || kinds.includes("site_basic") && kinds.some(k => ["site_ability","site_logic","site_code","site_qa"].includes(k))) throw new Error("已包含的基础子项或全部测试不能重复选择");
+    const groups = AdminSchedules.selected(stations, ids).map((station) => {
       if (spec.enabled && (!station.enabled || !station.has_key)) throw new Error(`${station.name}：请先启用站点并配置密钥，或取消勾选「启用此检测计划」`);
-      const labels = [...(ids.length > 1 ? [station.name] : []), ...(multiModel ? [model] : [])];
-      const suffix = labels.length ? " · " + Array.from(labels.join(" · ")).slice(0,80).join("") : "";
-      const name = Array.from(spec.name).slice(0,100-Array.from(suffix).length).join("") + suffix;
-      return { ...spec, name, station_id: station.id, model };
-    }) };
+      const models = pairs.filter(p => p.station.id === station.id).map(p => p.model);
+      if (models.length * kinds.length > 100) throw new Error(`${station.name}：模型与测试组合超过 100 项`);
+      const suffix = ids.length > 1 ? " · " + station.name : "";
+      const name = Array.from(spec.name || "组合检测").slice(0,100-Array.from(suffix).length).join("") + suffix;
+      return { ...spec, name, station_id: station.id, model: models[0], models, kind: kinds[0], kinds };
+    });
+    return { schedules: groups };
   }
 };

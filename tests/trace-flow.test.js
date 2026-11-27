@@ -20,7 +20,7 @@ function client() {
     },
     fetch: async (url) => {
       requests.push(url);
-      assert.equal(url, "data/trace-bank.json", "手动分析不得请求模型转发接口");
+      assert.equal(url.split("?")[0], "data/trace-bank.json", "手动分析不得请求模型转发接口");
       return { ok: true, json: async () => bank };
     },
     btoa: (text) => Buffer.from(text, "binary").toString("base64"),
@@ -30,7 +30,7 @@ function client() {
     Store: { api: () => ({ baseUrl: "https://example.invalid/v1", apiKey: "test-only", modelOverride: "" }) },
     UI: { diffLabel: (value) => value, esc: (text) => String(text ?? "").replace(/[&<>"']/g, (value) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[value])), icon: () => "" }
   });
-  for (const file of ["report-quality", "data", "engine", "trace", "poster"]) {
+  for (const file of ["report-quality", "data", "engine", "vendor/modeltrace-core", "vendor/token-fingerprint-core", "token-trace", "trace", "poster"]) {
     vm.runInContext(fs.readFileSync(path.join(root, "js/" + file + ".js"), "utf8"), context, { filename: file + ".js" });
   }
   return { ...vm.runInContext("({ Trace, Api, Poster })", context), requests, storage };
@@ -62,7 +62,7 @@ test("手动三题复用原分析算法，只读取指纹库并保存摘要", as
   assert.equal(result.method, "manual");
   assert.equal(result.known, true);
   assert.equal(result.model_count, bank.models.length);
-  assert.deepEqual(requests, ["data/trace-bank.json"]);
+  assert.deepEqual(requests, ["data/trace-bank.json?v=20261127-v6"]);
   const saved = [...storage.values()].join("");
   assert.ok(!saved.includes(draft.answers[0]), "原始回答不得写入会话存储");
   assert.ok(!saved.includes(draft.challenges[0].prompt), "题目不得写入结果摘要");

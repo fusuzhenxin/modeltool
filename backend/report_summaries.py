@@ -25,6 +25,11 @@ def install(con):
             FROM {source} WHERE e.kind='reports'"""
     # SQLite triggers cover admin review, worker publication and direct SQL tools.
     # Updates happen in the same transaction, so hiding a report takes effect immediately.
+    for name in ("insert", "update"):
+        trigger = con.execute("SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?",
+                              ("report_summaries_" + name,)).fetchone()
+        if trigger and "reference_only" not in trigger[0]:
+            con.execute("DROP TRIGGER report_summaries_" + name)
     for event, name in (("INSERT", "insert"), ("UPDATE OF data,updated", "update")):
         con.execute(f"""CREATE TRIGGER IF NOT EXISTS report_summaries_{name}
             AFTER {event} ON entities WHEN NEW.kind='reports' BEGIN

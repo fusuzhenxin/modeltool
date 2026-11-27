@@ -15,7 +15,7 @@ const Admin = (() => {
   const station = (id) => state.stations.find((s) => s.id === id);
   const name = (id) => station(id)?.name || "已移除站点";
   const chip = (text, color = "") => `<span class="chip ${color}">${esc(text)}</span>`;
-  const statuses = { queued: ["排队中", "blue"], running: ["检测中", "blue"], done: ["已完成", "green"], failed: ["失败", "red"], cancelled: ["已取消", ""], interrupted: ["已中断", "orange"], draft: ["待审核", "orange"], published: ["已公开", "green"], rejected: ["已驳回", "red"], ok: ["协议通过", "green"], warn: ["协议需核对", "orange"], bad: ["协议异常", "red"], unknown: ["未测协议", ""] };
+  const statuses = { queued: ["排队中", "blue"], running: ["检测中", "blue"], done: ["已完成", "green"], failed: ["失败", "red"], cancelled: ["已取消", ""], interrupted: ["已中断", "orange"], partial: ["部分完成", "orange"], draft: ["待审核", "orange"], published: ["已公开", "green"], rejected: ["已驳回", "red"], ok: ["协议通过", "green"], warn: ["协议需核对", "orange"], bad: ["协议异常", "red"], unknown: ["未测协议", ""] };
   const badge = (status) => chip(...(statuses[status] || [status, ""]));
   const kindLabel = (kind) => state.tests.find((item) => item.id === kind)?.label || ({ combined: "历史简化测试（8 项）", protocol: "历史简化协议测试（3 项）", ability: "历史简化能力测试（5 题）", pelican: "鹈鹕骑车（旧任务）" }[kind] || kind);
   let toastTimer;
@@ -53,7 +53,7 @@ const Admin = (() => {
   }
   function table(head, rows) { return `<div class="table-scroll"><table><thead><tr>${head.map((v) => `<th>${v}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`; }
   function jobRows(rows, compact = false) {
-    return rows.map((r) => `<tr><td><span class="main-text">${esc(name(r.station_id))}</span><span class="sub">${esc(r.model)}</span></td>${compact ? "" : `<td>${esc(kindLabel(r.kind))}</td>`}<td>${AdminBulk.jobExclusion(r, esc) || badge(r.status)}${r.error ? `<span class="sub" title="${esc(r.error)}">${esc(r.error)}</span>` : ""}</td>${compact ? "" : `<td class="job-scores">${r.status === "done" && r.scores?.length ? r.scores.map((score) => `<span class="job-score"><small>${esc(score.label)}</small><strong>${esc(score.value)}</strong><small>/ 100</small></span>`).join("") : `<span class="muted">${r.status === "done" && r.report_id ? "未计分" : "—"}</span>`}</td>`}<td>${date(r.created)}</td><td class="actions">${r.report_id ? `<button class="text-btn" data-action="report" data-id="${r.report_id}">查看报告</button>` : ["queued", "running"].includes(r.status) ? `<button class="text-btn danger" data-action="cancel-job" data-id="${r.id}">${r.cancel ? "取消中…" : "取消"}</button>` : `<button class="text-btn" data-action="retry-job" data-id="${r.id}">重新检测</button>`}${!compact && ["failed", "cancelled", "interrupted"].includes(r.status) ? `<button class="text-btn" data-action="${r.exclusion?.active ? "restore-job" : "exclude-job"}" data-id="${r.id}">${r.exclusion?.active ? "恢复统计" : "排除统计"}</button>` : ""}</td></tr>`);
+    return rows.map((r) => r.grouped ? AdminExecutions.row(r, {esc,name,kindLabel,badge,date}, compact) : `<tr><td><span class="main-text">${esc(name(r.station_id))}</span><span class="sub">${esc(r.model)}</span></td>${compact ? "" : `<td>${esc(kindLabel(r.kind))}</td>`}<td>${AdminBulk.jobExclusion(r, esc) || badge(r.status)}${r.error ? `<span class="sub" title="${esc(r.error)}">${esc(r.error)}</span>` : ""}</td>${compact ? "" : `<td class="job-scores">${r.status === "done" && r.scores?.length ? r.scores.map((score) => `<span class="job-score"><small>${esc(score.label)}</small><strong>${esc(score.value)}</strong><small>/ 100</small></span>`).join("") : `<span class="muted">${r.status === "done" && r.report_id ? "未计分" : "—"}</span>`}</td>`}<td>${date(r.created)}</td><td class="actions">${r.report_id ? `<button class="text-btn" data-action="report" data-id="${r.report_id}">查看报告</button>` : ["queued", "running"].includes(r.status) ? `<button class="text-btn danger" data-action="cancel-job" data-id="${r.id}">${r.cancel ? "取消中…" : "取消"}</button>` : `<button class="text-btn" data-action="retry-job" data-id="${r.id}">重新检测</button>`}${!compact && ["failed", "cancelled", "interrupted"].includes(r.status) ? `<button class="text-btn" data-action="${r.exclusion?.active ? "restore-job" : "exclude-job"}" data-id="${r.id}">${r.exclusion?.active ? "恢复统计" : "排除统计"}</button>` : ""}</td></tr>`);
   }
   function dashboard(d) {
     const counts = d.jobs;
@@ -94,14 +94,14 @@ const Admin = (() => {
   const rowTest = (row) => row.kind || (row.artwork?.mode ? "pelican" : "legacy");
   function testFilters() {
     if (!hasTestFilters()) return "";
-    const models = [...new Set([state.modelFilter, ...state.rows.map((row) => row.model)].filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const models = [...new Set([state.modelFilter, ...state.rows.flatMap((row) => row.models || [row.model])].filter(Boolean))].sort((a, b) => a.localeCompare(b));
     const kinds = [...new Set([...state.tests.map((test) => test.id), ...state.rows.map(rowTest), state.testFilter].filter(Boolean))];
     const label = (kind) => kind === "legacy" ? "历史测试（未标注项目）" : kindLabel(kind);
     return `<select id="model-filter" aria-label="筛选模型"><option value="">全部模型</option>${models.map((model) => `<option value="${esc(model)}" ${state.modelFilter === model ? "selected" : ""}>${esc(model)}</option>`).join("")}</select><select id="test-filter" aria-label="筛选测试项"><option value="">全部测试项</option>${kinds.map((kind) => `<option value="${esc(kind)}" ${state.testFilter === kind ? "selected" : ""}>${esc(label(kind))}</option>`).join("")}</select>`;
   }
   function visibleRows() {
     const text = state.search.toLowerCase();
-    return state.rows.filter((r) => (!text || [r.name, r.title, r.content, r.domain, r.model, name(r.station_id), r.description, r.error, r.models?.join(" "), r.author].join(" ").toLowerCase().includes(text)) && (!state.filter || (state.filter === "enabled" ? r.enabled : state.filter === "disabled" ? !r.enabled : r.status === state.filter)) && (!hasTestFilters() || ((!state.modelFilter || r.model === state.modelFilter) && (!state.testFilter || rowTest(r) === state.testFilter))));
+    return state.rows.filter((r) => (!text || [r.name, r.title, r.content, r.domain, r.model, name(r.station_id), r.description, r.error, r.models?.join(" "), r.author].join(" ").toLowerCase().includes(text)) && (!state.filter || (state.filter === "enabled" ? r.enabled : state.filter === "disabled" ? !r.enabled : r.status === state.filter)) && (!hasTestFilters() || ((!state.modelFilter || (r.models || [r.model]).includes(state.modelFilter)) && (!state.testFilter || (r.kinds || [rowTest(r)]).includes(state.testFilter)))));
   }
   function listContent() {
     const route = state.route;
@@ -114,9 +114,9 @@ const Admin = (() => {
     if (!shown.length) html = empty(state.search || state.filter || (hasTestFilters() && (state.modelFilter || state.testFilter)) ? "没有符合条件的记录" : "这里还没有内容", { stations: "添加中转站资料和检测密钥，随后就可以安排检测。", schedules: "创建计划后，后台按所选方式执行；也可随时手动或批量立即执行。", reports: "检测完成后，报告按所选方式待审核或直接公开。", jobs: "发起一次手动检测，或者创建定时计划。", announcements: "添加一条公告，它会按设定时间出现在网站上。", ads: "添加广告素材，选择一个前台展示位置。" }[route]);
     else if (route === "stations") html = listTable(["中转站", "展示排序", "已登记模型", "展示 / 检测", "检测凭据", "每日上限", "操作"], shown.map((r) => `<tr><td>${identity(r)}</td><td><div class="station-order-control"><input type="number" min="-10000" max="10000" step="1" required value="${r.order ?? 0}" data-station-order="${r.id}" aria-label="${esc(r.name)}的展示排序"><button class="text-btn" data-action="station-order" data-id="${r.id}">保存</button></div></td><td>${r.models.slice(0, 2).map((m) => `<span class="sub">${esc(m)}</span>`).join("")}${r.models.length > 2 ? `<span class="sub">另 ${r.models.length - 2} 个模型</span>` : ""}</td><td>${chip(r.visible ? "公开" : "隐藏", r.visible ? "green" : "")} ${chip(r.enabled ? "可检测" : "已暂停", r.enabled ? "blue" : "")}</td><td>${chip(r.api_keys?.length ? `${r.api_keys.filter((key) => key.enabled).length} / ${r.api_keys.length} 个 Key 启用` : r.has_key ? "已加密保存" : "未配置密钥", r.has_key ? "green" : "orange")}</td><td>调用：${r.daily_calls === 0 ? "无上限" : fmt(r.daily_calls) + " 次"}<span class="sub">Token：${r.daily_tokens === 0 ? "无上限" : fmt(r.daily_tokens)}</span></td><td class="actions">${resourceActions(r)}<button class="text-btn" data-action="run" data-id="${r.id}">检测</button></td></tr>`));
     else if (route === "proposals") html = proposalTable(shown, listTable);
-    else if (route === "jobs") html = listTable(["中转站 / 模型", "检测内容", "任务状态", "检测分数", "创建时间", "操作"], jobRows(shown));
+    else if (route === "jobs") html = listTable(["中转站 / 模型", "检测内容", "任务状态", "结果 / 用量", "创建时间", "操作"], jobRows(shown));
     else if (route === "reports") html = listTable(["中转站 / 模型", "检测结果", "能力分数", "审核状态", "检测时间", "操作"], shown.map((r) => `<tr><td><span class="main-text">${esc(name(r.station_id))}${r.demo ? '<span class="demo-label">演示</span>' : ""}</span><span class="sub">${esc(r.model)}</span></td><td>${r.test_name ? chip(r.test_name, "blue") + `<span class="sub">${r.score == null ? "各项结果见报告" : "接口功能 " + r.score + " 分"}</span>` : r.artwork?.mode ? chip("鹈鹕骑车", "purple") + `<span class="sub">${esc(r.artwork.mode_name)} · 结构分 ${r.artwork.score}</span>` : badge(r.level) + `<span class="sub">${r.score == null ? "未计分" : r.score + " / 100"}</span>`}</td><td><span class="sub">模型指纹：${esc(ReportQuality.identity(r).label)}</span>${r.ability?.score ?? "—"}<span class="sub">${r.test_name ? "本站原版评分" : r.ability?.baseline == null ? "没有参考基线" : "参考基线 " + r.ability.baseline}</span></td><td>${badge(r.status)}</td><td>${esc(r.time)}</td><td class="actions"><button class="text-btn" data-action="report" data-id="${r.id}">查看 / 审核</button>${r.status === "published" ? `<a href="/relays.html?id=${r.id}" target="_blank" rel="noopener">前台报告 ↗</a>` : ""}</td></tr>`));
-    else if (route === "schedules") html = listTable(["计划名称", "中转站 / 模型", "执行方式", "下次运行", "状态", "操作"], shown.map((r) => `<tr><td><span class="main-text">${esc(r.name)}</span><span class="sub">${esc(kindLabel(r.kind))}</span></td><td>${esc(name(r.station_id))}<span class="sub">${esc(r.model)}</span></td><td>${esc(AdminSchedules.timingLabel(r))}<span class="sub">${esc(AdminSchedules.publicationLabel(r))}</span></td><td>${r.enabled ? date(r.next_run) : "—"}${r.last_error ? `<span class="sub" title="${esc(r.last_error)}">${esc(r.last_error)}</span>` : ""}</td><td>${chip(r.enabled ? "已启用" : r.completed_at ? "已触发" : "已暂停", r.enabled ? "green" : "")}</td><td class="actions"><button class="text-btn" data-action="schedule-run" data-id="${r.id}">立即执行</button>${resourceActions(r)}</td></tr>`));
+    else if (route === "schedules") html = listTable(["计划名称", "中转站 / 模型", "执行方式", "下次运行", "状态", "操作"], shown.map((r) => `<tr><td><span class="main-text">${esc(r.name)}</span><span class="sub">${(r.kinds || [r.kind]).map(kind => esc(kindLabel(kind))).join(" · ")} · 版本 ${r.version || 1}</span></td><td>${esc(name(r.station_id))}<span class="sub">${(r.models || [r.model]).map(esc).join("、")} · ${(r.models || [r.model]).length} 个模型 / ${(r.models || [r.model]).length * (r.kinds || [r.kind]).length} 个测试组合</span></td><td>${esc(AdminSchedules.timingLabel(r))}<span class="sub">${esc(AdminSchedules.publicationLabel(r))}</span></td><td>${r.enabled ? date(r.next_run) : "—"}${r.last_error ? `<span class="sub" title="${esc(r.last_error)}">${esc(r.last_error)}</span>` : ""}</td><td>${chip(r.enabled ? "已启用" : r.completed_at ? "已触发" : "已暂停", r.enabled ? "green" : "")}</td><td class="actions"><button class="text-btn" data-action="schedule-run" data-id="${r.id}">立即执行</button>${resourceActions(r)}</td></tr>`));
     else if (route === "announcements") html = listTable(["公告内容", "展示范围", "生效时间", "状态", "操作"], shown.map((r) => `<tr><td><span class="main-text">${esc(r.title)}</span>${r.pinned ? ' <span class="chip blue">置顶</span>' : ""}<span class="sub">${esc(r.content)}</span></td><td>${r.placement === "all" ? "全站" : "仅首页"}</td><td>${r.starts_at ? date(r.starts_at) : "立即"}<span class="sub">${r.ends_at ? "截止 " + date(r.ends_at) : "长期有效"}</span></td><td>${timedStatus(r)}</td><td class="actions">${resourceActions(r)}</td></tr>`));
     else html = listTable(["广告素材", "位置 / 排序", "投放时间", "状态", "操作"], shown.map((r) => `<tr><td><span class="identity">${r.image ? `<img class="station-logo" src="${esc(r.image)}" alt="">` : `<span class="station-logo">${icon("ads")}</span>`}<span><span class="main-text">${esc(r.name)}</span><span class="sub">${esc(r.title)}</span><span class="sub ad-list-description">${esc(r.description || "未填写描述")}</span></span></span></td><td>${{ hero: "赞助商卡片", banner: "首屏横幅", footer: "页尾赞助商", masthead: "顶部通栏", left: "左下角推荐", right: "左下角推荐（原右侧）", inline: "内容推荐（已停用）", dock: "左下角推荐（原浮条）" }[r.placement]}<span class="sub">排序 ${r.order}</span></td><td>${r.starts_at ? date(r.starts_at) : "立即"}<span class="sub">${r.ends_at ? "截止 " + date(r.ends_at) : "长期有效"}</span></td><td>${timedStatus(r)}</td><td class="actions">${resourceActions(r)}</td></tr>`));
     return AdminBulk.result(state.bulkResult, esc) + AdminBulk.toolbar(route, state.selected, rows.length) + html + `<div class="table-footer"><span>共 ${rows.length} 条记录${route === "jobs" ? " · 展示最近 300 条" : ""}</span><div class="pager"><button data-action="prev" ${state.page === 1 ? "disabled" : ""}>←</button><span>${state.page} / ${pages}</span><button data-action="next" ${state.page === pages ? "disabled" : ""}>→</button></div></div>`;
@@ -164,7 +164,7 @@ const Admin = (() => {
   function listPage() {
     const route = state.route;
     const action = route === "jobs" ? button("run", "手动检测", true) : ["reports", "proposals"].includes(route) ? "" : button("create", { stations: "添加中转站", announcements: "添加公告", schedules: "创建计划", ads: "添加广告" }[route], true);
-    const filters = route === "proposals" ? Object.keys(proposalStatuses) : route === "jobs" ? ["queued", "running", "done", "failed", "cancelled", "interrupted"] : route === "reports" ? ["draft", "published", "rejected"] : ["enabled", "disabled"];
+    const filters = route === "proposals" ? Object.keys(proposalStatuses) : route === "jobs" ? ["queued", "running", "done", "partial", "failed", "cancelled", "interrupted"] : route === "reports" ? ["draft", "published", "rejected"] : ["enabled", "disabled"];
     const notice = route === "proposals" ? "用户无需注册即可提交、支持与评论。提案不会自动触发检测；可设置公开进度、关联已发布报告，隐藏不合适的提案或评论。" : route === "reports" ? "检测原始结果不能在审核时改分。公开报告进入日报与站点档案；撤回后立即从前台移除。" : route === "schedules" ? "支持按间隔重复、指定时间执行一次、每天北京时间定时执行。也可勾选计划批量立即执行；不同项目依次排队，相同检测不重复创建。" : route === "jobs" ? "取消运行中的任务会在当前请求结束后生效。任务进程中断后不会自动重新扣费，可检查原因后手动重试。" : route === "ads" ? "上传中转站图片并填写介绍，选择展示位置与生效时间。每个位置按排序展示；左右全站位各展示一条，顶部与页尾各最多五条，超出容量的素材暂不显示，可随时编辑或停用。" : "";
     return heading(action + button("refresh", "刷新")) + (notice ? `<div class="notice">${notice}</div>` : "") + `<div class="toolbar${hasTestFilters() ? " test-filter-toolbar" : ""}"><label class="search">${icon("search")}<input id="search" type="search" aria-label="搜索记录" placeholder="搜索名称、域名或模型…" value="${esc(state.search)}"></label><select id="filter" aria-label="筛选状态"><option value="">全部状态</option>${filters.map((v) => `<option value="${v}" ${state.filter === v ? "selected" : ""}>${({ enabled: "已启用", disabled: "已停用" }[v]) || proposalStatuses[v] || statuses[v][0]}</option>`).join("")}</select>${testFilters()}<span class="muted" style="font-size:11px">${route === "jobs" ? "每 8 秒自动更新" : ""}</span></div><section class="card" id="list-content">${listContent()}</section>`;
   }
@@ -205,40 +205,34 @@ const Admin = (() => {
   }
   function updateRunOptions() {
     const form = editor.querySelector("form");
-    const kind = form.elements.namedItem("kind")?.value;
-    const meta = state.tests.find((item) => item.id === kind);
-    if (!meta) return;
-    const countLabel = editor.querySelector('label[for="f-count"]') || editor.querySelector('[name="count"]')?.parentElement.parentElement.querySelector("label");
-    if (countLabel) {
-      countLabel.textContent = ["site_basic", "site_all"].includes(kind) ? "基础每项题量" : "检测题量";
-      const trigger = editor.querySelector('[name="count"]')?.parentElement.querySelector(".admin-select-trigger");
-      if (trigger) trigger.setAttribute("aria-label", countLabel.textContent);
-    }
-    editor.querySelector("#site-question-options").hidden = !meta.questions;
-    editor.querySelector("#site-candy-options").hidden = !meta.candy_count;
-    editor.querySelector("#pelican-options").hidden = !meta.artwork;
-    editor.querySelector("#run-explanation").innerHTML = runExplanation(kind, Object.fromEntries(new FormData(form)));
+    if (!form || !form.querySelector("[name=kinds]")) return;
+    const values = new FormData(form), kinds = values.getAll("kinds");
+    const metas = state.tests.filter(item => kinds.includes(item.id));
+    editor.querySelector("#site-question-options").hidden = !metas.some(m => m.questions);
+    editor.querySelector("#site-candy-options").hidden = !kinds.some(k => ["site_candy","site_all"].includes(k));
+    editor.querySelector("#pelican-options").hidden = !metas.some(m => m.artwork);
+    editor.querySelector("#run-explanation").innerHTML = kinds.length ? kinds.map(kind => runExplanation(kind,{...Object.fromEntries(values),...(kind === "site_candy" ? {count:values.get("candy_count")} : {})})).join("") : '<p class="notice warning">请至少选择一种测试项目</p>';
+    updateScheduleHint(form);
   }
   function runFields(r = {}, schedule = false, batchRun = false) {
-    const options = state.stations.map((s) => [s.id, `${s.name}${s.has_key ? "" : "（未配置密钥）"}${s.enabled ? "" : "（已暂停）"}`]);
     const selected = r.station_id || state.stations[0]?.id || "";
-    const batch = batchRun || (schedule && !r.id);
-    const selectedIds = r.station_ids || [selected];
-    const models = station(selected)?.models || [];
+    const ids = r.station_ids || [selected];
     const legacy = r.kind && !r.kind.startsWith("site_");
-    const kind = legacy ? ({protocol:"site_relay",combined:"site_relay",ability:"site_basic",pelican:"site_pelican"}[r.kind] || "site_basic") : r.kind || "site_basic";
-    const meta = state.tests.find((item) => item.id === kind);
-    const counts = [3,5,10,20,30].map((n) => [n,n + " 题"]);
-    return (schedule ? input("name", "计划名称", r.name, "text", "", 'required maxlength="100"') : "")
-      + (legacy ? `<div class="notice warning">此记录原用旧版简化题组。保存后将改用下面选择的本站原版测试，请核对题量与预算。</div>` : "")
-      + (batch ? AdminSchedules.stationField(state.stations, selectedIds, esc, batchRun) + `<div id="schedule-model-fields">${AdminSchedules.modelFields(state.stations, selectedIds, undefined, select, esc, batchRun)}</div>` : select("station_id", "中转站", options, selected) + select("model", "检测模型", models.map((m) => [m,m]), r.model || models[0]))
-      + select("kind", "选择本站检测项目", state.tests.map((item) => [item.id,item.label]), kind)
-      + `<div id="site-question-options" ${meta?.questions ? "" : "hidden"}><div class="field-row">${select("difficulty","题目难度",[["easy","简单"],["medium","中等"],["hard","困难"]],r.difficulty || "medium")}${select("count",kind === "site_basic" || kind === "site_all" ? "基础每项题量" : "检测题量",counts,r.count || (kind === "site_candy" ? 20 : 10))}</div></div>`
-      + `<div id="site-candy-options" ${meta?.candy_count ? "" : "hidden"}>${select("candy_count","糖果测试题量",counts,r.candy_count || 20)}</div>`
-      + `<div id="pelican-options" ${meta?.artwork ? "" : "hidden"}>${select("pelican_mode","鹈鹕作品类型",[["svg","经典 SVG"],["html2d","2D 动画 HTML"],["three","3D 动画 HTML（Three.js）"]],r.pelican_mode || "html2d")}</div><div id="run-explanation">${runExplanation(kind,r)}</div>`
-      + AdminSchedules.publicationField(r, select)
-      + (schedule ? AdminSchedules.timingFields(r, select, input, check, localValue) : "")
-      + `<div class="notice warning">${batchRun ? "将按站点与所选模型分别创建任务；上方预计调用数为每条任务的用量。" : batch ? "将按站点与所选模型分别创建独立计划，名称自动区分；上方预计调用数为每条计划单次用量。" : ""}检测使用各站点专用密钥的额度；每个项目都有独立结果，完成后按所选发布方式处理。</div>`;
+    const oldKind = legacy ? ({protocol:"site_relay",combined:"site_relay",ability:"site_basic",pelican:"site_pelican"}[r.kind] || "site_basic") : r.kind || "site_basic";
+    const kinds = r.kinds || [oldKind];
+    const previous = r.id ? {mode:"shared",shared:r.models || [r.model]} : undefined;
+    const counts = [3,5,10,20,30].map(n => [n,n+" 题"]);
+    return (schedule ? input("name","计划名称",r.name,"text","",'required maxlength="100"') : "")
+      + (r.id ? `<input type="hidden" name="station_ids" value="${esc(selected)}"><div class="notice">中转站：${esc(name(selected))}</div>` : AdminSchedules.stationField(state.stations,ids,esc,batchRun))
+      + `<div id="schedule-model-fields">${AdminSchedules.modelFields(state.stations,ids,previous,select,esc,batchRun)}</div>`
+      + AdminExecutions.testFields(state.tests,kinds,esc)
+      + `<div id="site-question-options"><div class="field-row">${select("difficulty","题目难度",[["easy","简单"],["medium","中等"],["hard","困难"]],r.difficulty || "medium")}${select("count","各能力项目题量",counts,r.count || 10)}</div></div>`
+      + `<div id="site-candy-options">${select("candy_count","糖果测试题量",counts,r.candy_count || r.count || 20)}</div>`
+      + `<div id="pelican-options">${select("pelican_mode","鹈鹕作品类型",[["svg","经典 SVG"],["html2d","2D 动画 HTML"],["three","3D 动画 HTML（Three.js）"]],r.pelican_mode || "html2d")}</div>`
+      + `<div id="run-explanation">${kinds.map(kind => runExplanation(kind,{...r,...(kind === "site_candy" ? {count:r.candy_count || r.count || 20} : {})})).join("")}</div>`
+      + '<div class="notice">执行方式：同站多个模型和测试合并一条记录，按“模型 → 测试项目”逐个执行。不同中转站分别保存，每项按绑定 Key 使用真实额度。</div>'
+      + AdminSchedules.publicationField(r,select)
+      + (schedule ? AdminSchedules.timingFields(r,select,input,check,localValue) : "");
   }
   function scheduleSelection(form) {
     return AdminSchedules.selection(form, state.stations);
@@ -257,11 +251,13 @@ const Admin = (() => {
   function openDialog(title, body, form = "edit-form", submit = "保存", extra = "") {
     AdminSelect.close();
     editor.innerHTML = `<form id="${form}" ${extra}><div class="dialog-head"><h2 id="editor-title">${title}</h2><button type="button" class="close-btn" data-action="close" aria-label="关闭">${icon("close")}</button></div><div class="dialog-body">${body}<div class="error-box" id="form-error" role="alert"></div></div><div class="dialog-foot"><button type="button" class="btn" data-action="close">取消</button><button type="submit" class="btn primary">${submit}</button></div></form>`;
+    editor.classList.toggle("execution-editor-dialog", !!editor.querySelector(".execution-tests, .execution-detail"));
     AdminKeys.enhance(editor);
     AdminSelect.enhance(editor);
     AdminModels.enhance(editor, api);
     AdminAds.enhance(editor);
     if (!editor.open) editor.showModal();
+    if (editor.querySelector("[name=kinds]")) updateRunOptions();
   }
   function edit(r = {}) {
     const route = state.route;
@@ -347,7 +343,7 @@ const Admin = (() => {
       }
       return { order: number("order"), name: value("name"), base_url: value("base_url"), website_url: value("website_url"), logo: value("logo"), description: value("description"), models: value("models").split(/[\n,，]+/).map((s) => s.trim()).filter(Boolean), protocol: value("protocol"), api_keys: AdminKeys.serialize(form), daily_calls: number("daily_calls"), daily_tokens: number("daily_tokens"), baselines, degradation_threshold: number("degradation_threshold"), visible: bool("visible"), enabled: bool("enabled") };
     }
-    const run = { publish_mode: value("publish_mode") || "review", station_id: value("station_id"), model: value("model"), kind: value("kind"), pelican_mode: value("pelican_mode") || "html2d", difficulty: value("difficulty") || "medium", count: number("count") || 10, candy_count: number("candy_count") || 20 };
+    const run = { publish_mode: value("publish_mode") || "review", station_id: value("station_id"), model: value("model"), kind: String(f.getAll("kinds")[0] || value("kind")), kinds: f.getAll("kinds"), pelican_mode: value("pelican_mode") || "html2d", difficulty: value("difficulty") || "medium", count: (f.getAll("kinds").length === 1 && f.get("kinds") === "site_candy" ? number("candy_count") : number("count")) || 10, candy_count: number("candy_count") || 20 };
     return kind === "schedules" ? { ...run, name: value("name"), enabled: bool("enabled"), ...AdminSchedules.timing(form) } : run;
   }
   async function submit(event) {
@@ -375,9 +371,12 @@ const Admin = (() => {
           const result = await api("admin/schedules/batch", "POST", body);
           message = `已创建 ${result.count} 条定时计划`;
         } else {
-          await api("admin/" + kind + (id ? "/" + id : ""), id ? "PUT" : "POST", serialize(form, kind));
+          const data = kind === "schedules" ? AdminSchedules.build(serialize(form,kind),state.stations,f.getAll("station_ids"),scheduleSelection(form)).schedules[0] : serialize(form,kind);
+          await api("admin/" + kind + (id ? "/" + id : ""), id ? "PUT" : "POST", data);
         }
         editor.close(); toast(message); await loadPage();
+      } else if (form.id === "execution-form") {
+        editor.close();
       } else if (form.id === "bulk-form") {
         const kind = form.dataset.kind, operation = form.dataset.operation;
         const label = AdminBulk.actions[kind].find(([action]) => action === operation)[1];
@@ -399,7 +398,7 @@ const Admin = (() => {
       } else if (form.id === "batch-run-form") {
         const body = AdminSchedules.buildRuns(serialize(form, "jobs"), state.stations, f.getAll("station_ids"), scheduleSelection(form));
         const result = await api("admin/jobs/batch", "POST", body);
-        editor.close(); state.selected.clear(); toast(`已加入 ${result.count} 个检测任务，完成后进入报告审核`);
+        editor.close(); state.selected.clear(); toast(`已加入 ${result.count} 条站点组合执行，报告按所选方式处理`);
         if (state.route === "jobs") await loadPage(); else location.hash = "jobs";
       } else if (form.id === "run-form") {
         await api("admin/jobs", "POST", serialize(form, "jobs"));
@@ -430,6 +429,21 @@ const Admin = (() => {
       else if (action === "create") edit();
       else if (action === "edit") await edit(state.rows.find((r) => r.id === id));
       else if (action === "report") await report(id);
+      else if (action === "execution") {
+        const run = await api("admin/jobs/" + id);
+        openDialog("执行 · " + name(run.station_id),AdminExecutions.detail(run,{esc,name,kindLabel,badge,date}),"execution-form","关闭");
+      }
+      else if (action === "execution-exclude" || action === "execution-restore") {
+        const operation = action === "execution-exclude" ? "exclude" : "restore";
+        const body = `<p class="tabs-note">${esc(AdminBulk.explanation("jobs",operation))}</p><input type="hidden" name="ids" value="${esc(id)}">` + (operation === "exclude" ? AdminBulk.exclusionFields() : "");
+        openDialog(operation === "exclude" ? "排除此项统计" : "恢复此项统计",body,"bulk-form","确认处理",`data-kind="jobs" data-operation="${operation}"`);
+      }
+      else if (action === "execution-publish") {
+        await api("admin/jobs/" + id + "/publish","POST",{});
+        const run = await api("admin/jobs/" + id);
+        openDialog("执行 · " + name(run.station_id),AdminExecutions.detail(run,{esc,name,kindLabel,badge,date}),"execution-form","关闭");
+        toast("本次已完成的独立报告已公开");
+      }
       else if (action === "bulk-open") openBulk(el.dataset.operation);
       else if (action === "schedule-run") openBulk("run", new Set([id]));
       else if (action === "bulk-clear") { state.selected.clear(); syncBulkSelection(); }
@@ -469,7 +483,7 @@ const Admin = (() => {
       }
       else if (action === "run") {
         if (!state.stations.length) return toast("请先添加中转站", true);
-        openDialog("发起手动检测", runFields({ station_id: id }), "run-form", "加入检测队列");
+        openDialog("发起手动检测", runFields({ station_id: id }, false, true), "batch-run-form", "加入检测队列");
       } else if (action === "delete") {
         if (!confirm("确定删除这条记录？有关联报告或任务的中转站只能隐藏，不能删除。")) return;
         await api(`admin/${state.route}/${id}`, "DELETE"); toast("已删除"); await loadPage();
@@ -503,7 +517,8 @@ const Admin = (() => {
       } catch (error) { toast(error.message, true); }
       syncBulkSelection();
     }
-    if (["kind", "difficulty", "count", "candy_count", "pelican_mode"].includes(el.name)) updateRunOptions();
+    if (el.name === "kinds") AdminExecutions.synchronizeTests(el.form,el);
+    if (["kinds", "difficulty", "count", "candy_count", "pelican_mode"].includes(el.name)) updateRunOptions();
     if (el.name === "schedule_mode") AdminSchedules.updateTiming(el.form);
     if (el.name === "change_mode") AdminBulk.updateTiming(el.form);
     if (el.name === "tone" && editor.querySelector('[name="background_color"]')) {

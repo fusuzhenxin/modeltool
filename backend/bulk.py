@@ -108,6 +108,19 @@ def register_bulk(app, db, session, prepare_schedule):
                 if kind == "jobs":
                     raw = con.execute("SELECT * FROM jobs WHERE id=?", (key,)).fetchone()
                     row = dict(raw) if raw else None
+                    execution = db.get("executions", key, con) if row is None else None
+                    if execution:
+                        try:
+                            if spec.action not in ("cancel", "retry"):
+                                raise ValueError("组合执行请展开详情，对具体失败项目排除或恢复统计")
+                            from .executions import action as execution_action
+                            new_key = execution_action(db, key, spec.action, user["username"], con)
+                            if new_key:
+                                created.append(new_key)
+                            updated.append(key)
+                        except ValueError as exc:
+                            skipped.append({"id": key, "label": execution["name"], "reason": str(exc)})
+                        continue
                 elif kind == "proposals":
                     raw = con.execute("SELECT * FROM proposals WHERE id=?", (key,)).fetchone()
                     row = json.loads(raw["data"]) if raw else None
@@ -146,6 +159,8 @@ def register_bulk(app, db, session, prepare_schedule):
                         changes = spec.changes.model_dump(exclude_unset=True)
                         requested_time = changes.pop("next_run", None)
                         data = row | changes
+                        if "model" in changes and row.get("models"):
+                            data["models"] = [changes["model"]]
                         if "interval_minutes" in changes and "schedule_mode" not in changes:
                             data.update(schedule_mode="interval", daily_time="", first_run=None)
                         if changes.get("schedule_mode") == "interval" and (row.get("schedule_mode", "interval") != "interval" or "interval_minutes" in changes):

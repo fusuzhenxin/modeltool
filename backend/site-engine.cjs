@@ -29,18 +29,20 @@ async function main() {
   const storage = new Map();
   const context = vm.createContext({
     crypto: webcrypto, Uint32Array, URL, URLSearchParams, btoa, atob, escape, unescape,
+    AbortController, setTimeout, clearTimeout,
     location: { protocol: "http:", origin: "http://site-engine.invalid", search: "", hash: "" },
     document: { getElementById: () => null, querySelector: () => null },
     sessionStorage: { getItem: (k) => storage.get(k) || null, setItem: (k, v) => storage.set(k, v), removeItem: (k) => storage.delete(k) },
     Store: { api: () => ({ baseUrl: init.endpoint, apiKey: "worker-credential-placeholder", modelOverride: init.model }), saveBasicReport: () => {} },
     fetch: async (url, options) => {
-      if (url === "data/trace-bank.json") return { ok: true, json: async () => JSON.parse(fs.readFileSync(path.join(root, url), "utf8")) };
+      const dataFile = String(url).split("?")[0];
+      if (["data/trace-bank.json", "data/token-reference-samples.json"].includes(dataFile)) return { ok: true, json: async () => JSON.parse(fs.readFileSync(path.join(root, dataFile), "utf8")) };
       if (url !== "http://site-engine.invalid/api/chat") throw new Error("禁止检测脚本直接访问网络");
       const response = await rpc("chat", JSON.parse(options.body).payload);
       return { ok: response.status >= 200 && response.status < 300, status: response.status, headers: { get: (key) => response.headers?.[key.toLowerCase()] || null }, text: async () => response.text };
     }
   });
-  for (const name of ["report-quality", "data", "engine", "ui", "poster", "probe", "trace"]) {
+  for (const name of ["report-quality", "data", "engine", "ui", "poster", "probe", "vendor/modeltrace-core", "vendor/token-fingerprint-core", "token-trace", "trace"]) {
     vm.runInContext(fs.readFileSync(path.join(root, "js", name + ".js"), "utf8"), context, { filename: name + ".js" });
   }
   const { DATA, Engine, Api, Probe, Trace, Poster } = vm.runInContext("({DATA,Engine,Api,Probe,Trace,Poster})", context);
@@ -60,7 +62,7 @@ async function main() {
     site_ability: DATA.kinds.ability.desc, site_logic: DATA.kinds.logic.desc,
     site_code: DATA.kinds.code.desc, site_qa: DATA.kinds.qa.desc, site_candy: "能力表现测试，不判断模型身份。" + DATA.kinds.candy.desc,
     site_relay: "仅检查接口功能，不判断换模。网站中转站测试原版：协议、响应结构、模型回显、协议头特征、流式、输出控制、上下文、系统指令、工具、多模态、推理参数、用量、提示词缓存、缓存与重放，共 14 项。",
-    site_trace: "提供疑似换模线索，不作身份认证。网站模型指纹检测原版：数字序列挑战、相同数字解析器和指纹库。收集 3 份有效回答，最多请求 6 次。",
+    site_trace: "GPT/Claude：ModelTrace v6，22 个模型，3 份有效数字回答，最多 6 次请求。其他已覆盖版本：单词分布参考比对，8 个维度各 25 次，另有最多 4 次参数探测；示例基准不作身份判定。未覆盖的模型版本不发送请求。",
     site_pelican: DATA.kinds.pelican.desc,
     site_all: "依次运行四项基础能力、糖果、中转站、指纹、鹈鹕骑车；每个项目保留独立结果。"
   };

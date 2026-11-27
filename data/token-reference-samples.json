@@ -1,0 +1,1684 @@
+{
+  "formatVersion": 1,
+  "protocol": "bruckner-zenodo-2026",
+  "samplesPerCell": 30,
+  "source": {
+    "dataset": "Single-token output distributions as behavioral fingerprints of large language models",
+    "author": "Tomáš Bruckner (Prague University of Economics and Business)",
+    "datasetDoi": "10.5281/zenodo.21278557",
+    "paper": "arXiv:2607.10252",
+    "license": "CC-BY-4.0",
+    "note": "Counts reconstructed as round(probability × n_valid) from the published per-cell distributions; answers re-normalized with the llm-fingerprint-detector normalizer. Collected via OpenRouter by the paper's harness under the paper's prompt protocol (not this package's battery), so comparisons against these samples are indicative rather than strict."
+  },
+  "models": {
+    "mistralai/mistral-small-3.2-24b-instruct": {
+      "model": "mistralai/mistral-small-3.2-24b-instruct",
+      "collectedAt": "2026-07-08",
+      "channel": "openrouter",
+      "cells": {
+        "random-city:en": {
+          "n": 30,
+          "counts": {
+            "paris": 18,
+            "tokyo": 9,
+            "chicago": 2,
+            "boston": 1
+          }
+        },
+        "random-number-1-10:zh": {
+          "n": 30,
+          "counts": {
+            "3": 2,
+            "4": 1,
+            "5": 1,
+            "7": 26
+          }
+        },
+        "random-number-1-100:zh": {
+          "n": 30,
+          "counts": {
+            "37": 2,
+            "42": 27,
+            "47": 1
+          }
+        },
+        "random-number-1-10:en": {
+          "n": 30,
+          "counts": {
+            "3": 2,
+            "7": 28
+          }
+        },
+        "random-number-1-100:en": {
+          "n": 30,
+          "counts": {
+            "42": 30
+          }
+        },
+        "random-city:zh": {
+          "n": 30,
+          "counts": {
+            "巴黎": 15,
+            "东京": 7,
+            "柏林": 1,
+            "伦敦": 1,
+            "多伦多": 1,
+            "帕萨迪纳": 1,
+            "巴塞罗那": 1,
+            "纽约": 1,
+            "不来梅": 1,
+            "伯明翰": 1
+          }
+        },
+        "random-animal:en": {
+          "n": 30,
+          "counts": {
+            "elephant": 17,
+            "lion": 4,
+            "giraffe": 3,
+            "eagle": 2,
+            "dog": 2,
+            "lemur": 1,
+            "kangaroo": 1
+          }
+        },
+        "coin-flip:en": {
+          "n": 30,
+          "counts": {
+            "heads": 20,
+            "tails": 10
+          }
+        },
+        "favorite-number:zh": {
+          "n": 28,
+          "counts": {
+            "3": 10,
+            "6": 2,
+            "7": 8,
+            "8": 2,
+            "42": 6
+          }
+        },
+        "coin-flip:zh": {
+          "n": 30,
+          "counts": {
+            "heads": 22,
+            "tails": 8
+          }
+        },
+        "random-animal:zh": {
+          "n": 30,
+          "counts": {
+            "企鹅": 14,
+            "狮子": 4,
+            "鼠": 2,
+            "老鹰": 1,
+            "蜜蜂": 1,
+            "鲸": 1,
+            "獴": 1,
+            "北极熊": 1,
+            "鸭子": 1,
+            "鼹鼠": 1,
+            "鲨鱼": 1,
+            "熊猫": 1,
+            "大象": 1
+          }
+        },
+        "random-color:zh": {
+          "n": 30,
+          "counts": {
+            "蓝": 19,
+            "绿": 4,
+            "红": 3,
+            "洋红": 1,
+            "粉红": 1,
+            "灰": 1,
+            "紫": 1
+          }
+        },
+        "random-letter:en": {
+          "n": 30,
+          "counts": {
+            "q": 8,
+            "a": 4,
+            "e": 3,
+            "f": 3,
+            "g": 3,
+            "b": 2,
+            "x": 2,
+            "m": 2,
+            "d": 2,
+            "p": 1
+          }
+        },
+        "favorite-number:en": {
+          "n": 30,
+          "counts": {
+            "3": 1,
+            "4": 1,
+            "42": 28
+          }
+        },
+        "random-color:en": {
+          "n": 30,
+          "counts": {
+            "blue": 22,
+            "green": 4,
+            "purple": 2,
+            "red": 1,
+            "cyan": 1
+          }
+        }
+      }
+    },
+    "moonshotai/kimi-k2": {
+      "model": "moonshotai/kimi-k2",
+      "collectedAt": "2026-07-08",
+      "channel": "openrouter",
+      "cells": {
+        "coin-flip:en": {
+          "n": 25,
+          "counts": {
+            "heads": 24,
+            "tails": 1
+          }
+        },
+        "random-number-1-100:zh": {
+          "n": 27,
+          "counts": {
+            "37": 2,
+            "42": 6,
+            "47": 8,
+            "73": 11
+          }
+        },
+        "random-number-1-100:en": {
+          "n": 28,
+          "counts": {
+            "47": 10,
+            "57": 1,
+            "73": 17
+          }
+        },
+        "favorite-number:en": {
+          "n": 30,
+          "counts": {
+            "7": 24,
+            "42": 6
+          }
+        },
+        "coin-flip:zh": {
+          "n": 29,
+          "counts": {
+            "heads": 28,
+            "tails": 1
+          }
+        },
+        "random-city:zh": {
+          "n": 29,
+          "counts": {
+            "成都": 11,
+            "杭州": 9,
+            "上海": 7,
+            "巴塞罗那": 2
+          }
+        },
+        "random-animal:zh": {
+          "n": 29,
+          "counts": {
+            "企鹅": 7,
+            "猫头鹰": 5,
+            "老虎": 5,
+            "猫": 3,
+            "虎": 2,
+            "长颈鹿": 2,
+            "海豚": 1,
+            "熊猫": 1,
+            "猫鼬": 1,
+            "穿山甲": 1,
+            "雪豹": 1
+          }
+        },
+        "random-color:zh": {
+          "n": 27,
+          "counts": {
+            "靛蓝": 17,
+            "青": 6,
+            "蓝": 2,
+            "紫": 2
+          }
+        },
+        "favorite-number:zh": {
+          "n": 28,
+          "counts": {
+            "7": 22,
+            "23": 1,
+            "42": 5
+          }
+        },
+        "random-animal:en": {
+          "n": 29,
+          "counts": {
+            "octopus": 9,
+            "axolotl": 7,
+            "platypus": 6,
+            "pangolin": 4,
+            "elephant": 2,
+            "okapi": 1
+          }
+        },
+        "random-number-1-10:zh": {
+          "n": 29,
+          "counts": {
+            "5": 1,
+            "7": 28
+          }
+        },
+        "random-color:en": {
+          "n": 30,
+          "counts": {
+            "teal": 8,
+            "azure": 7,
+            "cyan": 5,
+            "magenta": 3,
+            "purple": 2,
+            "blue": 2,
+            "crimson": 1,
+            "maroon": 1,
+            "amber": 1
+          }
+        },
+        "random-city:en": {
+          "n": 27,
+          "counts": {
+            "lisbon": 9,
+            "kyoto": 6,
+            "tallinn": 3,
+            "lagos": 2,
+            "timbuktu": 2,
+            "osaka": 1,
+            "lviv": 1,
+            "bishkek": 1,
+            "tirana": 1,
+            "budapest": 1
+          }
+        },
+        "random-letter:en": {
+          "n": 29,
+          "counts": {
+            "q": 17,
+            "k": 6,
+            "x": 3,
+            "w": 1,
+            "j": 1,
+            "r": 1
+          }
+        },
+        "random-number-1-10:en": {
+          "n": 29,
+          "counts": {
+            "5": 1,
+            "7": 28
+          }
+        }
+      }
+    },
+    "deepseek/deepseek-chat": {
+      "model": "deepseek/deepseek-chat",
+      "collectedAt": "2026-07-08",
+      "channel": "openrouter",
+      "cells": {
+        "random-number-1-10:zh": {
+          "n": 30,
+          "counts": {
+            "3": 1,
+            "4": 1,
+            "5": 5,
+            "7": 23
+          }
+        },
+        "random-animal:zh": {
+          "n": 30,
+          "counts": {
+            "狮子": 13,
+            "河马": 8,
+            "猫": 3,
+            "大象": 1,
+            "老虎": 1,
+            "猎豹": 1,
+            "长颈鹿": 1,
+            "斑马": 1,
+            "熊猫": 1
+          }
+        },
+        "random-color:en": {
+          "n": 30,
+          "counts": {
+            "blue": 30
+          }
+        },
+        "random-letter:en": {
+          "n": 30,
+          "counts": {
+            "b": 17,
+            "k": 5,
+            "m": 5,
+            "a": 1,
+            "h": 1,
+            "z": 1
+          }
+        },
+        "coin-flip:en": {
+          "n": 30,
+          "counts": {
+            "heads": 27,
+            "tails": 3
+          }
+        },
+        "random-number-1-100:en": {
+          "n": 30,
+          "counts": {
+            "7": 1,
+            "42": 28,
+            "47": 1
+          }
+        },
+        "random-color:zh": {
+          "n": 30,
+          "counts": {
+            "蓝": 29,
+            "blue": 1
+          }
+        },
+        "coin-flip:zh": {
+          "n": 30,
+          "counts": {
+            "heads": 30
+          }
+        },
+        "random-city:zh": {
+          "n": 30,
+          "counts": {
+            "东京": 28,
+            "柏林": 1,
+            "纽约": 1
+          }
+        },
+        "random-city:en": {
+          "n": 30,
+          "counts": {
+            "tokyo": 28,
+            "berlin": 1,
+            "toronto": 1
+          }
+        },
+        "favorite-number:en": {
+          "n": 30,
+          "counts": {
+            "7": 26,
+            "42": 4
+          }
+        },
+        "random-animal:en": {
+          "n": 30,
+          "counts": {
+            "elephant": 27,
+            "lion": 3
+          }
+        },
+        "random-number-1-100:zh": {
+          "n": 30,
+          "counts": {
+            "42": 27,
+            "47": 1,
+            "50": 1,
+            "73": 1
+          }
+        },
+        "random-number-1-10:en": {
+          "n": 30,
+          "counts": {
+            "7": 30
+          }
+        },
+        "favorite-number:zh": {
+          "n": 30,
+          "counts": {
+            "7": 29,
+            "42": 1
+          }
+        }
+      }
+    },
+    "meta-llama/llama-3.1-8b-instruct": {
+      "model": "meta-llama/llama-3.1-8b-instruct",
+      "collectedAt": "2026-07-08",
+      "channel": "openrouter",
+      "cells": {
+        "random-city:zh": {
+          "n": 28,
+          "counts": {
+            "曼彻斯特": 3,
+            "洛杉矶": 2,
+            "都灵": 1,
+            "布达佩斯": 1,
+            "芝加哥": 1,
+            "巴黎": 1,
+            "布鲁塞尔": 1,
+            "新德里": 1,
+            "柏林": 1,
+            "布里斯本": 1,
+            "法兰克福": 1,
+            "芒特市": 1,
+            "孟": 1,
+            "海得拉姆": 1,
+            "拿骚": 1,
+            "帕贡": 1,
+            "明斯克": 1,
+            "鹿特丹": 1,
+            "纽约": 1,
+            "马尼拉": 1,
+            "圣地亚哥": 1,
+            "小城镇": 1,
+            "雅加达": 1,
+            "紐約": 1,
+            "津巴布韦": 1
+          }
+        },
+        "random-city:en": {
+          "n": 30,
+          "counts": {
+            "perth": 5,
+            "prague": 2,
+            "marseille": 2,
+            "rome": 1,
+            "edinburgh": 1,
+            "grenoble": 1,
+            "paris": 1,
+            "rouen": 1,
+            "kuala": 1,
+            "montreal": 1,
+            "kiev": 1,
+            "osaka": 1,
+            "portland": 1,
+            "albany": 1,
+            "vancouver": 1,
+            "marrakech": 1,
+            "bratislava": 1,
+            "bordeaux": 1,
+            "calgary": 1,
+            "auckland": 1,
+            "minsk": 1,
+            "kolkata": 1,
+            "kazan": 1,
+            "bologna": 1
+          }
+        },
+        "random-animal:zh": {
+          "n": 29,
+          "counts": {
+            "狮子": 7,
+            "河狸": 3,
+            "河马": 3,
+            "猴子": 2,
+            "鲸鱼": 2,
+            "狼": 1,
+            "狐狸": 1,
+            "豹子": 1,
+            "象": 1,
+            "雄鹿": 1,
+            "老鹰": 1,
+            "袋鼠": 1,
+            "猫": 1,
+            "企鹅": 1,
+            "鸵鸟": 1,
+            "章鱼": 1,
+            "大象": 1
+          }
+        },
+        "random-letter:en": {
+          "n": 30,
+          "counts": {
+            "k": 15,
+            "f": 4,
+            "q": 4,
+            "n": 3,
+            "m": 1,
+            "r": 1,
+            "g": 1,
+            "j": 1
+          }
+        },
+        "random-number-1-100:zh": {
+          "n": 30,
+          "counts": {
+            "34": 3,
+            "42": 1,
+            "45": 3,
+            "47": 1,
+            "53": 1,
+            "61": 1,
+            "63": 1,
+            "67": 8,
+            "73": 1,
+            "75": 1,
+            "83": 2,
+            "84": 3,
+            "85": 1,
+            "87": 3
+          }
+        },
+        "random-animal:en": {
+          "n": 30,
+          "counts": {
+            "kangaroo": 10,
+            "koala": 9,
+            "quail": 3,
+            "narwhal": 2,
+            "tiger": 2,
+            "giraffe": 1,
+            "mongoose": 1,
+            "hedgehog": 1,
+            "jaguar": 1
+          }
+        },
+        "random-number-1-100:en": {
+          "n": 30,
+          "counts": {
+            "38": 1,
+            "42": 1,
+            "43": 3,
+            "51": 1,
+            "53": 6,
+            "67": 3,
+            "73": 4,
+            "74": 1,
+            "75": 1,
+            "83": 2,
+            "85": 1,
+            "87": 6
+          }
+        },
+        "coin-flip:en": {
+          "n": 30,
+          "counts": {
+            "heads": 17,
+            "tails": 13
+          }
+        },
+        "favorite-number:en": {
+          "n": 20,
+          "counts": {
+            "3": 3,
+            "5": 1,
+            "7": 7,
+            "8": 1,
+            "13": 5,
+            "38": 1,
+            "42": 2
+          }
+        },
+        "random-number-1-10:zh": {
+          "n": 30,
+          "counts": {
+            "3": 1,
+            "4": 3,
+            "5": 6,
+            "6": 2,
+            "7": 11,
+            "8": 5,
+            "9": 2
+          }
+        },
+        "coin-flip:zh": {
+          "n": 28,
+          "counts": {
+            "heads": 20,
+            "tails": 8
+          }
+        },
+        "random-number-1-10:en": {
+          "n": 30,
+          "counts": {
+            "5": 3,
+            "7": 27
+          }
+        },
+        "random-color:en": {
+          "n": 30,
+          "counts": {
+            "turquoise": 20,
+            "indigo": 4,
+            "purple": 3,
+            "blue": 2,
+            "magenta": 1
+          }
+        },
+        "favorite-number:zh": {
+          "n": 30,
+          "counts": {
+            "0": 2,
+            "3": 3,
+            "6": 1,
+            "7": 11,
+            "8": 3,
+            "13": 5,
+            "17": 1,
+            "42": 4
+          }
+        },
+        "random-color:zh": {
+          "n": 29,
+          "counts": {
+            "紫": 10,
+            "蓝": 4,
+            "绿": 4,
+            "青": 2,
+            "橙": 2,
+            "咖啡": 1,
+            "碧蓝": 1,
+            "棕": 1,
+            "紫红": 1,
+            "黄": 1,
+            "粉": 1,
+            "兰蓝": 1
+          }
+        }
+      }
+    },
+    "qwen/qwen3-30b-a3b-instruct-2507": {
+      "model": "qwen/qwen3-30b-a3b-instruct-2507",
+      "collectedAt": "2026-07-08",
+      "channel": "openrouter",
+      "cells": {
+        "random-color:en": {
+          "n": 30,
+          "counts": {
+            "blue": 29,
+            "green": 1
+          }
+        },
+        "random-number-1-100:zh": {
+          "n": 30,
+          "counts": {
+            "42": 29,
+            "67": 1
+          }
+        },
+        "random-number-1-100:en": {
+          "n": 30,
+          "counts": {
+            "42": 30
+          }
+        },
+        "favorite-number:zh": {
+          "n": 29,
+          "counts": {
+            "7": 29
+          }
+        },
+        "random-number-1-10:zh": {
+          "n": 28,
+          "counts": {
+            "7": 28
+          }
+        },
+        "random-animal:zh": {
+          "n": 30,
+          "counts": {
+            "老虎": 17,
+            "狮子": 7,
+            "猫": 3,
+            "tiger": 1,
+            "熊猫": 1,
+            "豹": 1
+          }
+        },
+        "random-city:zh": {
+          "n": 29,
+          "counts": {
+            "上海": 14,
+            "巴黎": 9,
+            "北京": 2,
+            "纽约": 2,
+            "柏林": 1,
+            "杭州": 1
+          }
+        },
+        "random-animal:en": {
+          "n": 29,
+          "counts": {
+            "lion": 17,
+            "elephant": 5,
+            "tiger": 3,
+            "dog": 3,
+            "penguin": 1
+          }
+        },
+        "random-color:zh": {
+          "n": 29,
+          "counts": {
+            "蓝": 27,
+            "绿": 2
+          }
+        },
+        "favorite-number:en": {
+          "n": 28,
+          "counts": {
+            "7": 28
+          }
+        },
+        "random-number-1-10:en": {
+          "n": 29,
+          "counts": {
+            "7": 29
+          }
+        },
+        "random-city:en": {
+          "n": 30,
+          "counts": {
+            "paris": 14,
+            "sydney": 7,
+            "tokyo": 3,
+            "chicago": 1,
+            "melbourne": 1,
+            "london": 1,
+            "amsterdam": 1,
+            "lisbon": 1,
+            "budapest": 1
+          }
+        },
+        "random-letter:en": {
+          "n": 30,
+          "counts": {
+            "m": 18,
+            "k": 3,
+            "a": 2,
+            "b": 2,
+            "g": 2,
+            "d": 1,
+            "e": 1,
+            "c": 1
+          }
+        },
+        "coin-flip:zh": {
+          "n": 29,
+          "counts": {
+            "heads": 29
+          }
+        },
+        "coin-flip:en": {
+          "n": 29,
+          "counts": {
+            "heads": 21,
+            "tails": 8
+          }
+        }
+      }
+    },
+    "openai/gpt-4o": {
+      "model": "openai/gpt-4o",
+      "collectedAt": "2026-07-08",
+      "channel": "openrouter",
+      "cells": {
+        "random-animal:en": {
+          "n": 30,
+          "counts": {
+            "elephant": 22,
+            "tiger": 5,
+            "giraffe": 2,
+            "penguin": 1
+          }
+        },
+        "random-number-1-100:en": {
+          "n": 30,
+          "counts": {
+            "27": 2,
+            "37": 7,
+            "42": 13,
+            "47": 2,
+            "56": 1,
+            "57": 5
+          }
+        },
+        "coin-flip:en": {
+          "n": 30,
+          "counts": {
+            "heads": 20,
+            "tails": 10
+          }
+        },
+        "random-city:zh": {
+          "n": 30,
+          "counts": {
+            "东京": 13,
+            "巴黎": 10,
+            "北京": 2,
+            "上海": 2,
+            "伦敦": 1,
+            "柏林": 1,
+            "悉尼": 1
+          }
+        },
+        "favorite-number:zh": {
+          "n": 30,
+          "counts": {
+            "7": 26,
+            "42": 4
+          }
+        },
+        "random-number-1-10:zh": {
+          "n": 30,
+          "counts": {
+            "3": 1,
+            "5": 3,
+            "7": 26
+          }
+        },
+        "coin-flip:zh": {
+          "n": 30,
+          "counts": {
+            "heads": 27,
+            "tails": 3
+          }
+        },
+        "random-number-1-100:zh": {
+          "n": 30,
+          "counts": {
+            "37": 2,
+            "42": 17,
+            "47": 2,
+            "57": 9
+          }
+        },
+        "random-number-1-10:en": {
+          "n": 30,
+          "counts": {
+            "4": 2,
+            "5": 2,
+            "7": 26
+          }
+        },
+        "random-city:en": {
+          "n": 30,
+          "counts": {
+            "tokyo": 14,
+            "paris": 10,
+            "berlin": 3,
+            "toronto": 2,
+            "denver": 1
+          }
+        },
+        "random-letter:en": {
+          "n": 30,
+          "counts": {
+            "g": 8,
+            "m": 6,
+            "k": 6,
+            "r": 3,
+            "q": 2,
+            "z": 2,
+            "c": 1,
+            "j": 1,
+            "h": 1
+          }
+        },
+        "favorite-number:en": {
+          "n": 20,
+          "counts": {
+            "3": 1,
+            "7": 12,
+            "42": 7
+          }
+        },
+        "random-animal:zh": {
+          "n": 30,
+          "counts": {
+            "狮子": 7,
+            "象": 4,
+            "熊猫": 3,
+            "猫": 3,
+            "大象": 2,
+            "狐貍": 1,
+            "豹": 1,
+            "海豚": 1,
+            "狐狸": 1,
+            "狐猴": 1,
+            "长颈鹿": 1,
+            "鹰": 1,
+            "狐": 1,
+            "鲸": 1,
+            "豹子": 1,
+            "鲸鱼": 1
+          }
+        },
+        "random-color:en": {
+          "n": 30,
+          "counts": {
+            "blue": 19,
+            "azure": 3,
+            "turquoise": 2,
+            "cyan": 2,
+            "cerulean": 2,
+            "teal": 1,
+            "azurite": 1
+          }
+        },
+        "random-color:zh": {
+          "n": 30,
+          "counts": {
+            "蓝": 29,
+            "紫": 1
+          }
+        }
+      }
+    },
+    "google/gemini-2.5-flash": {
+      "model": "google/gemini-2.5-flash",
+      "collectedAt": "2026-07-08",
+      "channel": "openrouter",
+      "cells": {
+        "random-city:zh": {
+          "n": 30,
+          "counts": {
+            "巴黎": 8,
+            "上海": 6,
+            "伦敦": 6,
+            "东京": 6,
+            "北京": 3,
+            "开罗": 1
+          }
+        },
+        "random-color:en": {
+          "n": 30,
+          "counts": {
+            "red": 13,
+            "blue": 12,
+            "green": 2,
+            "chartreuse": 1,
+            "purple": 1,
+            "yellow": 1
+          }
+        },
+        "random-number-1-10:en": {
+          "n": 30,
+          "counts": {
+            "7": 30
+          }
+        },
+        "random-color:zh": {
+          "n": 30,
+          "counts": {
+            "蓝": 17,
+            "绿": 3,
+            "红": 6,
+            "黄": 2,
+            "橙": 2
+          }
+        },
+        "random-number-1-100:en": {
+          "n": 30,
+          "counts": {
+            "42": 14,
+            "57": 2,
+            "67": 1,
+            "73": 12,
+            "87": 1
+          }
+        },
+        "favorite-number:zh": {
+          "n": 29,
+          "counts": {
+            "3": 2,
+            "7": 17,
+            "8": 3,
+            "9": 1,
+            "10": 1,
+            "24": 1,
+            "42": 4
+          }
+        },
+        "coin-flip:en": {
+          "n": 30,
+          "counts": {
+            "heads": 21,
+            "tails": 9
+          }
+        },
+        "favorite-number:en": {
+          "n": 30,
+          "counts": {
+            "6": 1,
+            "42": 28,
+            "1729": 1
+          }
+        },
+        "random-number-1-100:zh": {
+          "n": 30,
+          "counts": {
+            "15": 1,
+            "42": 20,
+            "67": 1,
+            "72": 2,
+            "73": 3,
+            "76": 1,
+            "82": 2
+          }
+        },
+        "random-number-1-10:zh": {
+          "n": 30,
+          "counts": {
+            "7": 30
+          }
+        },
+        "random-city:en": {
+          "n": 30,
+          "counts": {
+            "london": 15,
+            "paris": 8,
+            "tokyo": 4,
+            "lisbon": 1,
+            "cairo": 1,
+            "beijing": 1
+          }
+        },
+        "coin-flip:zh": {
+          "n": 30,
+          "counts": {
+            "tails": 15,
+            "heads": 15
+          }
+        },
+        "random-letter:en": {
+          "n": 30,
+          "counts": {
+            "r": 6,
+            "x": 4,
+            "q": 3,
+            "g": 3,
+            "z": 3,
+            "l": 2,
+            "m": 2,
+            "p": 2,
+            "e": 2,
+            "w": 1,
+            "h": 1,
+            "s": 1
+          }
+        },
+        "random-animal:en": {
+          "n": 30,
+          "counts": {
+            "tiger": 7,
+            "dog": 6,
+            "lion": 5,
+            "cat": 5,
+            "camel": 1,
+            "penguin": 1,
+            "giraffe": 1,
+            "elephant": 1,
+            "sloth": 1,
+            "okapi": 1,
+            "bear": 1
+          }
+        },
+        "random-animal:zh": {
+          "n": 30,
+          "counts": {
+            "猫": 13,
+            "狗": 8,
+            "老虎": 3,
+            "狮子": 2,
+            "海鸥": 1,
+            "虎": 1,
+            "蛇": 1,
+            "蜂鸟": 1
+          }
+        }
+      }
+    },
+    "z-ai/glm-4.5": {
+      "model": "z-ai/glm-4.5",
+      "collectedAt": "2026-07-08",
+      "channel": "openrouter",
+      "cells": {
+        "random-city:en": {
+          "n": 30,
+          "counts": {
+            "stockholm": 4,
+            "chicago": 4,
+            "barcelona": 3,
+            "tokyo": 3,
+            "london": 2,
+            "paris": 2,
+            "montreal": 2,
+            "denver": 2,
+            "oslo": 1,
+            "sydney": 1,
+            "shanghai": 1,
+            "phoenix": 1,
+            "kathmandu": 1,
+            "vienna": 1,
+            "amsterdam": 1,
+            "kyoto": 1
+          }
+        },
+        "random-color:zh": {
+          "n": 30,
+          "counts": {
+            "蓝": 29,
+            "红": 1
+          }
+        },
+        "random-letter:en": {
+          "n": 30,
+          "counts": {
+            "k": 10,
+            "q": 7,
+            "p": 6,
+            "g": 2,
+            "r": 2,
+            "x": 1,
+            "e": 1,
+            "h": 1
+          }
+        },
+        "favorite-number:en": {
+          "n": 30,
+          "counts": {
+            "3": 2,
+            "4": 1,
+            "7": 5,
+            "8": 1,
+            "17": 1,
+            "42": 20
+          }
+        },
+        "coin-flip:zh": {
+          "n": 30,
+          "counts": {
+            "heads": 30
+          }
+        },
+        "random-color:en": {
+          "n": 30,
+          "counts": {
+            "blue": 25,
+            "turquoise": 3,
+            "maroon": 1,
+            "yellow": 1
+          }
+        },
+        "random-animal:zh": {
+          "n": 30,
+          "counts": {
+            "大象": 20,
+            "长颈鹿": 5,
+            "狮子": 3,
+            "狗": 1,
+            "熊猫": 1
+          }
+        },
+        "favorite-number:zh": {
+          "n": 30,
+          "counts": {
+            "1": 1,
+            "3": 2,
+            "7": 20,
+            "42": 7
+          }
+        },
+        "random-number-1-10:en": {
+          "n": 30,
+          "counts": {
+            "7": 30
+          }
+        },
+        "random-number-1-100:zh": {
+          "n": 30,
+          "counts": {
+            "37": 2,
+            "42": 23,
+            "47": 1,
+            "57": 1,
+            "73": 3
+          }
+        },
+        "random-number-1-100:en": {
+          "n": 30,
+          "counts": {
+            "37": 1,
+            "42": 22,
+            "47": 3,
+            "57": 1,
+            "67": 1,
+            "73": 2
+          }
+        },
+        "random-animal:en": {
+          "n": 30,
+          "counts": {
+            "giraffe": 16,
+            "elephant": 13,
+            "zebra": 1
+          }
+        },
+        "random-number-1-10:zh": {
+          "n": 30,
+          "counts": {
+            "3": 1,
+            "4": 1,
+            "7": 28
+          }
+        },
+        "coin-flip:en": {
+          "n": 30,
+          "counts": {
+            "heads": 26,
+            "tails": 4
+          }
+        },
+        "random-city:zh": {
+          "n": 30,
+          "counts": {
+            "巴黎": 8,
+            "东京": 7,
+            "上海": 5,
+            "柏林": 2,
+            "伦敦": 2,
+            "汉堡": 1,
+            "开罗": 1,
+            "马德里": 1,
+            "京都": 1,
+            "开普敦": 1,
+            "北京": 1
+          }
+        }
+      }
+    },
+    "anthropic/claude-sonnet-4.5": {
+      "model": "anthropic/claude-sonnet-4.5",
+      "collectedAt": "2026-07-08",
+      "channel": "openrouter",
+      "cells": {
+        "random-number-1-10:zh": {
+          "n": 30,
+          "counts": {
+            "7": 30
+          }
+        },
+        "coin-flip:zh": {
+          "n": 30,
+          "counts": {
+            "heads": 30
+          }
+        },
+        "favorite-number:en": {
+          "n": 30,
+          "counts": {
+            "7": 30
+          }
+        },
+        "random-number-1-100:zh": {
+          "n": 30,
+          "counts": {
+            "42": 19,
+            "47": 11
+          }
+        },
+        "random-color:en": {
+          "n": 30,
+          "counts": {
+            "blue": 30
+          }
+        },
+        "favorite-number:zh": {
+          "n": 30,
+          "counts": {
+            "7": 30
+          }
+        },
+        "random-animal:en": {
+          "n": 30,
+          "counts": {
+            "elephant": 30
+          }
+        },
+        "coin-flip:en": {
+          "n": 30,
+          "counts": {
+            "heads": 30
+          }
+        },
+        "random-number-1-10:en": {
+          "n": 30,
+          "counts": {
+            "7": 30
+          }
+        },
+        "random-letter:en": {
+          "n": 30,
+          "counts": {
+            "m": 30
+          }
+        },
+        "random-color:zh": {
+          "n": 30,
+          "counts": {
+            "蓝": 30
+          }
+        },
+        "random-number-1-100:en": {
+          "n": 30,
+          "counts": {
+            "42": 2,
+            "47": 28
+          }
+        },
+        "random-city:zh": {
+          "n": 30,
+          "counts": {
+            "京都": 11,
+            "巴塞罗那": 5,
+            "布拉格": 4,
+            "巴黎": 3,
+            "柏林": 2,
+            "悉尼": 2,
+            "墨尔本": 2,
+            "东京": 1
+          }
+        },
+        "random-animal:zh": {
+          "n": 30,
+          "counts": {
+            "企鹅": 17,
+            "长颈鹿": 9,
+            "大象": 1,
+            "熊猫": 1,
+            "海豚": 1,
+            "袋鼠": 1
+          }
+        },
+        "random-city:en": {
+          "n": 30,
+          "counts": {
+            "toronto": 22,
+            "tokyo": 7,
+            "berlin": 1
+          }
+        }
+      }
+    },
+    "openai/gpt-4.1-mini": {
+      "model": "openai/gpt-4.1-mini",
+      "collectedAt": "2026-07-08",
+      "channel": "openrouter",
+      "cells": {
+        "random-animal:zh": {
+          "n": 30,
+          "counts": {
+            "猫": 12,
+            "大象": 4,
+            "袋鼠": 3,
+            "企鹅": 3,
+            "熊猫": 2,
+            "考拉": 2,
+            "海豚": 1,
+            "章鱼": 1,
+            "鲸鱼": 1,
+            "猴子": 1
+          }
+        },
+        "random-color:en": {
+          "n": 30,
+          "counts": {
+            "blue": 28,
+            "azure": 1,
+            "turquoise": 1
+          }
+        },
+        "favorite-number:zh": {
+          "n": 30,
+          "counts": {
+            "7": 27,
+            "8": 3
+          }
+        },
+        "random-number-1-100:en": {
+          "n": 30,
+          "counts": {
+            "37": 1,
+            "47": 9,
+            "57": 17,
+            "67": 1,
+            "73": 2
+          }
+        },
+        "random-number-1-10:zh": {
+          "n": 30,
+          "counts": {
+            "7": 30
+          }
+        },
+        "random-number-1-10:en": {
+          "n": 30,
+          "counts": {
+            "7": 30
+          }
+        },
+        "coin-flip:en": {
+          "n": 30,
+          "counts": {
+            "heads": 22,
+            "tails": 8
+          }
+        },
+        "coin-flip:zh": {
+          "n": 30,
+          "counts": {
+            "heads": 29,
+            "tails": 1
+          }
+        },
+        "random-number-1-100:zh": {
+          "n": 30,
+          "counts": {
+            "42": 1,
+            "47": 6,
+            "57": 23
+          }
+        },
+        "random-animal:en": {
+          "n": 30,
+          "counts": {
+            "elephant": 29,
+            "tiger": 1
+          }
+        },
+        "random-city:zh": {
+          "n": 30,
+          "counts": {
+            "巴黎": 18,
+            "东京": 11,
+            "杭州": 1
+          }
+        },
+        "favorite-number:en": {
+          "n": 28,
+          "counts": {
+            "7": 27,
+            "42": 1
+          }
+        },
+        "random-city:en": {
+          "n": 30,
+          "counts": {
+            "tokyo": 18,
+            "paris": 8,
+            "berlin": 1,
+            "zurich": 1,
+            "madrid": 1,
+            "kyoto": 1
+          }
+        },
+        "random-letter:en": {
+          "n": 30,
+          "counts": {
+            "k": 8,
+            "m": 7,
+            "g": 7,
+            "q": 6,
+            "x": 1,
+            "r": 1
+          }
+        },
+        "random-color:zh": {
+          "n": 30,
+          "counts": {
+            "蓝": 30
+          }
+        }
+      }
+    },
+    "openai/gpt-4o-mini": {
+      "model": "openai/gpt-4o-mini",
+      "collectedAt": "2026-07-08",
+      "channel": "openrouter",
+      "cells": {
+        "favorite-number:en": {
+          "n": 30,
+          "counts": {
+            "7": 29,
+            "42": 1
+          }
+        },
+        "coin-flip:en": {
+          "n": 30,
+          "counts": {
+            "heads": 21,
+            "tails": 9
+          }
+        },
+        "random-number-1-100:en": {
+          "n": 30,
+          "counts": {
+            "37": 3,
+            "42": 5,
+            "47": 4,
+            "57": 18
+          }
+        },
+        "coin-flip:zh": {
+          "n": 30,
+          "counts": {
+            "heads": 30
+          }
+        },
+        "random-city:en": {
+          "n": 30,
+          "counts": {
+            "tokyo": 18,
+            "berlin": 5,
+            "oslo": 4,
+            "paris": 1,
+            "madrid": 1,
+            "zurich": 1
+          }
+        },
+        "random-animal:zh": {
+          "n": 30,
+          "counts": {
+            "海豚": 11,
+            "猫": 6,
+            "大象": 3,
+            "猩猩": 3,
+            "企鹅": 1,
+            "蛇": 1,
+            "虎": 1,
+            "松鼠": 1,
+            "狮子": 1,
+            "鹦鹉": 1,
+            "豹": 1
+          }
+        },
+        "random-city:zh": {
+          "n": 30,
+          "counts": {
+            "东京": 26,
+            "巴黎": 3,
+            "巴塞罗那": 1
+          }
+        },
+        "random-animal:en": {
+          "n": 30,
+          "counts": {
+            "giraffe": 14,
+            "elephant": 8,
+            "kangaroo": 4,
+            "octopus": 1,
+            "penguin": 1,
+            "panda": 1,
+            "zebra": 1
+          }
+        },
+        "random-color:zh": {
+          "n": 30,
+          "counts": {
+            "蓝": 30
+          }
+        },
+        "random-color:en": {
+          "n": 30,
+          "counts": {
+            "turquoise": 18,
+            "cerulean": 7,
+            "cyan": 1,
+            "azure": 1,
+            "blue": 1,
+            "magenta": 1,
+            "chartreuse": 1
+          }
+        },
+        "random-letter:en": {
+          "n": 30,
+          "counts": {
+            "g": 10,
+            "q": 7,
+            "k": 7,
+            "m": 4,
+            "r": 1,
+            "j": 1
+          }
+        },
+        "random-number-1-10:en": {
+          "n": 30,
+          "counts": {
+            "7": 30
+          }
+        },
+        "favorite-number:zh": {
+          "n": 30,
+          "counts": {
+            "7": 29,
+            "8": 1
+          }
+        },
+        "random-number-1-10:zh": {
+          "n": 30,
+          "counts": {
+            "7": 30
+          }
+        },
+        "random-number-1-100:zh": {
+          "n": 30,
+          "counts": {
+            "37": 2,
+            "42": 3,
+            "47": 1,
+            "57": 24
+          }
+        }
+      }
+    }
+  }
+}

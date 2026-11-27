@@ -106,7 +106,7 @@ const Poster = {
   packTrace(report) {
     const top = (report.top || []).slice(0, 5).map((item) => {
       const name = Poster.field(item.name).replace(/[@,]/g, "·");
-      const letter = String(item.family || "").indexOf("Claude") >= 0 ? "c" : "g";
+      const letter = Poster.field(item.family || "").replace(/[@,]/g, "·");
       const prob = item.probability == null ? "" : String(Math.round(Number(item.probability) * 1000));
       return name + "@" + prob + "@" + letter;
     }).join(",");
@@ -116,7 +116,8 @@ const Poster = {
       report.probability == null ? "" : String(Math.round(Number(report.probability) * 1000)),
       report.familyName || "", report.familyProbability == null ? "" : String(Math.round(Number(report.familyProbability) * 1000)),
       report.used == null ? "" : String(report.used), report.time || "", top, digits,
-      report.method === "manual" ? "manual" : "api", report.modelCount || "", report.builtAt || ""
+      report.method === "manual" ? "manual" : "api", report.modelCount || "", report.builtAt || "",
+      JSON.stringify(report.traceMeta || {})
     ]);
   },
   packTask(report) {
@@ -214,6 +215,7 @@ const Poster = {
   },
   familyOf(letter, name) {
     if (letter === "c" || /^claude/i.test(String(name || ""))) return "Claude";
+    if (letter && letter !== "g") return letter;
     return "GPT";
   },
   unpackTrace(parts) {
@@ -251,12 +253,14 @@ const Poster = {
       method: parts[11] === "manual" ? "manual" : "api",
       modelCount: Poster.num(parts[12]),
       builtAt: parts[13] || "",
+      traceMeta: parts[14] ? JSON.parse(parts[14]) : {},
       title: ReportQuality.fingerprint({ claimed, known, prediction, probability, used_outputs: Poster.num(parts[7]), method: parts[11] === "manual" ? "manual" : "api", runner_up: top[1]?.probability }).label,
       level: "none",
       top,
       digits
     };
     report.view = Poster.traceView(report);
+    report.title = ReportQuality.fingerprint(report.view).label;
     return report;
   },
   traceView(report) {
@@ -279,7 +283,8 @@ const Poster = {
         display_name: item.name,
         family_name: item.family,
         probability: item.probability
-      }))
+      })),
+      ...(report.traceMeta || {})
     };
   },
   unpackTask(parts) {
@@ -345,6 +350,9 @@ const Poster = {
       method: payload.method || "api",
       modelCount: payload.model_count,
       builtAt: payload.built_at || "",
+      traceMeta: Object.fromEntries(["engine", "decision", "accepted_model", "unknown_probability", "reject_reason_zh",
+        "reference_only", "coverage", "reference_model", "reference_comparison", "target_outputs", "split_half_jsd"]
+        .filter((key) => payload[key] !== undefined).map((key) => [key, payload[key]])),
       known,
       prediction: payload.prediction || "",
       predictionName: payload.prediction_name || payload.prediction || "",
@@ -362,6 +370,10 @@ const Poster = {
       })),
       digits: (payload.diagnostics || []).map((item) => ({ n: item.parsed_numbers, ok: !!item.accepted }))
     };
+    if (payload.engine === "one-token") report.traceMeta.results = (payload.results || []).map((r) => ({
+      model: r.model, display_name: r.display_name, jsd: r.jsd,
+      comparison: { comparableCellCount: r.comparison?.comparableCellCount }
+    }));
     report.view = Poster.traceView(report);
     report.view.shared = false;
     return report;
@@ -991,20 +1003,22 @@ const Poster = {
     const tone = Poster.tone(report.level);
     const cx = width / 2;
     const percent = report.probability == null ? null : report.probability * 100;
-    Poster.paintRing(ctx, cx, 196, percent == null ? "—" : percent.toFixed(1), "库内概率", tone, percent == null ? 0 : percent / 100);
+    const tokenMode = report.traceMeta?.engine === "one-token";
+    const distance = report.traceMeta?.reference_comparison?.meanJsd;
+    Poster.paintRing(ctx, cx, 196, tokenMode ? (typeof distance === "number" ? distance.toFixed(3) : "—") : percent == null ? "—" : percent.toFixed(1), tokenMode ? "参考距离 JSD" : "归因占比", tone, percent == null ? 0 : percent / 100);
     Poster.paintHeading(ctx, cx, 308, report.title || "指纹检测", tone, report.level === "ok" ? "ok" : "warn");
     ctx.textAlign = "center";
     ctx.font = "700 18px 'Microsoft YaHei', sans-serif";
     ctx.fillStyle = "#1c2744";
-    ctx.fillText(report.predictionName || report.prediction || "—", cx, 348);
+    ctx.fillText((report.traceMeta?.decision === "reject" ? "未匹配 · 最近候选：" : "") + (report.predictionName || report.prediction || "—"), cx, 348, width - 72);
     ctx.font = "500 13px 'Microsoft YaHei', sans-serif";
     ctx.fillStyle = "#98a2b3";
-    ctx.fillText(report.method === "manual" ? "手动粘贴回答 · 库内相似程度，不是身份认证" : "API 自动检测 · 库内相似程度，不是身份认证", cx, 370);
+    ctx.fillText(tokenMode ? "示例基准 · 采样协议不同 · 不作身份判定" : report.method === "manual" ? "手动粘贴回答 · 不是身份认证" : "API 自动检测 · 不是身份认证", cx, 370);
     const familyPct = report.familyProbability == null ? "—" : (report.familyProbability * 100).toFixed(1) + "%";
     Poster.paintCards(ctx, width, 400, [
       ["请求模型", report.claimed || "—"],
       ["家族", report.familyName || "—"],
-      ["有效回答", report.used == null ? "—" : report.used + "/3"],
+      ["有效回答", report.used == null ? "—" : report.used + (tokenMode ? "/200" : "/3")],
       ["家族概率", familyPct]
     ]);
     Poster.paintRows(ctx, (report.top || []).map((item, index) => ({

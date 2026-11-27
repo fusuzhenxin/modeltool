@@ -23,6 +23,7 @@ const App = {
     const contentReady = typeof PublicData !== "undefined" ? PublicData.loadContent() : null;
     const publicReady = stabilityView || page === "relayApply" ? contentReady : typeof PublicData !== "undefined" ? PublicData.load(page !== "relays" || typeof location === "undefined" || !new URLSearchParams(location.search).get("id"), false, true) : null;
     await Store.init();
+    if (page === "trace" && typeof Trace !== "undefined") await Trace.loadBank().catch(() => null);
     if (App.startToken !== startToken) return;
     UI.bind();
     App.page = page;
@@ -144,8 +145,8 @@ function defaultModelId() {
   const first = DATA.models.find((item) => /^gpt-6/i.test(item.id));
   return (first || DATA.models[0]).id;
 }
-function modelOptions() {
-  return DATA.models.map((model) => ({
+function modelOptions(models = DATA.models) {
+  return models.map((model) => ({
     value: model.id,
     label: model.name + " · " + model.id,
     icon: UI.modelMark(model)
@@ -883,7 +884,7 @@ const Pages = {
         <div>
           <div class="relay-kicker">支持自动检测和手动检测</div>
           <h3>模型指纹检测</h3>
-          <p>三道数字题，对照指纹库看回答更接近哪个候选。可以用 API 自动作答，也可以复制到自己的客户端运行。</p>
+          <p>GPT、Claude 对照数字指纹库，其他已覆盖版本支持单词分布参考比对；可使用 API 自动检测。</p>
         </div>
         <span class="btn btn-primary">开始检测 →</span>
       </a>
@@ -1630,6 +1631,10 @@ const Pages = {
   examples() { return Examples.page(); },
   trace() {
     ensureSelect("trace-model", defaultModelId());
+    const traceModels = Trace.models();
+    if (traceModels.length && !traceModels.some((model) => model.id === Form.get("trace-model"))) {
+      Form.set("trace-model", traceModels[0].id);
+    }
     const sharedTrace = typeof Poster === "undefined" ? null : Poster.fromLocation();
     const remembered = typeof Trace === "undefined" ? null : Trace.remembered();
     const opened = sharedTrace && sharedTrace.kind === "trace" ? sharedTrace : null;
@@ -1643,7 +1648,7 @@ const Pages = {
         <div>
           <div class="crumb"><a href="index.html">首页</a> / 指纹检测</div>
           <h1>模型指纹检测</h1>
-          <p>用三道数字题比较回答的行为特征。可用自己的 API 自动检测，也可复制题目，在自己的客户端作答后粘贴回来。结果在这台浏览器里对照指纹库。</p>
+          <p>GPT、Claude 使用 ModelTrace 数字指纹；其他已覆盖版本使用单词分布参考比对。自动检测按模型版本选择方案，手动粘贴仅支持 ModelTrace。</p>
         </div>
         ${report ? Poster.buttons() : ""}
       </div>
@@ -1651,11 +1656,11 @@ const Pages = {
       <article class="panel" id="trace-api" ${manualMode ? "hidden" : ""}>
         <div class="panel-bd">
           <div class="form-row" style="grid-template-columns: 1.4fr auto">
-            ${UI.field("选择模型", UI.select("trace-model", Form.get("trace-model"), modelOptions()))}
+            ${UI.field("选择模型", UI.select("trace-model", Form.get("trace-model"), modelOptions(traceModels)))}
             <div class="field"><span>&nbsp;</span><button class="btn btn-primary" type="button" data-action="start-trace">${UI.icon("play")} 开始检测</button></div>
           </div>
           ${apiHint()}
-          <p class="note">指纹库目前有 19 个模型，分别是 GPT-5.4、GPT-5.5、GPT-5.6 的 luna / terra / sol、GPT-6 的 astra / sol / luna、GPT-6.1 Sol，以及 Claude Haiku、Sonnet、Opus 的一批版本。库外模型也会被归到最像的一项。请求不额外设置温度，也不加系统提示词。</p>
+          <p class="note">ModelTrace v6 覆盖 22 个 GPT / Claude 模型，目标 3 份有效回答，最多 6 次请求。DeepSeek Chat、Gemini 2.5 Flash、Qwen3 30B A3B Instruct 2507、Kimi K2、GLM 4.5、Llama 3.1 8B Instruct、Mistral Small 3.2 24B Instruct 使用示例基准参考比对，每轮 200 次短请求，另有最多 4 次参数探测。不同版本不混用，无基准版本不发送请求。示例不作正式身份判定。</p>
         </div>
       </article>
       <article class="panel" id="trace-manual" ${manualMode ? "" : "hidden"}>${Trace.manualHtml()}</article>
@@ -2047,10 +2052,11 @@ Actions["start-trace"] = async (el) => {
   const paint = (progress) => {
     if (!live) return;
     const width = Math.round((progress.valid / progress.target) * 100);
+    const tokenMode = progress.engine === "one-token";
     live.innerHTML = `<article class="panel mt16"><div class="panel-bd">
-      <p class="think"><span class="dots">正在请求第 ${progress.index + 1} 题</span></p>
+      <p class="think"><span class="dots">${tokenMode ? UI.esc(progress.state) + " · " + progress.valid + "/" + progress.target : "正在请求第 " + (progress.index + 1) + " 题"}</span></p>
       <div class="progress"><span style="width:${width}%"></span></div>
-      <p class="note">有效回答 ${progress.valid}/${progress.target}。数字不够会自动再出一题，最多 6 次。</p>
+      <p class="note">${tokenMode ? "已完成 " + progress.valid + "/" + progress.target + " 次短回答采样；示例基准仅作参考。" : "有效回答 " + progress.valid + "/" + progress.target + "。数字不够会自动再出一题，最多 6 次。"}</p>
     </div></article>`;
   };
   try {

@@ -31,7 +31,16 @@ const AdminSelect = (() => {
       const mark = () => {
         [...list.querySelectorAll('[role="option"]')].forEach((el, i) => el.classList.toggle("highlighted", i === active));
         const current = list.querySelectorAll('[role="option"]')[active];
-        if (current) { search.setAttribute("aria-activedescendant", current.id); current.scrollIntoView({ block: "nearest" }); }
+        if (current) {
+          search.setAttribute("aria-activedescendant", current.id);
+          // Scroll only this menu; scrollIntoView can also move the surrounding dialog.
+          if (opened?.menu === menu) {
+            const itemRect = current.getBoundingClientRect(), menuRect = menu.getBoundingClientRect();
+            const top = menuRect.top + search.offsetHeight + 14;
+            if (itemRect.top < top) menu.scrollTop += itemRect.top - top;
+            else if (itemRect.bottom > menuRect.bottom - 7) menu.scrollTop += itemRect.bottom - menuRect.bottom + 7;
+          }
+        }
       };
       const close = (focus = false) => {
         if (opened?.menu !== menu) return;
@@ -44,7 +53,12 @@ const AdminSelect = (() => {
         sync();
         if (!select.multiple) close(true);
         select.dispatchEvent(new Event("change", { bubbles: true }));
-        if (select.multiple) draw(true);
+        if (select.multiple) {
+          const scrollTop = menu.scrollTop;
+          draw(true);
+          menu.scrollTop = scrollTop;
+          search.focus({ preventScroll: true });
+        }
       };
       const draw = (keepActive = false) => {
         visible = [...select.options].filter((o) => !o.disabled && o.textContent.toLowerCase().includes(search.value.toLowerCase()));
@@ -69,10 +83,7 @@ const AdminSelect = (() => {
         }
         search.after(tools);
       }
-      const open = () => {
-        if (trigger.disabled) return;
-        if (opened?.menu === menu) return close();
-        opened?.close(); opened = { menu, wrap, close }; search.value = ""; draw();
+      const position = () => {
         const rect = trigger.getBoundingClientRect();
         const below = innerHeight - rect.bottom - 12;
         const above = rect.top - 12;
@@ -82,7 +93,13 @@ const AdminSelect = (() => {
         menu.style.maxHeight = Math.max(100, Math.min(320, up ? above : below)) + "px";
         menu.style.top = up ? "auto" : rect.bottom + 6 + "px";
         menu.style.bottom = up ? innerHeight - rect.top + 6 + "px" : "auto";
-        menu.showPopover(); trigger.setAttribute("aria-expanded", "true"); search.focus(); mark();
+      };
+      const open = () => {
+        if (trigger.disabled) return;
+        if (opened?.menu === menu) return close();
+        opened?.close(); opened = { menu, wrap, close, position }; search.value = ""; draw();
+        position();
+        menu.showPopover(); trigger.setAttribute("aria-expanded", "true"); search.focus({ preventScroll: true }); mark();
       };
       trigger.addEventListener("click", open);
       trigger.addEventListener("keydown", (e) => { if (["ArrowDown", "ArrowUp"].includes(e.key)) { e.preventDefault(); open(); } });
@@ -101,7 +118,7 @@ const AdminSelect = (() => {
     });
   }
   document.addEventListener("pointerdown", (e) => { if (opened && !opened.wrap.contains(e.target)) opened.close(); });
-  document.addEventListener("scroll", (e) => { if (opened && !opened.menu.contains(e.target)) opened.close(); }, true);
-  window.addEventListener("resize", () => opened?.close());
+  document.addEventListener("scroll", (e) => { if (opened && !opened.menu.contains(e.target)) opened.position(); }, true);
+  window.addEventListener("resize", () => opened?.position());
   return { enhance, close: () => opened?.close() };
 })();

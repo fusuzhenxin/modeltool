@@ -168,7 +168,7 @@ def create_app(data_dir=None):
 
     def list_jobs(limit=300):
         with db.connect() as con:
-            rows = [dict(r) for r in con.execute("SELECT * FROM jobs ORDER BY created DESC LIMIT ?", (limit,))]
+            rows = [dict(r) for r in con.execute("SELECT * FROM jobs WHERE json_extract(config,'$.execution_id') IS NULL ORDER BY created DESC LIMIT ?", (limit,))]
             for row in rows:
                 row["exclusion"] = db.get("job_exclusions", row["id"], con)
                 row["kind"] = json.loads(row.pop("config"))["kind"]
@@ -184,7 +184,10 @@ def create_app(data_dir=None):
                 ):
                     if isinstance(value, (int, float)) and not isinstance(value, bool):
                         row["scores"].append({"label": label, "value": value})
-        return rows
+            from .executions import describe
+            keys = con.execute("SELECT id FROM entities WHERE kind='executions' ORDER BY created DESC LIMIT ?", (limit,)).fetchall()
+            rows.extend(describe(db, row[0], con) for row in keys)
+        return sorted(rows, key=lambda row: row["created"], reverse=True)[:limit]
 
     @app.get("/api/admin/test-options")
     def test_options(user=Depends(session)):
@@ -199,7 +202,11 @@ def create_app(data_dir=None):
     def dashboard(user=Depends(session)):
         with db.connect() as con:
             usage = dict(con.execute("SELECT COUNT(*) AS calls,COALESCE(SUM(tokens),0) AS tokens,COALESCE(SUM(CASE WHEN actual=0 THEN 1 ELSE 0 END),0) AS estimated_calls FROM usage WHERE day=?", (day(),)).fetchone())
-            counts = {r["status"]: r["count"] for r in con.execute("SELECT status,COUNT(*) AS count FROM jobs GROUP BY status")}
+            counts = {r["status"]: r["count"] for r in con.execute("""SELECT status,count(*) AS count FROM (
+                SELECT CASE WHEN sum(status='running')>0 THEN 'running' WHEN sum(status='queued')>0 THEN 'queued'
+                    WHEN sum(status='done')=count(*) THEN 'done' WHEN sum(status='done')>0 THEN 'partial'
+                    WHEN sum(status='failed')>0 THEN 'failed' WHEN sum(status='interrupted')>0 THEN 'interrupted' ELSE 'cancelled' END AS status
+                FROM jobs GROUP BY coalesce(json_extract(config,'$.execution_id'),id)) GROUP BY status""")}
             worker = con.execute("SELECT heartbeat FROM worker WHERE id=1").fetchone()
             audit = [dict(r) for r in con.execute("SELECT * FROM audit ORDER BY id DESC LIMIT 20")]
         reports = list(db.report_rows(summary=True))
@@ -223,6 +230,15 @@ def create_app(data_dir=None):
     def jobs(user=Depends(session)):
         return list_jobs()
 
+    @app.get("/api/admin/jobs/{key}")
+    def execution_detail(key: str, user=Depends(session)):
+        from .executions import describe
+        with db.connect() as con:
+            result = describe(db, key, con, details=True)
+        if result is None:
+            raise HTTPException(404, "组合执行记录不存在")
+        return result
+
     @app.post("/api/admin/jobs")
     def add_job(spec: Run, user=Depends(session)):
         try:
@@ -230,9 +246,26 @@ def create_app(data_dir=None):
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
 
+    @app.post("/api/admin/jobs/{key}/publish")
+    def publish_execution(key: str, user=Depends(session)):
+        from .executions import action
+        with db.connect(write=True) as con:
+            try:
+                action(db, key, "publish", user["username"], con)
+            except ValueError as exc:
+                raise HTTPException(409, str(exc)) from None
+        return {"ok": True}
+
     @app.post("/api/admin/jobs/{key}/cancel")
     def cancel_job(key: str, user=Depends(session)):
         with db.connect(write=True) as con:
+            if db.get("executions", key, con):
+                from .executions import action
+                try:
+                    action(db, key, "cancel", user["username"], con)
+                except ValueError as exc:
+                    raise HTTPException(409, str(exc)) from None
+                return {"ok": True}
             row = con.execute("SELECT status FROM jobs WHERE id=?", (key,)).fetchone()
             if not row:
                 raise HTTPException(404, "任务不存在")
@@ -245,6 +278,12 @@ def create_app(data_dir=None):
     @app.post("/api/admin/jobs/{key}/retry")
     def retry_job(key: str, user=Depends(session)):
         with db.connect(write=True) as con:
+            if db.get("executions", key, con):
+                from .executions import action
+                try:
+                    return {"id": action(db, key, "retry", user["username"], con)}
+                except ValueError as exc:
+                    raise HTTPException(409, str(exc)) from None
             row = con.execute("SELECT * FROM jobs WHERE id=?", (key,)).fetchone()
             if not row:
                 raise HTTPException(404, "任务不存在")
@@ -356,7 +395,7 @@ def create_app(data_dir=None):
 
     def prepare_schedule(data, con, previous=None):
         linked = db.get("stations", data["station_id"], con)
-        if not linked or data["model"] not in linked["models"]:
+        if not linked or any(model not in linked["models"] for model in data.get("models") or [data["model"]]):
             raise HTTPException(422, "定时计划必须选择已登记的中转站与模型")
         try:
             validate_run(db, data, con)
@@ -377,6 +416,8 @@ def create_app(data_dir=None):
         else:
             data.pop("completed_at", None)
         data["last_error"] = (previous or {}).get("last_error", "")
+        fields = ("models", "kinds", "model", "kind", "difficulty", "count", "candy_count", "pelican_mode", "publish_mode")
+        data["version"] = (previous or {}).get("version", 1) + int(bool(previous) and any(data.get(k) != previous.get(k) for k in fields))
         return data
 
     from .bulk import register_bulk
@@ -538,7 +579,7 @@ def create_app(data_dir=None):
     @app.get("/admin/{path:path}", include_in_schema=False)
     def admin(path: str = ""):
         name = path or "index.html"
-        if name not in ("index.html", "admin.css", "admin.js", "select.js", "models.js", "keys.js", "schedules.js", "bulk.js", "ads.js", "ad-ops.js", "ad-analytics.js", "sponsors.js", "applications.js", "mail.js", "station-traffic.js", "station-traffic.css"):
+        if name not in ("index.html", "admin.css", "admin.js", "select.js", "models.js", "keys.js", "schedules.js", "executions.js", "bulk.js", "ads.js", "ad-ops.js", "ad-analytics.js", "sponsors.js", "applications.js", "mail.js", "station-traffic.js", "station-traffic.css"):
             raise HTTPException(404)
         return FileResponse(ROOT / "admin" / name)
 
