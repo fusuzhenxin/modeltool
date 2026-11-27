@@ -90,9 +90,12 @@ def reserve(db, job, station, token_cap=2304):
         if not current or current["status"] != "running" or current["cancel"] or settings["paused"] or not latest or not latest["enabled"]:
             raise RunStopped("任务已停止，或检测已暂停")
         if station.get("_selected_key"):
-            from .station_keys import eligible
+            from .station_keys import eligible, connection_for_key
             selected = next((key for key in eligible(station, job["model"]) if key["id"] == station["_selected_key"]), None)
-            if job["model"] not in latest["models"] or not selected or not any(key["id"] == selected["id"] and key["cipher"] == selected["cipher"] for key in eligible(latest, job["model"])):
+            if job["model"] not in latest["models"] or not selected or not any(
+                    key["id"] == selected["id"] and key["cipher"] == selected["cipher"]
+                    and connection_for_key(latest, key) == {"base_url": station["base_url"], "protocol": station["protocol"]}
+                    for key in eligible(latest, job["model"])):
                 raise RunStopped("站点模型或检测密钥已变更，请检查后重新创建任务")
         for station_id, limits in ((None, settings), (station["id"], latest)):
             query = "SELECT COUNT(*),COALESCE(SUM(tokens),0) FROM usage WHERE day=?"

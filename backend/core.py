@@ -76,6 +76,7 @@ class Database:
                 CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, csrf TEXT NOT NULL, expires REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS login_attempts (address TEXT NOT NULL, at REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS entities (kind TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, created REAL NOT NULL, updated REAL NOT NULL, PRIMARY KEY(kind,id));
+                CREATE INDEX IF NOT EXISTS entities_updated ON entities(kind,updated DESC);
                 CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, station_id TEXT NOT NULL, schedule_id TEXT, model TEXT NOT NULL, config TEXT NOT NULL, status TEXT NOT NULL, created REAL NOT NULL, started REAL, ended REAL, lease REAL, cancel INTEGER NOT NULL DEFAULT 0, error TEXT NOT NULL DEFAULT '', report_id TEXT, attempts INTEGER NOT NULL DEFAULT 0);
                 CREATE INDEX IF NOT EXISTS jobs_status ON jobs(status,created);
                 CREATE INDEX IF NOT EXISTS jobs_observed ON jobs(COALESCE(started,created));
@@ -83,6 +84,8 @@ class Database:
                 CREATE INDEX IF NOT EXISTS usage_day ON usage(day,station_id);
                 CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY AUTOINCREMENT, at REAL NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS worker (id INTEGER PRIMARY KEY CHECK(id=1), heartbeat REAL NOT NULL);
+                CREATE TABLE IF NOT EXISTS mail_outbox (id TEXT PRIMARY KEY, event_key TEXT UNIQUE NOT NULL, application_id TEXT NOT NULL, payload TEXT NOT NULL, status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, next_attempt REAL NOT NULL, lease REAL, created REAL NOT NULL, sent_at REAL, last_error TEXT NOT NULL DEFAULT '');
+                CREATE INDEX IF NOT EXISTS mail_outbox_due ON mail_outbox(status,next_attempt);
                 CREATE TABLE IF NOT EXISTS proposal_visitors (token TEXT PRIMARY KEY, csrf TEXT NOT NULL, expires REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS proposals (id TEXT PRIMARY KEY, domain TEXT UNIQUE NOT NULL, data TEXT NOT NULL, created REAL NOT NULL, updated REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS artwork_votes (report_id TEXT NOT NULL, visitor TEXT NOT NULL, choice TEXT NOT NULL CHECK(choice IN ('real','fake')), created REAL NOT NULL, PRIMARY KEY(report_id,visitor));
@@ -95,6 +98,8 @@ class Database:
             """)
             if not con.execute("SELECT 1 FROM entities WHERE kind='settings'").fetchone():
                 self.save("settings", "site", {"daily_calls": 200, "daily_tokens": 200000, "paused": False}, con)
+            from .report_summaries import install
+            install(con)
         token_path = self.directory / "setup.token"
         if not self.has_admin() and not token_path.exists():
             try:
@@ -146,12 +151,17 @@ class Database:
 
     def report_rows(self, summary=False, key=None, published=False):
         """Strip heavy private content in SQLite before decoding one report at a time."""
+        from .report_quality import TRACE_SQL, normalize_report
         paths = ["$.result.raw", "$.result.artwork.html"]
         if summary:
             paths += ["$.result.sections", "$.result.checks", "$.result.conditions", "$.result.retest", "$.result.findings"]
         expression = "json_remove(data," + ",".join("?" for _ in paths) + ")"
-        query = "SELECT id," + expression + " AS data FROM entities WHERE kind='reports'"
-        args = list(paths)
+        if summary:
+            query = "SELECT id,data,trace_summary FROM report_summaries WHERE 1=1"
+            args = []
+        else:
+            query = "SELECT id," + expression + " AS data," + TRACE_SQL + " AS trace_summary FROM entities e WHERE kind='reports'"
+            args = list(paths)
         if key:
             query += " AND id=?"
             args.append(key)
@@ -160,7 +170,9 @@ class Database:
         query += " ORDER BY updated DESC"
         with self.connect() as con:
             for row in con.execute(query, args):
-                yield dict(json.loads(row["data"]), id=row["id"])
+                record = dict(json.loads(row["data"]), id=row["id"])
+                record["result"] = normalize_report(record["result"], json.loads(row["trace_summary"]) if row["trace_summary"] else None)
+                yield record
 
     def audit(self, actor, action, target, con=None):
         if con is None:
@@ -180,7 +192,9 @@ def safe_station(row):
     pool = entries(row)
     result = {k: v for k, v in row.items() if k not in ("key_cipher", "key_pool", "key_cursors", "_selected_key")}
     if "key_pool" in row:
-        result["api_keys"] = [{k: key[k] for k in ("id", "name", "models", "enabled")} for key in pool]
+        result["api_keys"] = [{**{k: key[k] for k in ("id", "name", "models", "enabled")},
+                               "model_scope": key.get("model_scope", "all"), "protocol": key.get("protocol", "inherit"),
+                               "base_url": key.get("base_url", "")} for key in pool]
     return result | {"has_key": any(key["enabled"] and key.get("cipher") for key in pool)}
 
 

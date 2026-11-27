@@ -7,6 +7,7 @@ import ssl
 
 MESSAGES = {
     "billing": "账户余额不足或额度已用尽，检测已跳过；不计入稳定性失败",
+    "group": "检测密钥的分组不存在或已停用，检测已跳过；不计入稳定性失败",
     "timeout": "接口请求超时，任务已停止",
     "dns": "域名解析失败，无法连接中转站",
     "connection": "网络连接失败或连接中断",
@@ -19,6 +20,8 @@ MESSAGES = {
     "auth": "接口密钥无效或没有访问权限",
     "model": "接口不支持所选模型或没有模型权限",
     "parameters": "接口不接受当前检测参数",
+    "output_limit_required": "接口要求指定单次输出上限，请到后台检测设置填写大于 0 的 Token 数",
+    "output_exhausted": "输出额度已耗尽，未生成文本答案；请提高单次输出 Token 上限后重试，不计入稳定性失败",
 }
 BILLING_CODES = {"insufficient_quota", "insufficient_balance", "balance_not_enough", "quota_exceeded",
                  "credit_balance_too_low", "billing_hard_limit_reached", "billing_not_active",
@@ -64,6 +67,16 @@ def error_issue(status, body=None):
         text, codes = str(error).lower()[:65536], set()
     if codes & BILLING_CODES or any(word in text for word in BILLING_WORDS):
         return RequestIssue("billing")
+    # Only explicit group invalidation is configuration failure. An unavailable
+    # channel or generic 503 may be an actual outage and must remain a failure.
+    if codes & {"invalid_group", "group_not_found", "group_disabled", "group_deleted"} or re.search(
+        r"分组.{0,20}(?:不存在|已删除|已失效|已停用|已禁用)|(?:invalid|deleted|disabled) group\b|group\b.{0,24}(?:not found|does not exist|has been deleted|is disabled)", text
+    ):
+        return RequestIssue("group")
+    if status in (200, 400, 403, 404, 422) and codes & {"model_not_found", "invalid_model", "model_not_supported"}:
+        return RequestIssue("model")
+    if status in (400, 422) and re.search(r"max_(?:completion_)?tokens", text) and re.search(r"required|must be provided|missing|必填|必须提供|不能为空", text):
+        return RequestIssue("output_limit_required")
     if status == 200:
         return RequestIssue("http_429" if "rate_limit" in text else "invalid_response")
     return None
@@ -113,8 +126,9 @@ def saved_diagnostic(error):
     match = re.match(r"^接口返回 HTTP ([0-9]{3})(?:[，, ]|$)", error or "")
     if match:
         code = int(match[1])
-        if code == 402 or error_issue(code, error):
-            return "billing"
+        issue = error_issue(code, error)
+        if issue:
+            return issue.code
         return "http_" + match[1]
     # Legacy explicit account messages may precede the structured recorder.
     if any(word in (error or "").lower() for word in BILLING_WORDS):

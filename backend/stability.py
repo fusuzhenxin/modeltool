@@ -9,11 +9,13 @@ from statistics import median
 
 from .core import TZ, now
 from .request_errors import saved_diagnostic
+from .job_exclusions import REASONS
+from .report_quality import fingerprint
 
 KINDS = {
     "site_basic": "基础能力组合", "site_ability": "能力测试", "site_logic": "逻辑测试",
     "site_code": "代码测试", "site_qa": "问答测试", "site_candy": "糖果测试",
-    "site_relay": "中转站测试", "site_trace": "指纹测试", "site_pelican": "鹈鹕骑车",
+    "site_relay": "中转站功能检测", "site_trace": "指纹测试", "site_pelican": "鹈鹕骑车",
     "site_all": "全部测试", "protocol": "旧版协议测试", "ability": "旧版能力测试",
     "combined": "旧版组合测试", "pelican": "旧版鹈鹕骑车",
 }
@@ -29,6 +31,11 @@ def configuration(raw):
         if kind not in KINDS:
             return None
         normalized = {"kind": kind}
+        limit = cfg.get("output_token_limit")
+        if kind.startswith("site_") and kind != "site_relay" and limit is not None:
+            if type(limit) is not int or not 0 <= limit <= 1048576:
+                return None
+            normalized["output_token_limit"] = limit
         label = KINDS[kind]
         if kind in ("site_basic", "site_ability", "site_logic", "site_code", "site_qa", "site_candy", "site_all"):
             difficulty, count = cfg.get("difficulty", "medium"), cfg.get("count", 10)
@@ -48,6 +55,8 @@ def configuration(raw):
                 return None
             normalized["pelican_mode"] = mode
             label += " · " + {"svg": "经典 SVG", "html2d": "2D 动画 HTML", "three": "3D 动画 HTML"}[mode]
+        if "output_token_limit" in normalized:
+            label += " · 输出" + ("跟随接口" if limit == 0 else str(limit) + " Token")
         key = hashlib.sha256(json.dumps(normalized, sort_keys=True).encode()).hexdigest()[:16]
         return key, label
     except (ValueError, KeyError, TypeError):
@@ -59,6 +68,8 @@ def outcome(job):
     status, error = job["status"], job["error"] or ""
     if status in ("queued", "running"):
         return "pending"
+    if "exclusion_reason" in job.keys() and job["exclusion_reason"] in REASONS:
+        return "manual"
     if job["cancel"] or status == "interrupted":
         return "local"
     if not job["started"] or not job["ended"] or job["ended"] < job["started"]:
@@ -74,7 +85,7 @@ def outcome(job):
         return "local"
     if diagnostic in ("timeout", "dns", "connection", "tls", "invalid_json", "invalid_response", "empty_response"):
         return "upstream"
-    if diagnostic in ("auth", "model", "parameters", "response_limit"):
+    if diagnostic in ("auth", "model", "parameters", "response_limit", "group", "output_limit_required", "output_exhausted"):
         return "configuration"
     match = re.match(r"^接口返回 HTTP ([0-9]{3})(?:[，, ]|$)", error)
     if match:
@@ -101,7 +112,7 @@ def add(target, success):
 
 def station_stats(site, dates):
     return {"station": {k: site.get(k, "") for k in ("id", "name", "domain", "logo", "website_url")},
-            **bucket(), "excluded": {"local": 0, "configuration": 0, "unknown": 0, "billing": 0}, "pending": 0,
+            **bucket(), "excluded": {"local": 0, "configuration": 0, "unknown": 0, "billing": 0, "manual": 0}, "pending": 0,
             "periods": {k: bucket() for k in PERIODS}, "days": {k: bucket() for k in dates},
             "failure_streak": 0, "recoveries": 0, "last_success": None, "last_failure": None,
             "last_sample": None, "last_outcome": None, "last_recovery": None,
@@ -121,10 +132,10 @@ def record_observation(stats, job, value):
         return
     observed = datetime.fromtimestamp(started, TZ)
     period = "day" if 6 <= observed.hour < 18 else "evening" if observed.hour >= 18 else "night"
-    cause = "completed" if value == "completed" else saved_diagnostic(job["error"] or "") or ("unrecorded" if value == "unknown" else value)
+    cause = "manual" if value == "manual" else "completed" if value == "completed" else saved_diagnostic(job["error"] or "") or ("unrecorded" if value == "unknown" else value)
     if value not in ("completed", "pending") and cause != "local":
         stats["diagnostic_types"][cause] = stats["diagnostic_types"].get(cause, 0) + 1
-    if value in ("completed", "upstream", "unknown", "configuration", "billing") or cause == "internal":
+    if value in ("completed", "upstream", "unknown", "configuration", "billing", "manual") or cause == "internal":
         key = "failed" if value == "upstream" else value
         cell = stats["calendar"][observed.strftime("%Y-%m-%d")][period]
         cell[key] = cell.get(key, 0) + 1
@@ -132,6 +143,8 @@ def record_observation(stats, job, value):
                  "cause": cause, "duration_ms": round((ended - started) * 1000),
                  "test": KINDS.get(json.loads(job["config"]).get("kind"), "检测"),
                  "_job": job["id"], "_report": job["report_id"]}
+        if value == "manual":
+            event["exclusion_reason"] = REASONS[job["exclusion_reason"]]
         stats["history"].append(event)
         # Keep every failure in totals and calendar, but bound the public recent history.
         stats["history"] = stats["history"][-16:]
@@ -195,6 +208,7 @@ def published_quality(db, sites, model, start, end):
         json_extract(e.data,'$.created') AS at, json_extract(e.data,'$.job_id') AS job,
         json_extract(e.data,'$.result.kind') AS test_kind, j.config AS job_config,
         json_extract(e.data,'$.result.protocol_tested') AS protocol_tested,
+        e.trace_summary,
         json_extract(e.data,'$.result.level') AS protocol_level,
         CASE WHEN json_type(e.data,'$.result.score') IN ('integer','real') THEN json_extract(e.data,'$.result.score') END AS protocol_score,
         json_type(e.data,'$.result.ability') AS ability_type,
@@ -202,33 +216,34 @@ def published_quality(db, sites, model, start, end):
         CASE WHEN json_type(e.data,'$.result.ability.score') IN ('integer','real') THEN json_extract(e.data,'$.result.ability.score') END AS ability_score,
         CASE WHEN json_type(e.data,'$.result.artwork.score') IN ('integer','real') THEN json_extract(e.data,'$.result.artwork.score') END AS artwork_score,
         json_extract(e.data,'$.result.suite') AS suite,
-        json_extract(e.data,'$.result.conditions') AS conditions,
-        (SELECT count(*) FROM json_each(e.data,'$.result.checks') c WHERE json_extract(c.value,'$.status')='pass') AS passed,
-        (SELECT count(*) FROM json_each(e.data,'$.result.checks') c WHERE json_extract(c.value,'$.status') IN ('fail','warn')) AS attention
-        FROM entities e LEFT JOIN jobs j ON j.id=json_extract(e.data,'$.job_id')
+        e.conditions, e.passed, e.attention
+        FROM report_summaries e LEFT JOIN jobs j ON j.id=json_extract(e.data,'$.job_id')
             AND j.station_id=json_extract(e.data,'$.station_id') AND j.model=json_extract(e.data,'$.result.model')
-        WHERE e.kind='reports' AND json_extract(e.data,'$.status')='published'
+        WHERE json_extract(e.data,'$.status')='published'
         AND COALESCE(json_extract(e.data,'$.excluded_reason'),'')!='billing'
         AND COALESCE(json_extract(e.data,'$.demo'),0)=0
-        AND json_extract(e.data,'$.result.model')=?
-        AND json_extract(e.data,'$.created')>=? AND json_extract(e.data,'$.created')<=?
-        ORDER BY json_extract(e.data,'$.created'),e.id"""
+        AND e.model=? AND e.observed>=? AND e.observed<=?
+        ORDER BY e.observed,e.id"""
     with db.connect() as con:
         for report in con.execute(query, (model, start, end)):
             sid = report["station"]
             if sid not in sites:
                 continue
-            quality = result.setdefault(sid, {"protocol": quality_bucket(), "ability": quality_bucket(), "records": []})
+            quality = result.setdefault(sid, {"protocol": quality_bucket(), "ability": quality_bucket(), "identity": quality_bucket(), "records": []})
             # Legacy reports predate protocol_tested; an explicit false always wins.
             tested = report["protocol_tested"] == 1 or (
                 report["protocol_tested"] is None and report["protocol_level"] in ("ok", "warn", "bad")
-                and report["test_kind"] not in ("pelican", "site_pelican"))
+                and (report["test_kind"] in (None, "protocol", "combined", "site_relay", "site_all")))
             if tested:
                 add_quality(quality["protocol"], report["protocol_level"], report["at"], report["id"],
                             {"ok": 0, "warn": 2, "bad": 3}, {"warn", "bad"})
             if report["ability_type"] == "object":
                 add_quality(quality["ability"], report["ability_level"], report["at"], report["id"],
                             {"normal": 0, "degraded": 2}, {"degraded"})
+            identity = fingerprint(json.loads(report["trace_summary"]) if report["trace_summary"] else None, model)
+            if identity["status"] != "untested":
+                add_quality(quality["identity"], identity["status"], report["at"], report["id"],
+                            {"consistent": 0, "mismatch": 2}, {"mismatch"})
             config = configuration(report["job_config"] or "{}")
             # Never compare scores across different suites, conditions or selected tests.
             cohort = hashlib.sha256(json.dumps([report["test_kind"], report["suite"], report["conditions"],
@@ -238,6 +253,7 @@ def published_quality(db, sites, model, start, end):
                       "protocol": score(report["protocol_score"]) if tested else None,
                       "ability": score(report["ability_score"]) if report["ability_type"] == "object" else None,
                       "artwork": score(report["artwork_score"]), "passed": report["passed"], "attention": report["attention"],
+                      "identity": identity["status"],
                       "_job": report["job"]}
             quality["records"] = (quality["records"] + [record])[-32:]
             for kind in ("protocol", "ability"):
@@ -253,7 +269,11 @@ def snapshot(db, model="", test="", at=None):
     sites = {s["id"]: s for s in db.list("stations") if s.get("visible")}
     groups, tests, options, counts = {}, {}, set(), Counter()
     with db.connect() as con:
-        rows = con.execute("SELECT id,report_id,station_id,model,config,status,started,ended,created,error,cancel FROM jobs WHERE COALESCE(started,created)>=? AND COALESCE(started,created)<=? ORDER BY COALESCE(started,created),id", (start.timestamp(), at))
+        rows = con.execute("""SELECT j.id,report_id,station_id,model,config,status,started,ended,j.created,error,cancel,
+            CASE WHEN json_extract(x.data,'$.active')=1 THEN json_extract(x.data,'$.reason') END AS exclusion_reason
+            FROM jobs j LEFT JOIN entities x ON x.kind='job_exclusions' AND x.id=j.id
+            WHERE COALESCE(started,j.created)>=? AND COALESCE(started,j.created)<=?
+            ORDER BY COALESCE(started,j.created),j.id""", (start.timestamp(), at))
         for job in rows:
             sid, cfg = job["station_id"], configuration(job["config"])
             if sid not in sites or not cfg:
@@ -301,7 +321,7 @@ def snapshot(db, model="", test="", at=None):
         if not stats and sid not in quality and selected_model not in site.get("models", []):
             continue
         stats = stats or station_stats(site, dates)
-        stats["quality"] = quality.get(sid, {"protocol": quality_bucket(), "ability": quality_bucket(), "records": []})
+        stats["quality"] = quality.get(sid, {"protocol": quality_bucket(), "ability": quality_bucket(), "identity": quality_bucket(), "records": []})
         records = stats["quality"]["records"]
         for event in stats["history"]:
             job, report_id = event.pop("_job"), event.pop("_report")

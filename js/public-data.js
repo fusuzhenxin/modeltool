@@ -1,7 +1,29 @@
 /* The operations service owns live public content. Static previews retain labeled fixtures. */
 const PublicData = {
   live: false, failed: false, loading: false, reports: [], stations: [], announcements: [], ads: [], pending: null,
-  async load(summary = false) {
+  contentPending: null, contentReady: false, contentFailed: false,
+  async loadContent() {
+    if (PublicData.contentPending) return PublicData.contentPending;
+    PublicData.live = true;
+    PublicData.contentPending = (async () => {
+      const backend = !!document.querySelector('meta[name="modeltool-backend"]');
+      const abort = new AbortController();
+      const timer = setTimeout(() => abort.abort(), 20000);
+      try {
+        const res = await fetch("/api/public/bootstrap?content_only=true", { signal: abort.signal, cache: "no-store" });
+        if (res.status === 404 && !backend) { PublicData.live = false; return; }
+        if (!res.ok) throw new Error("Public content unavailable");
+        const data = await res.json();
+        if (data.mode !== "live" || !Array.isArray(data.ads) || !Array.isArray(data.announcements)) throw new Error("Invalid public content");
+        Object.assign(PublicData, { live: true, ads: data.ads, announcements: data.announcements, contentReady: true });
+      } catch (_) {
+        PublicData.contentFailed = true;
+      } finally { clearTimeout(timer); }
+    })();
+    return PublicData.contentPending;
+  },
+  async load(summary = false, contentOnly = false, reportsOnly = false) {
+    if (contentOnly) return PublicData.loadContent();
     if (PublicData.pending) return PublicData.pending;
     // Until the service responds, never substitute preview fixtures for live data.
     PublicData.loading = true;
@@ -13,14 +35,18 @@ const PublicData = {
       try {
         const query = new URLSearchParams();
         if (summary) query.set("summary", "true");
+        if (reportsOnly) query.set("reports_only", "true");
         const id = typeof location !== "undefined" ? new URLSearchParams(location.search).get("id") : null;
-        if (!summary && id) query.set("report_id", id);
+        if (!summary && !contentOnly && id) query.set("report_id", id);
         const res = await fetch("/api/public/bootstrap" + (query.size ? "?" + query : ""), { signal: abort.signal, cache: "no-store" });
         if (res.status === 404 && !backend) { PublicData.live = false; return; }
         if (!res.ok) throw new Error("Public data unavailable");
         const data = await res.json();
         if (data.mode !== "live" || !Array.isArray(data.reports) || !Array.isArray(data.stations)) throw new Error("Invalid public data");
-        Object.assign(PublicData, { live: true, reports: data.reports, stations: data.stations, announcements: data.announcements || [], ads: data.ads || [] });
+        Object.assign(PublicData, { live: true, reports: data.reports, stations: data.stations });
+        if (!reportsOnly && !PublicData.contentReady) {
+          Object.assign(PublicData, { announcements: data.announcements || [], ads: data.ads || [] });
+        }
       } catch (_) {
         // A live service failure must never replace measurements with fixture reports.
         PublicData.live = true; PublicData.failed = true;

@@ -19,7 +19,7 @@ function client() {
     navigator: { clipboard: { writeText: async (text) => copied.push(text) } },
     QR: { matrix: (link) => { qrLinks.push(link); return [[true, false], [false, true]]; } }
   });
-  for (const file of ["data", "ui", "relay-public", "relay-directory", "site-report", "poster"]) {
+  for (const file of ["report-quality", "data", "ui", "relay-public", "relay-directory", "site-report", "poster"]) {
     vm.runInContext(fs.readFileSync(path.join(root, "js", file + ".js"), "utf8"), page);
   }
   vm.runInContext("UI.shell = (_, body) => body; UI.toast = () => {}; Poster.logo = async () => null;", page);

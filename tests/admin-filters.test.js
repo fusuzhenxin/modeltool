@@ -13,12 +13,13 @@ function setup() {
       getElementById(id) { return id === "admin-app" ? app : id === "list-content" ? list : id === "bulk-count" ? null : { addEventListener() {} }; },
       addEventListener(type, handler) { handlers[type] = handler; }
     },
-    window: { addEventListener() {} }, setInterval() {}
+    window: { addEventListener() {} }, setInterval() {}, setTimeout() {}, clearTimeout() {}
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../admin/bulk.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../js/report-quality.js"), "utf8"), context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../admin/schedules.js"), "utf8"), context);
   const source = fs.readFileSync(path.join(__dirname, "../admin/admin.js"), "utf8");
-  const patched = source.replace(/  start\(\);\s+return \{ refresh: loadPage \};/, "  return { state, visibleRows, testFilters, listContent, listPage };");
+  const patched = source.replace(/  start\(\);\s+return \{ refresh: loadPage \};/, "  return { state, visibleRows, testFilters, listContent, listPage, settingsPage, settingsValues };");
   assert.notEqual(patched, source);
   vm.runInContext(patched, context);
   const admin = vm.runInContext("Admin", context);
@@ -35,6 +36,18 @@ function setup() {
   ];
   return admin;
 }
+
+test("检测设置区分自动、单次无上限和每日额度，并正确保存 0", () => {
+  const admin=setup();
+  const html=admin.settingsPage({daily_calls:0,daily_tokens:0,output_token_limit:0,paused:false});
+  assert.match(html,/name="output_token_limit"/);
+  assert.match(html,/本站不发送输出长度限制/);
+  for (const [value,expected] of [["",null],["0",0],["16384",16384]]) {
+    const values=admin.settingsValues(new Map([["daily_calls","0"],["daily_tokens","0"],["output_token_limit",value]]));
+    assert.equal(values.output_token_limit,expected);
+    assert.equal(values.daily_tokens,0);
+  }
+});
 
 test("三个页面支持模型、测试项、状态和搜索取交集，模型精确匹配", () => {
   for (const route of ["jobs", "schedules", "reports"]) {

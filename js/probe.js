@@ -4,7 +4,7 @@ const Probe = {
     { id: "protocol", name: "协议识别" },
     { id: "shape", name: "响应结构" },
     { id: "echo", name: "模型回显" },
-    { id: "fingerprint", name: "协议指纹" },
+    { id: "fingerprint", name: "协议头特征" },
     { id: "stream", name: "流式响应" },
     { id: "limit", name: "输出控制" },
     { id: "memory", name: "上下文记忆" },
@@ -309,7 +309,7 @@ const Probe = {
     put("reasoning", reasoning.status < 400 ? "pass" : (Probe.unsupported(reasoning) ? "skip" : "fail"), reasoning.status < 400 ? "接受 reasoning_effort=low" : "接口拒绝了推理参数");
 
     const pad = "请忽略这段重复前缀。".repeat(80);
-    const cachePayload = { model, temperature: 0, max_tokens: 8, messages: [{ role: "system", content: pad }, { role: "user", content: "只回复 OK" }] };
+    const cachePayload = { model, temperature: 0, max_tokens: 32, messages: [{ role: "system", content: pad }, { role: "user", content: "只回复 OK" }] };
     const first = await call(cachePayload);
     const second = await call(cachePayload);
     const cached = (second.json && second.json.usage && ((second.json.usage.prompt_tokens_details && second.json.usage.prompt_tokens_details.cached_tokens) || second.json.usage.cache_read_input_tokens || second.json.usage.cached_tokens)) || 0;
@@ -349,14 +349,14 @@ const Probe = {
       score -= amount;
       findings.push({ level: amount >= 20 ? "bad" : "warn", title, text: text + (detail(id) ? " " + detail(id) : "") });
     };
-    cut("echo", 35, "模型被换成了别的", "请求的模型 ID 和响应里的 model 不一致。这是掺水里最硬的证据，中转站很可能把贵模型换成了更便宜的。");
+    cut("echo", 35, "模型回显不一致", "请求与响应的 model 字段不同，可能涉及模型别名或路由映射。请核对文档并结合指纹复测，不能据此确认换模。");
     cut("protocol", 20, "协议没有按原样转达", "返回的不是可识别的对话协议，客户端拿到的不是上游应有的格式。");
     cut("shape", 15, "响应结构被改过", "标准消息字段缺失，中转可能包了一层或把字段弄丢了。");
-    cut("system", 15, "系统指令没有送达", "系统提示没有约束住回答。中转可能吞掉了 system，或换成了不听指令的小模型。");
-    cut("memory", 15, "上下文没有转发给上游", "模型不记得上一轮刚约定的暗号，历史消息很可能没被原样带上。");
+    cut("system", 15, "系统指令检查未通过", "本次回答未遵循系统约束，可能受模型行为或接口处理影响，需同条件复测。");
+    cut("memory", 15, "上下文检查未通过", "本次回答未复现上一轮暗号，请核对上下文兼容性并复测。");
     if (["fail", "skip", "unknown"].includes(status("limit"))) findings.push({
-      level: "ok", title: status("limit") === "fail" ? "输出限制异常（接口兼容性）" : status("limit") === "skip" ? "输出上限参数不支持" : "输出限制无法确认",
-      text: "输出控制单独展示，不计入掺水评分，也不作为降智依据。" + detail("limit")
+      level: "ok", title: status("limit") === "fail" ? "输出限制异常（接口功能）" : status("limit") === "skip" ? "输出上限参数不支持" : "输出限制无法确认",
+      text: "输出控制单独展示为兼容性结果，不用于判断换模或降智。" + detail("limit")
     });
     cut("stream", 10, "没有真正的流式", "打开 stream 后没有收到逐段分片。中转可能把流式缓冲成一次性返回，或根本没转发。");
     cut("tools", 10, "工具调用被丢掉", "请求里带了 tools，响应却没有 tool_calls。中转可能剥掉了工具字段。");
@@ -371,29 +371,35 @@ const Probe = {
     const hard = status("echo") === "fail" || status("protocol") === "fail";
     const warns = findings.filter((item) => item.level === "warn" || item.level === "bad").length;
     let level = "ok";
-    let title = "未见掺水";
-    let summary = "请求的模型有回显，系统指令、上下文等关键项目通过。这次没有看到中转站偷换模型或改写协议的证据。" + (status("limit") === "pass" ? "输出上限检测通过。" : "输出控制另列兼容性结果，未据此判断掺水。");
+    let title = "功能正常";
+    let summary = "本次已测协议、参数与响应行为通过检查，不能据此确认模型身份。" + (status("limit") === "pass" ? "输出上限检测通过。" : "输出控制另列兼容性结果，未据此判断掺水。");
     if (hard || score < 60) {
       level = "bad";
-      title = "明显掺水";
-      summary = "中转站没有把请求原样交给上游。优先看模型回显和系统指令：模型名对不上，或关键字段被丢掉，就不能按标价的模型来用。";
+      title = "多项功能异常";
+      summary = "关键接口检查未通过，请查看具体项目并核对协议、参数与模型别名。接口异常不等于模型被替换。";
     } else if (warns > 0 || score < 85) {
       level = "warn";
-      title = "疑似掺水";
-      summary = "协议大体能通，但有些参数没有按你发的那样生效。它不一定换了模型，但中转过程里有损耗，计费和能力都不能完全相信标称值。";
+      title = "部分功能异常";
+      summary = "部分已测参数或接口行为未达到预期，需要复核兼容性；不据此判断模型真假或能力下降。";
     }
     if (!findings.length) findings.push({ level: "ok", title: "关键项目都通过", text: "模型回显、结构、指令、记忆和用量都对得上。" });
     return { score, level, title, summary, findings };
   },
   reportHtml(report) {
     if (!report || report.score == null) return "";
+    const evaluated = report.items && Object.keys(report.items).length ? Probe.evaluate(report) : null;
+    report = { ...report,
+      title: Poster.titles[report.level] || "功能情况暂无法判断",
+      summary: "接口功能只反映协议、参数与响应行为，不判断模型身份。",
+      findings: evaluated?.findings || []
+    };
     const tone = report.level === "bad" ? "bad" : report.level === "warn" ? "warn" : "ok";
     const findings = (report.findings || []).map((item) => `<div class="finding ${item.level}"><b>${UI.esc(item.title)}</b><p>${UI.esc(item.text)}</p></div>`).join("");
     const stats = report.stats || {};
     const cell = (label, value) => `<div class="relay-stat"><span>${label}</span><b>${UI.esc(value)}</b></div>`;
     const shared = report.shared ? `<p class="note relay-shared">这是一份分享结果。链接和海报里没有密钥，也没有原始响应。</p>` : "";
     return `<article class="panel mt16 relay-report">
-      <div class="panel-hd"><h3>掺水报告</h3><span class="badge ${tone}"><i></i>${UI.esc(report.title)}</span></div>
+      <div class="panel-hd"><h3>中转站功能检测报告</h3><span class="badge ${tone}"><i></i>${UI.esc(report.title)}</span></div>
       <div class="relay-score">
         ${UI.ring(report.score, report.level === "bad" ? "#ef5d5d" : report.level === "warn" ? "#f0a03a" : "#22c58b")}
         <div>

@@ -1,0 +1,97 @@
+/* Shared fingerprint evidence layout for public reports and admin review. */
+.site-test-result.fingerprint-report {
+  --fp-accent:var(--blue,#4764f5); --fp-tint:var(--blue-soft,#eef2ff);
+  padding:0; border:1px solid var(--line,#e4e9f3); border-radius:16px;
+  background:var(--card,#fff); color:var(--ink,#233451); overflow:hidden;
+  margin:0 0 20px; line-height:1.6; box-shadow:0 8px 28px #2e4e8f08;
+}
+.fingerprint-report.fingerprint-consistent { --fp-accent:var(--green,#249d77); --fp-tint:var(--green-bg,#e7f8f0); }
+.fingerprint-report.fingerprint-mismatch { --fp-accent:var(--orange,#b97825); --fp-tint:var(--orange-bg,#fff5e8); }
+.fingerprint-heading { display:flex; justify-content:space-between; align-items:center; gap:14px; padding:17px 26px; border-bottom:1px solid var(--line,#e4e9f3); }
+.fingerprint-heading > div { display:flex; align-items:center; gap:10px; }
+.fingerprint-heading h3 { margin:0; font-size:16px; color:var(--ink,#233451); }
+.fingerprint-heading > span { font-size:12px; color:var(--muted,#8490a4); }
+.fingerprint-symbol { width:30px; height:30px; display:grid; place-items:center; color:var(--fp-accent); }
+.fingerprint-symbol svg { width:30px; height:30px; }
+.fingerprint-body { display:grid; grid-template-columns:minmax(0,.9fr) minmax(0,1.2fr); }
+.fingerprint-primary { background:linear-gradient(135deg,var(--fp-tint),var(--card,#fff) 85%); display:flex; flex-direction:column; }
+.fingerprint-hero { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; gap:20px; padding:26px 28px 22px; flex:1; }
+.fingerprint-hero > div:first-child { min-width:0; }
+.fingerprint-state { display:flex; align-items:center; gap:9px; color:var(--fp-accent); font-size:24px; font-weight:650; }
+.fingerprint-state i { width:9px; height:9px; border-radius:50%; background:currentColor; flex:none; }
+.fingerprint-model-label { display:block; font-size:12px; color:var(--ink-2,#536179); margin-top:17px; }
+.fingerprint-hero h2 { margin:10px 0 6px; font-size:32px; letter-spacing:-.6px; line-height:1.3; overflow-wrap:anywhere; color:var(--ink,#233451); }
+.fingerprint-hero p { margin:0; color:var(--ink-2,#536179); font-size:13px; }
+.fingerprint-share { text-align:left; display:flex; flex-direction:column; flex:none; gap:3px; }
+.fingerprint-share > span { color:var(--ink-2,#536179); font-size:12px; }
+.fingerprint-share strong { color:var(--fp-accent); font-size:48px; letter-spacing:-1.5px; line-height:1.25; font-variant-numeric:tabular-nums; }
+.fingerprint-share strong small { font-size:22px; margin-left:3px; font-weight:500; }
+.fingerprint-share > small { font-size:11px; color:var(--muted,#8490a4); }
+.fingerprint-facts { display:flex; flex-wrap:wrap; gap:14px 30px; margin:0; padding:16px 28px; border-top:1px solid var(--line,#e4e9f3); }
+.fingerprint-facts > div { min-width:0; }
+.fingerprint-facts dt { font-size:11px; color:var(--muted,#8490a4); margin-bottom:3px; }
+.fingerprint-facts dd { margin:0; font-size:14px; font-weight:550; overflow-wrap:anywhere; }
+.fingerprint-facts dd small { font-size:12px; font-weight:400; color:var(--ink-2,#536179); }
+.fingerprint-comparison { padding:23px 28px 15px; border-left:1px solid var(--line,#e4e9f3); }
+.fingerprint-list-head { display:flex; justify-content:space-between; align-items:center; gap:12px; padding-bottom:10px; }
+.fingerprint-list-head h4 { margin:0; font-size:14px; font-weight:600; }
+.fingerprint-list-head > span { font-size:11px; color:var(--muted,#8490a4); }
+.fingerprint-candidates { list-style:none; padding:0; margin:0; }
+.fingerprint-candidate { display:grid; grid-template-columns:26px minmax(0,1fr) 110px; gap:13px; align-items:center; padding:12px 0; border-top:1px solid var(--line,#e4e9f3); }
+.fingerprint-rank { display:grid; place-items:center; width:24px; height:24px; border-radius:7px; color:var(--muted,#8490a4); background:var(--soft,#f4f6fb); font-size:12px; }
+.is-leading .fingerprint-rank { background:var(--fp-tint); color:var(--fp-accent); font-weight:650; }
+.fingerprint-candidate-main { min-width:0; }
+.fingerprint-candidate-main > div:first-child { display:flex; justify-content:space-between; align-items:baseline; gap:16px; margin-bottom:7px; }
+.fingerprint-candidate-main strong { font-size:14px; font-weight:500; overflow-wrap:anywhere; }
+.fingerprint-candidate-main b { font-size:14px; font-weight:550; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.is-leading .fingerprint-candidate-main strong,.is-leading .fingerprint-candidate-main b { font-weight:650; color:var(--fp-accent); }
+.fingerprint-track { height:6px; border-radius:4px; background:var(--soft,#f0f3f8); overflow:hidden; }
+.fingerprint-track i { display:block; height:100%; background:var(--blue,#4764f5); opacity:.35; border-radius:inherit; }
+.is-leading .fingerprint-track i { background:var(--fp-accent); opacity:1; }
+.fingerprint-similarity { text-align:right; font-size:10px; color:var(--muted,#8490a4); }
+.fingerprint-similarity b { display:block; color:var(--ink-2,#536179); font-size:13px; font-weight:500; font-variant-numeric:tabular-nums; }
+.fingerprint-caution { margin:12px 28px; color:var(--ink-2,#536179); font-size:12px; }
+.fingerprint-method { margin:0 28px; border-top:1px solid var(--line,#e4e9f3); font-size:12px; }
+.fingerprint-method > summary { padding:12px 0; cursor:pointer; color:var(--blue,#4764f5); }
+.fingerprint-method p { color:var(--ink-2,#536179); margin:0 0 10px; line-height:1.85; }
+.fingerprint-footer { padding:12px 28px; color:var(--muted,#8490a4); font-size:11px; background:var(--soft,#f6f8fc); border-top:1px solid var(--line,#e4e9f3); }
+.fingerprint-footer span { padding:0 9px; }
+.fingerprint-empty { color:var(--muted,#8490a4); font-size:13px; }
+.report-info-disclosure > summary { display:flex; flex-wrap:wrap; gap:7px 18px; align-items:center; padding:17px 24px; cursor:pointer; font-size:14px; font-weight:550; }
+.report-info-disclosure > summary::before { content:'›'; color:var(--blue); font-size:20px; line-height:1; }
+.report-info-disclosure[open] > summary::before { transform:rotate(90deg); }
+.report-info-disclosure > summary span { color:var(--muted); font-size:12px; font-weight:400; margin-left:auto; }
+.report-info-disclosure .report-information { border:0; border-top:1px solid var(--line); box-shadow:none; margin:0; border-radius:0; }
+.report-info-disclosure .report-section-heading { display:none; }
+.report-info-disclosure .report-info-grid { margin-top:0; }
+@media(max-width:900px) {
+  .fingerprint-body { grid-template-columns:minmax(0,1fr); }
+  .fingerprint-hero { display:flex; flex-direction:row; align-items:center; }
+  .fingerprint-share { text-align:right; }
+  .fingerprint-comparison { border-left:0; border-top:1px solid var(--line,#e4e9f3); }
+}
+@media(max-width:600px) {
+  .report-body .site-test-result.fingerprint-report { padding:0; }
+  .fingerprint-heading { padding:14px 16px; }
+  .fingerprint-heading > span { font-size:10px; }
+  .fingerprint-heading h3 { font-size:15px; }
+  .fingerprint-hero { padding:20px 16px; gap:15px; align-items:flex-start; flex-direction:column; }
+  .fingerprint-state { font-size:23px; }
+  .fingerprint-hero h2 { font-size:27px; }
+  .fingerprint-share { text-align:left; display:grid; grid-template-columns:auto auto; align-items:center; gap:0 12px; }
+  .fingerprint-share strong { font-size:38px; grid-row:1/3; grid-column:2; }
+  .fingerprint-share strong small { font-size:18px; }
+  .fingerprint-facts { padding:14px 16px; gap:12px 24px; }
+  .fingerprint-facts dd { font-size:13px; }
+  .fingerprint-comparison { padding:16px 16px 0; }
+  .fingerprint-candidate { grid-template-columns:22px minmax(0,1fr) 74px; gap:8px; }
+  .fingerprint-candidate-main strong,.fingerprint-candidate-main b { font-size:12px; }
+  .fingerprint-candidate-main > div:first-child { gap:8px; }
+  .fingerprint-similarity { font-size:9px; }
+  .fingerprint-similarity b { font-size:12px; }
+  .fingerprint-caution { margin:12px 16px; }
+  .fingerprint-method { margin:0 16px; }
+  .fingerprint-footer { padding:12px 16px; }
+  .report-info-disclosure > summary { padding:15px 16px; }
+  .report-info-disclosure > summary span { margin-left:25px; font-size:11px; width:100%; }
+}

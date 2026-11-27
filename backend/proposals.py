@@ -172,6 +172,9 @@ def register_proposals(app, db, session):
     from .artwork_votes import register_artwork_votes
     register_artwork_votes(app, db, identity, guest, throttle)
 
+    from .station_applications import register_station_applications
+    register_station_applications(app, db, session, guest, throttle)
+
     @app.get("/api/public/proposal-session")
     def participant(request: Request, response: Response):
         with db.connect(write=True) as con:

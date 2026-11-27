@@ -33,6 +33,8 @@ def keep_worker_alive(db, job_id):
 
 
 def validate_run(db, spec, con):
+    if spec.get("publish_mode", "review") not in ("review", "auto"):
+        raise ValueError("请选择完成后待审核或直接公开")
     if spec["kind"].startswith("site_"):
         from .site_tests import catalog
         if not any(option["id"] == spec["kind"] for option in catalog()):
@@ -61,8 +63,13 @@ def enqueue(db, spec, actor, schedule_id=None, con=None):
     if spec["kind"] == "pelican":
         config["pelican_mode"] = spec.get("pelican_mode", "html2d")
     active = con.execute("SELECT schedule_id,config FROM jobs WHERE station_id=? AND model=? AND status IN ('queued','running')", (spec["station_id"], spec["model"])).fetchall()
-    if any(json.loads(row["config"]) == config or (schedule_id and row["schedule_id"] == schedule_id) for row in active):
+    if any({k: v for k, v in json.loads(row["config"]).items() if k not in ("publish_mode", "output_token_limit")} == config or (schedule_id and row["schedule_id"] == schedule_id) for row in active):
         raise ValueError("该站点模型已有排队或运行中的相同检测任务")
+    output_limit = db.get("settings", "site", con).get("output_token_limit")
+    if spec["kind"].startswith("site_") and spec["kind"] != "site_relay" and output_limit is not None:
+        config["output_token_limit"] = output_limit
+    # Snapshot the publication choice; later plan edits cannot change queued work.
+    config["publish_mode"] = spec.get("publish_mode", "review")
     con.execute("INSERT INTO jobs(id,station_id,schedule_id,model,config,status,created) VALUES(?,?,?,?,?,'queued',?)", (key, spec["station_id"], schedule_id, spec["model"], json.dumps(config), now()))
     db.audit(actor, "enqueue", key, con)
     return key
@@ -126,9 +133,17 @@ def work_once(db, transport=None):
             if current["cancel"] or current["status"] != "running" or db.get("settings", "site", con)["paused"]:
                 raise RunStopped("任务已取消或暂停")
             report_id = ident()
-            db.save("reports", report_id, {"station_id": job["station_id"], "job_id": job["id"], "status": "draft", "note": "", "demo": False, "created": now(), "result": result}, con)
+            current_station = db.get("stations", job["station_id"], con)
+            automatic = json.loads(job["config"]).get("publish_mode", "review") == "auto"
+            published = automatic and current_station and current_station.get("visible")
+            report = {"station_id": job["station_id"], "job_id": job["id"], "status": "published" if published else "draft", "note": "", "demo": False, "created": now(), "result": result}
+            if published:
+                report.update(reviewed_by="worker:auto", reviewed_at=now(), publication_source="auto")
+            db.save("reports", report_id, report, con)
             con.execute("UPDATE jobs SET status='done',ended=?,report_id=? WHERE id=?", (now(), report_id, job["id"]))
             db.audit("worker", "report_created", report_id, con)
+            if published:
+                db.audit("worker:auto", "report_published", report_id, con)
     except Exception as exc:
         if isinstance(exc, RunStopped):
             status, message = "cancelled", str(exc)

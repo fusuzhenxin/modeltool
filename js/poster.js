@@ -1,11 +1,11 @@
 /* 各项检测的分享链接和海报。链接里没有密钥，也没有题目和模型原文。
    鹈鹕骑车的作品 HTML 放在链接的 h 参数里；海报二维码放不下整页时只带分数。 */
 const Poster = {
-  titles: { ok: "未见掺水", warn: "疑似掺水", bad: "明显掺水" },
+  titles: { ok: "功能正常", warn: "部分功能异常", bad: "多项功能异常" },
   summaries: {
-    ok: "这次没有看到偷换模型或改写协议的证据。",
+    ok: "本次已测接口行为通过检查，不能据此确认模型身份。",
     warn: "协议大体能通，但有些参数没有按原样生效。",
-    bad: "中转站没有把请求原样交给上游。"
+    bad: "关键接口检查未通过，需结合逐项结果复测。"
   },
   hostOf(baseUrl) {
     const text = String(baseUrl || "").trim();
@@ -222,7 +222,6 @@ const Poster = {
     const known = parts[2] === "1";
     const prediction = parts[3] || "";
     const probability = parts[4] === "" ? null : Number(parts[4]) / 1000;
-    const same = known && claimed === prediction;
     const top = String(parts[9] || "").split(",").filter(Boolean).map((item) => {
       const bits = item.split("@");
       const letter = bits[2] || "";
@@ -252,8 +251,8 @@ const Poster = {
       method: parts[11] === "manual" ? "manual" : "api",
       modelCount: Poster.num(parts[12]),
       builtAt: parts[13] || "",
-      title: known ? (same ? "回答更像你请求的这个模型" : "回答更像指纹库里的另一个模型") : (claimed ? "所选模型不在指纹库里" : "已找到库内最接近的候选"),
-      level: known ? (same ? "ok" : "warn") : "none",
+      title: ReportQuality.fingerprint({ claimed, known, prediction, probability, used_outputs: Poster.num(parts[7]), method: parts[11] === "manual" ? "manual" : "api", runner_up: top[1]?.probability }).label,
+      level: "none",
       top,
       digits
     };
@@ -340,7 +339,6 @@ const Poster = {
   fromTrace(payload) {
     if (!payload || !payload.prediction) return null;
     const known = payload.known === true;
-    const same = known && payload.claimed === payload.prediction;
     const report = {
       kind: "trace",
       claimed: payload.claimed || "",
@@ -355,8 +353,8 @@ const Poster = {
       familyProbability: payload.family_probability,
       used: payload.used_outputs,
       time: payload.at || "",
-      title: known ? (same ? "回答更像你请求的这个模型" : "回答更像指纹库里的另一个模型") : (payload.claimed ? "所选模型不在指纹库里" : "已找到库内最接近的候选"),
-      level: known ? (same ? "ok" : "warn") : "none",
+      title: ReportQuality.fingerprint(payload).label,
+      level: "none",
       top: (payload.results || []).slice(0, 5).map((item) => ({
         name: item.display_name || item.model || "",
         probability: item.probability,
@@ -406,7 +404,8 @@ const Poster = {
       kind: "public-report", id: String(item.id),
       name: item.test_name || "中转站检测", stationName: item.stationName || item.domain || "",
       modelName: item.model || "", time: item.time || "", demo: !!item.demo,
-      title: item.title || "检测已完成", summary: item.summary || "",
+      title: ReportQuality.title(item), summary: ReportQuality.protocolTested(item) ? "接口功能、模型指纹与能力表现独立展示。" : item.summary || "",
+      identity: ReportQuality.identity(item),
       level: item.level || "none", score: item.score ?? null,
       sections: (item.sections || []).filter((s) => s.kind !== "pelican").map((s) => ({
         name: s.name || s.kind || "测试", score: s.score ?? null,
@@ -1019,7 +1018,8 @@ const Poster = {
   async drawPublic(report) {
     const rows = report.sections.map((s) => [s.name, s.score == null ? (s.detail || "详见报告") : s.score + " / 100"]);
     if (report.artwork) rows.push(["作品结构分 · " + report.artwork.modeName, report.artwork.score == null ? "—" : report.artwork.score + " / 100"]);
-    if (!rows.length) rows.push(["协议检查分", report.score == null ? "本次未评分" : report.score + " / 100"]);
+    if (!rows.length) rows.push(["接口功能分", report.score == null ? "本次未评分" : report.score + " / 100"]);
+    rows.unshift(["模型指纹", report.identity?.label || "未测指纹"]);
     const width = 760, foot = 365 + rows.length * 48, height = foot + 205;
     const canvas = document.createElement("canvas");
     canvas.width = width * 2; canvas.height = height * 2;

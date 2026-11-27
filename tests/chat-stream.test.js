@@ -9,6 +9,77 @@ function api(fetch) {
   return vm.runInContext("Api", context);
 }
 const options = { baseUrl: "https://upstream.invalid/v1", apiKey: "fixture-key", model: "fixture-model", system: "test", user: "test", long: true };
+
+test("单次输出设为无上限时不发送长度参数，自定义值可覆盖模型默认预算", async () => {
+  for (const [limit, extras] of [[0, {}], [0, {long:false}], [0, {bare:true}], [0, {baseUrl:"https://api.anthropic.com/v1/messages"}], [16384, {long:false}]]) {
+    const sent = [];
+    const instance = api(async (_, request) => {
+      sent.push(JSON.parse(request.body).payload);
+      return new Response(JSON.stringify({choices:[{message:{content:"A"}}],content:[{type:"text",text:"A"}]}), {headers:{"Content-Type":"application/json"}});
+    });
+    instance.outputTokenLimit = limit;
+    assert.equal(await instance.complete({...options,model:"gpt-6-astra",...extras}),"A");
+    assert.equal(sent.length,1);
+    if (limit === 0) {
+      assert.equal(Object.hasOwn(sent[0],"max_tokens"),false);
+      assert.equal(Object.hasOwn(sent[0],"max_completion_tokens"),false);
+    } else assert.equal(sent[0].max_tokens,limit);
+  }
+});
+
+test("推理模型的短答题保留推理预算，兼容普通模型及作品请求的原有预算", async () => {
+  for (const [model, long, limit] of [["gpt-6-astra", false, 4096], ["gpt-5.6-sol", false, 4096], ["o3-mini", false, 4096], ["gpt-4.1", false, 256], ["fixture-model", false, 256], ["gpt-6-astra", true, 8192]]) {
+    const sent = [];
+    const content = await api(async (_, request) => {
+      sent.push(JSON.parse(request.body).payload);
+      return new Response(JSON.stringify({ choices: [{ message: { content: "A" } }] }), { headers: { "Content-Type": "application/json" } });
+    }).complete({ ...options, model, long });
+    assert.equal(content, "A");
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].max_tokens, limit, model);
+    assert.equal(sent[0].temperature, long ? 0.4 : 0);
+  }
+});
+test("Claude 两种协议的答题默认预留推理额度，并保留显式配置", async () => {
+  for (const baseUrl of ["https://upstream.invalid/v1", "https://upstream.invalid/v1/messages"]) {
+    for (const limit of [undefined, 256, 0]) {
+      const sent = [];
+      const instance = api(async (_, request) => {
+        sent.push(JSON.parse(request.body).payload);
+        return new Response(JSON.stringify({content:[{type:"thinking",thinking:"private"},{type:"text",text:"A"}],choices:[{message:{content:"A"}}]}));
+      });
+      instance.outputTokenLimit = limit;
+      assert.equal(await instance.complete({...options, baseUrl, model:"claude-sonnet-5", long:false}), "A");
+      assert.equal(sent.length, 1);
+      assert.equal(sent[0].max_tokens, limit === 0 ? undefined : limit ?? 4096);
+    }
+  }
+});
+
+test("只有思考且输出耗尽时给出明确原因，不自动加额度重试或泄露思考内容", async () => {
+  let calls = 0;
+  const instance = api(async () => {
+    calls++;
+    return new Response(JSON.stringify({content:[{type:"thinking",thinking:"private-key"}],stop_reason:"max_tokens"}));
+  });
+  await assert.rejects(instance.complete({...options,baseUrl:"https://upstream.invalid/v1/messages",long:false}), error => {
+    assert.equal(error.code,"output_exhausted");
+    assert.match(error.message,/提高单次输出/);
+    assert.doesNotMatch(error.message,/private-key/);
+    return true;
+  });
+  assert.equal(calls,1);
+});
+
+test("流式输出保留截断原因，空响应与额度耗尽分开", async () => {
+  for (const [baseUrl,events] of [
+    ["https://upstream.invalid/v1/messages", sse({type:"content_block_delta",delta:{type:"thinking_delta",thinking:"private"}})+sse({type:"message_delta",delta:{stop_reason:"max_tokens"}})+sse({type:"message_stop"})],
+    ["https://upstream.invalid/v1",sse({choices:[{delta:{reasoning_content:"private"},finish_reason:"length"}]})]
+  ]) {
+    await assert.rejects(api(async () => response(envelope(events))).complete({...options,baseUrl}), {code:"output_exhausted"});
+  }
+  await assert.rejects(api(async () => new Response('{"choices":[{"message":{"content":""},"finish_reason":"stop"}]}')).complete({...options,long:false}), {code:"empty_response"});
+});
 const sse = (value) => "data: " + JSON.stringify(value) + "\n\n";
 const envelope = (text, end = true, status = 200) => sse({ type: "status", status }) + sse({ type: "chunk", text }) + (end ? sse({ type: "end" }) : "");
 function response(text, bytewise = false) {

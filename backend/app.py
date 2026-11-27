@@ -20,6 +20,7 @@ from PIL import Image, UnidentifiedImageError
 from .core import Database, ROOT, day, digest, ident, now, password_hash, password_ok, public_report, safe_station
 from .models import Ad, Announcement, Credentials, ModelDiscovery, PasswordChange, Review, Run, Schedule, ScheduleBatch, Settings, Setup, Station, StationOrder
 from .worker import enqueue, validate_run
+from . import advertising, ad_analytics, sponsors, mailing
 
 MODELS = {"announcements": Announcement, "stations": Station, "ads": Ad, "schedules": Schedule}
 COOKIE = "modeltool_session"
@@ -35,7 +36,7 @@ def active(row):
 
 def create_app(data_dir=None):
     db = Database(data_dir)
-    app = FastAPI(title="ModelTool Operations", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="ModelTool Operations", docs_url=None, redoc_url=None, openapi_url=None, lifespan=mailing.lifespan(db))
     app.state.db = db
     hosts = [x.strip() for x in os.environ.get("MODELTOOL_ALLOWED_HOSTS", "127.0.0.1,localhost,[::1]").split(",") if x.strip()]
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts)
@@ -71,10 +72,10 @@ def create_app(data_dir=None):
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "same-origin"
-        response.headers["X-Frame-Options"] = "DENY" if request.url.path.startswith("/admin") else "SAMEORIGIN"
-        if request.url.path.startswith(("/api/", "/admin")):
+        response.headers["X-Frame-Options"] = "DENY" if request.url.path.startswith(("/admin", "/sponsor")) else "SAMEORIGIN"
+        if request.url.path.startswith(("/api/", "/admin", "/sponsor")):
             response.headers["Cache-Control"] = "no-store, no-transform" if response.headers.get("X-ModelTool-Stream") == "1" else "no-store"
-        if request.url.path.startswith("/admin"):
+        if request.url.path.startswith(("/admin", "/sponsor")):
             response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http: https: data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
         if request.url.path.endswith("/artwork") and response.headers.get("content-type", "").startswith("text/html"):
             response.headers["X-Frame-Options"] = "SAMEORIGIN"
@@ -169,6 +170,7 @@ def create_app(data_dir=None):
         with db.connect() as con:
             rows = [dict(r) for r in con.execute("SELECT * FROM jobs ORDER BY created DESC LIMIT ?", (limit,))]
             for row in rows:
+                row["exclusion"] = db.get("job_exclusions", row["id"], con)
                 row["kind"] = json.loads(row.pop("config"))["kind"]
                 row["scores"] = []
                 report = db.get("reports", row["report_id"], con) if row["status"] == "done" and row["report_id"] else None
@@ -176,7 +178,7 @@ def create_app(data_dir=None):
                     continue
                 result = report["result"]
                 for label, value in (
-                    ("中转站", result.get("score")),
+                    ("接口功能", result.get("score")),
                     ("糖果" if row["kind"] == "site_candy" else "能力", (result.get("ability") or {}).get("score")),
                     ("作品结构", (result.get("artwork") or {}).get("score")),
                 ):
@@ -210,7 +212,10 @@ def create_app(data_dir=None):
     @app.put("/api/admin/settings")
     def put_settings(spec: Settings, user=Depends(session)):
         with db.connect(write=True) as con:
-            db.save("settings", "site", spec.model_dump(), con)
+            data = spec.model_dump()
+            if "output_token_limit" not in spec.model_fields_set:
+                data["output_token_limit"] = db.get("settings", "site", con).get("output_token_limit")
+            db.save("settings", "site", data, con)
             db.audit(user["username"], "settings_updated", "site", con)
         return spec
 
@@ -253,7 +258,7 @@ def create_app(data_dir=None):
 
     @app.get("/api/admin/reports")
     def reports(user=Depends(session)):
-        return [{k: v for k, v in r.items() if k != "result"} | {"model": r["result"]["model"], "time": r["result"]["time"], "level": r["result"]["level"], "score": r["result"].get("score"), "ability": r["result"].get("ability"), "test_name": r["result"].get("test_name"), "kind": r["result"].get("kind"), "artwork": {k: v for k, v in r["result"].get("artwork", {}).items() if k != "html"}} for r in db.report_rows(summary=True)]
+        return [{k: v for k, v in r.items() if k != "result"} | {"model": r["result"]["model"], "time": r["result"]["time"], "level": r["result"]["level"], "score": r["result"].get("score"), "ability": r["result"].get("ability"), "identity": r["result"].get("identity"), "test_name": r["result"].get("test_name"), "kind": r["result"].get("kind"), "artwork": {k: v for k, v in r["result"].get("artwork", {}).items() if k != "html"}} for r in db.report_rows(summary=True)]
 
     def artwork_response(key, public=False):
         row = db.get("reports", key)
@@ -278,7 +283,8 @@ def create_app(data_dir=None):
         row = db.get("reports", key)
         if not row:
             raise HTTPException(404, "报告不存在")
-        return dict(row, id=key)
+        from .report_quality import normalize_report
+        return dict(row, id=key, result=normalize_report(row["result"]))
 
     @app.put("/api/admin/reports/{key}")
     def review_report(key: str, spec: Review, user=Depends(session)):
@@ -321,13 +327,13 @@ def create_app(data_dir=None):
             stored = db.get("stations", spec.station_id)
             if not stored:
                 raise HTTPException(404, "中转站不存在，请重新打开编辑窗口")
-            if stored["base_url"].rstrip("/") != spec.base_url:
-                raise HTTPException(422, "接口地址已修改，请重新输入密钥后识别")
-            from .station_keys import entries
+            from .station_keys import entries, connection_for_key
             pool = entries(stored)
             selected = next((item for item in pool if item["id"] == spec.key_id), None) if spec.key_id else next((item for item in pool if item["enabled"]), None)
             if not selected:
                 raise HTTPException(422, "请选择已保存的 Key，或填写新的密钥")
+            if connection_for_key(stored, selected)["base_url"].rstrip("/") != spec.base_url:
+                raise HTTPException(422, "此 Key 的接口地址已修改，请重新输入密钥后识别")
             key = db.decrypt(selected["cipher"])
         if not key:
             raise HTTPException(422, "请先填写检测专用密钥，再识别模型")
@@ -340,6 +346,7 @@ def create_app(data_dir=None):
             raise HTTPException(502, "无法读取模型列表，请检查公网地址、网络和密钥，或手动填写模型 ID") from None
 
     from .proposals import register_proposals
+    mailing.register_mail(app, db, session)
     register_proposals(app, db, session)
 
     def resource(kind):
@@ -398,6 +405,10 @@ def create_app(data_dir=None):
             db.audit(user["username"], "updated_station_order", key, con)
         return {"ok": True, "order": spec.order}
 
+    advertising.register(app, db, session)
+    ad_analytics.register(app, db, session, active)
+    sponsors.register(app, db, session)
+
     @app.get("/api/admin/{kind}")
     def get_items(kind: str, user=Depends(session)):
         resource(kind)
@@ -437,6 +448,12 @@ def create_app(data_dir=None):
                     raise HTTPException(422, str(exc)) from None
             if kind == "schedules":
                 prepare_schedule(data, con, previous)
+            if kind == "ads":
+                advertising.validate_booking(db, data, key, con)
+                data["created_at"] = previous.get("created_at") if previous else datetime.now().astimezone().isoformat()
+                data["updated_at"] = datetime.now().astimezone().isoformat()
+                data["order_code"] = previous.get("order_code", "AD-" + key[:10].upper()) if previous else "AD-" + key[:10].upper()
+                advertising.record_event(db, key, previous, data, user["username"], con, "created" if create else "updated")
             saved = db.save(kind, key, data, con)
             db.audit(user["username"], ("created_" if create else "updated_") + kind, key, con)
         return safe_station(saved) if kind == "stations" else saved
@@ -455,6 +472,11 @@ def create_app(data_dir=None):
         with db.connect(write=True) as con:
             if not db.get(kind, key, con):
                 raise HTTPException(404, "记录不存在")
+            if kind == "ads":
+                ad = db.get(kind, key, con)
+                if advertising.reserves(ad) or ad.get("received_cents") or ad.get("contract_cents"):
+                    raise HTTPException(409, "已预订或有金额记录的广告请取消投放并保留账目，不能直接删除")
+                advertising.record_event(db, key, ad, None, user["username"], con, "deleted")
             if kind == "stations":
                 in_use = con.execute("SELECT 1 FROM jobs WHERE station_id=? AND status IN ('queued','running')", (key,)).fetchone()
                 has_reports = any(r["station_id"] == key for r in db.list("reports", con))
@@ -466,13 +488,17 @@ def create_app(data_dir=None):
         return {"ok": True}
 
     @app.get("/api/public/bootstrap")
-    def public_bootstrap(summary: bool = False, report_id: str | None = None):
-        stations = {r["id"]: r for r in db.list("stations") if r["visible"]}
-        reports = [public_report(r, stations[r["station_id"]]) for r in db.report_rows(summary=summary, key=report_id, published=True) if r["station_id"] in stations]
+    def public_bootstrap(request: Request, response: Response, summary: bool = False, report_id: str | None = None, content_only: bool = False, reports_only: bool = False):
+        # Independent views need published site content without loading detection history.
+        stations = {} if content_only else {r["id"]: r for r in db.list("stations") if r["visible"]}
+        reports = [] if content_only else [public_report(r, stations[r["station_id"]]) for r in db.report_rows(summary=summary, key=report_id, published=True) if r["station_id"] in stations]
         if summary:
             # Lists and the homepage need conclusions, not every answer/check in every report.
             reports = [{k: v for k, v in report.items() if k not in ("checks", "sections", "conditions", "retest", "findings")} for report in reports]
-        return {"mode": "live", "stations": [{k: r.get(k, "") for k in ("id", "name", "domain", "description", "logo", "models", "website_url")} | {"order": r.get("order", 0)} for r in sorted(stations.values(), key=lambda r: (r.get("order", 0), r["domain"]))], "reports": reports, "announcements": sorted((r for r in db.list("announcements") if active(r)), key=lambda r: (not r["pinned"], r["order"])), "ads": sorted((r for r in db.list("ads") if active(r)), key=lambda r: r["order"])}
+        # Only the lightweight content request issues ad cookies/tickets on first visit.
+        announcements = [] if reports_only else sorted((r for r in db.list("announcements") if active(r)), key=lambda r: (not r["pinned"], r["order"]))
+        ads = [] if reports_only else ad_analytics.public_ads(db, request, response, advertising.public_ads(db, active))
+        return {"mode": "live", "stations": [{k: r.get(k, "") for k in ("id", "name", "domain", "description", "logo", "models", "website_url")} | {"order": r.get("order", 0)} for r in sorted(stations.values(), key=lambda r: (r.get("order", 0), r["domain"]))], "reports": reports, "announcements": announcements, "ads": ads}
 
     @app.get("/api/public/stability")
     def public_stability(model: str = "", test: str = ""):
@@ -511,7 +537,7 @@ def create_app(data_dir=None):
     @app.get("/admin/{path:path}", include_in_schema=False)
     def admin(path: str = ""):
         name = path or "index.html"
-        if name not in ("index.html", "admin.css", "admin.js", "select.js", "models.js", "keys.js", "schedules.js", "bulk.js"):
+        if name not in ("index.html", "admin.css", "admin.js", "select.js", "models.js", "keys.js", "schedules.js", "bulk.js", "ads.js", "ad-ops.js", "ad-analytics.js", "sponsors.js", "applications.js", "mail.js"):
             raise HTTPException(404)
         return FileResponse(ROOT / "admin" / name)
 
@@ -521,15 +547,23 @@ def create_app(data_dir=None):
         full = (ROOT / path).resolve()
         if ROOT not in full.parents or not full.is_file() or any(part.startswith(".") for part in Path(path).parts):
             raise HTTPException(404)
-        root_file = len(Path(path).parts) == 1 and (full.suffix in (".html", ".ico") or path in ("robots.txt", "sitemap.xml"))
+        root_file = len(Path(path).parts) == 1 and (full.suffix in (".html", ".ico") or path in ("robots.txt", "sitemap.xml", "llms.txt"))
         asset = Path(path).parts[0] in ("js", "css", "assets", "works", "data") and full.suffix.lower() in (".js", ".css", ".png", ".jpg", ".jpeg", ".webp", ".svg", ".ico", ".woff2", ".json", ".html")
         if not (root_file or asset):
             raise HTTPException(404)
-        if full.suffix in (".html", ".xml") or path == "robots.txt":
+        if full.suffix in (".html", ".xml") or path in ("robots.txt", "llms.txt"):
             text = full.read_text(encoding="utf-8").replace("__SITE_ORIGIN__", str(request.base_url).rstrip("/"))
+            if path == "sitemap.xml":
+                from .public_pages import sitemap
+                return Response(sitemap(db, text), media_type="application/xml", headers={"Cache-Control": "no-store"})
             if full.suffix == ".html":
+                if path in ("relays.html", "stations.html"):
+                    from .public_pages import render
+                    text = render(db, text, path, request.query_params)
+                    if text is None:
+                        raise HTTPException(404, "公开记录不存在")
                 text = text.replace("</head>", '<meta name="modeltool-backend" content="live"></head>')
-                return HTMLResponse(text)
+                return HTMLResponse(text, headers={"Cache-Control": "no-store"})
             return Response(text, media_type=mimetypes.guess_type(str(full))[0] or "text/plain")
         return FileResponse(full)
 

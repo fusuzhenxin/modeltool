@@ -16,6 +16,15 @@ AT = datetime(2026, 11, 15, 23, 50, tzinfo=TZ).timestamp()
 
 
 class StabilityTests(unittest.TestCase):
+    def test_output_limit_policies_form_separate_comparable_cohorts(self):
+        base={"kind":"site_candy","difficulty":"medium","count":5}
+        cohorts=[configuration(json.dumps(base|extra)) for extra in ({},{"output_token_limit":0},{"output_token_limit":4096})]
+        self.assertEqual(len({c[0] for c in cohorts}),3)
+        self.assertIn("跟随接口",cohorts[1][1])
+        self.assertEqual(configuration(json.dumps(base)),configuration(json.dumps(base|{"output_token_limit":None})))
+        relay={"kind":"site_relay"}
+        self.assertEqual(configuration(json.dumps(relay)),configuration(json.dumps(relay|{"output_token_limit":0})))
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.app = create_app(self.temp.name)
@@ -31,6 +40,7 @@ class StabilityTests(unittest.TestCase):
     def site(self, sid, **changes):
         self.db.save("stations", sid, {"id": sid, "name": sid, "domain": sid + ".example",
                      "visible": True, "enabled": True, "models": ["m"],
+                     "base_url": "https://" + sid + ".example/v1", "protocol": "openai",
                      "key_cipher": "private-key-must-not-leak", **changes})
 
     def job(self, sid="a", status="done", error="", started=None, ended=None, model="m", cfg=None, **changes):
@@ -94,7 +104,7 @@ class StabilityTests(unittest.TestCase):
         row = self.stats()
         self.assertEqual((row["completed"], row["failed"], row["samples"]), (1, 5, 6))
         self.assertEqual(row["rate"], 16.7)
-        self.assertEqual(row["excluded"], {"configuration": 4, "local": 5, "unknown": 1, "billing": 0})
+        self.assertEqual(row["excluded"], {"configuration": 4, "local": 5, "unknown": 1, "billing": 0, "manual": 0})
         self.assertEqual(row["pending"], 1)
 
     def test_beijing_boundaries_and_future_or_incomplete_records(self):
@@ -210,6 +220,42 @@ class StabilityTests(unittest.TestCase):
         self.db.save("reports", bad, {**self.db.get("reports", bad), "status": "draft"})
         q = self.stats()["quality"]["protocol"]
         self.assertEqual((q["status"], q["reports"], q["flagged"]), ("warn", 3, 1))
+
+    def test_fingerprint_is_independent_public_evidence_and_unpublishing_removes_it(self):
+        self.job()
+        trace = {"kind": "trace", "claimed": "m", "known": True, "prediction": "other", "prediction_name": "其他候选",
+                 "used_outputs": 3, "probability": .95, "results": [{"probability": .95}, {"probability": .03}],
+                 "reply": "private-answer", "method": "api"}
+        data = {"kind": "site_trace", "protocol_tested": False, "sections": [trace]}
+        key = self.report(result=data)
+        self.report(result=data, status="draft")
+        self.report(result=data, demo=True)
+        self.report(result=data, model="other")
+        q = self.stats()["quality"]
+        self.assertEqual((q["identity"]["status"], q["identity"]["reports"]), ("mismatch", 1))
+        self.assertEqual(q["identity"]["evidence"]["id"], key)
+        self.assertEqual(q["protocol"]["status"], "untested")
+        self.assertEqual(q["ability"]["status"], "untested")
+        with patch("backend.stability.now", return_value=AT):
+            response = self.client.get("/api/public/stability")
+        self.assertNotIn("private-answer", response.text)
+        self.assertNotIn('"results"', response.text)
+        self.db.save("reports", key, {**self.db.get("reports", key), "status": "draft"})
+        self.assertEqual(self.stats()["quality"]["identity"]["status"], "untested")
+
+    def test_legacy_fingerprint_survives_summary_projection_without_rewriting_data(self):
+        trace = {"kind": "trace", "claimed": "m", "known": True, "prediction": "m", "used_outputs": 3,
+                 "probability": .95, "results": [{"probability": .95}, {"probability": .03}]}
+        key = self.report(result={"time": "2026-11-15 12:00", "kind": "site_trace", "protocol_tested": False, "sections": [trace]})
+        before = self.db.get("reports", key)
+        summary = self.client.get("/api/public/bootstrap?summary=true").json()["reports"][0]
+        detail = self.client.get("/api/public/bootstrap?report_id=" + key).json()["reports"][0]
+        self.assertEqual(summary["identity"], detail["identity"])
+        self.assertEqual(summary["identity"]["status"], "consistent")
+        self.assertNotIn("sections", summary)
+        self.assertNotIn("raw", summary)
+        self.assertNotIn("results", summary["identity"])
+        self.assertEqual(self.db.get("reports", key), before)
 
     def test_unmeasured_and_inconclusive_quality_are_not_normal(self):
         self.job()

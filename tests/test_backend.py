@@ -231,6 +231,22 @@ class BackendTests(unittest.TestCase):
         self.put("reports/perf-report", {"status": "draft"})
         self.assertEqual(self.client.get("/api/public/bootstrap?summary=true").json()["reports"], [])
 
+    def test_content_only_returns_published_ads_without_reading_reports(self):
+        self.station()
+        notice = self.post("announcements", {"title": "公告", "content": "公开内容"}).json()
+        self.post("ads", {"name": "内部订单", "title": "公开赞助", "link": "https://example.com", "placement": "hero", "booking_status": "published", "contact": "private-contact"})
+        self.post("ads", {"name": "草稿", "title": "未发布", "link": "https://example.com", "placement": "footer", "booking_status": "draft"})
+        with patch.object(self.db, "report_rows", side_effect=AssertionError("must not load reports")):
+            response = self.client.get("/api/public/bootstrap?content_only=true")
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()
+        self.assertEqual(payload["stations"], [])
+        self.assertEqual(payload["reports"], [])
+        self.assertEqual([r["id"] for r in payload["announcements"]], [notice["id"]])
+        self.assertEqual([r["title"] for r in payload["ads"]], ["公开赞助"])
+        self.assertNotIn("private-contact", response.text)
+        self.assertNotIn("内部订单", response.text)
+
     def test_crud_timed_content_and_no_secret_static_files(self):
         a = self.post("announcements", {"title": "公告 <script>", "content": "纯文本", "pinned": True, "background_color": "#eef2ff", "text_color": "#4338ca"}).json()
         future = self.post("announcements", {"title": "未来", "content": "未开始", "starts_at": "2099-01-01T00:00:00+08:00"}).json()
@@ -328,6 +344,19 @@ class BackendTests(unittest.TestCase):
         finally:
             server.shutdown(); server.server_close(); thread.join(timeout=3)
 
+    def test_ad_placements_persist_and_publication_respects_timing_and_enabled_state(self):
+        placements = ("hero", "banner", "footer", "masthead", "left")
+        for placement in placements:
+            response = self.post("ads", {"name": placement, "title": "广告展示", "link": "https://example.com/offer?source=modeltool", "placement": placement})
+            self.assertEqual(response.status_code, 200, response.text)
+        self.post("ads", {"name": "未开始", "title": "未来广告", "link": "https://example.com", "placement": "hero", "starts_at": "2099-01-01T00:00:00+08:00"})
+        self.post("ads", {"name": "已停用", "title": "停用广告", "link": "https://example.com", "placement": "hero", "enabled": False})
+        public = self.client.get("/api/public/bootstrap").json()["ads"]
+        self.assertEqual(len(public), len(placements))
+        self.assertEqual({ad["placement"] for ad in public}, set(placements))
+        self.assertTrue(all(ad["link"].endswith("?source=modeltool") for ad in public))
+        self.assertEqual(self.post("ads", {"name": "非法", "title": "广告", "link": "javascript:alert(1)", "placement": "left"}).status_code, 422)
+
     def test_upload_reencodes_images_and_rejects_active_content(self):
         self.assertEqual(self.client.post("/api/admin/media", headers=self.headers, content=b'<svg onload="alert(1)"></svg>').status_code, 422)
         image = Image.new("RGB", (40, 40), "red")
@@ -337,6 +366,20 @@ class BackendTests(unittest.TestCase):
         response = self.client.get(result.json()["url"])
         self.assertEqual(response.headers["content-type"], "image/webp")
         self.assertEqual(response.status_code, 200)
+        spec = {"name": "图片广告", "title": "中转站示例", "description": "模型接入与团队用量管理", "link": "https://example.com", "image": result.json()["url"], "placement": "hero"}
+        saved = self.post("ads", spec)
+        self.assertEqual(saved.status_code, 200, saved.text)
+        public = self.client.get("/api/public/bootstrap").json()["ads"][0]
+        self.assertEqual(public["image"], spec["image"])
+        self.assertEqual(public["description"], spec["description"])
+        spec["image"] = ""
+        spec["description"] = "已更新的介绍"
+        self.assertEqual(self.put("ads/" + saved.json()["id"], spec).status_code, 200)
+        public = self.client.get("/api/public/bootstrap").json()["ads"][0]
+        self.assertEqual(public["image"], "")
+        self.assertEqual(public["description"], spec["description"])
+        self.assertIn("/admin/ads.js?v=", self.client.get("/admin/").text)
+        self.assertEqual(self.client.get("/admin/ads.js").status_code, 200)
         self.assertEqual(self.client.get("/media/encryption.key").status_code, 404)
 
     def test_real_job_draft_review_publication_and_withdrawal(self):

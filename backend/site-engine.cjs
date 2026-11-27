@@ -40,26 +40,27 @@ async function main() {
       return { ok: response.status >= 200 && response.status < 300, status: response.status, headers: { get: (key) => response.headers?.[key.toLowerCase()] || null }, text: async () => response.text };
     }
   });
-  for (const name of ["data", "engine", "ui", "poster", "probe", "trace"]) {
+  for (const name of ["report-quality", "data", "engine", "ui", "poster", "probe", "trace"]) {
     vm.runInContext(fs.readFileSync(path.join(root, "js", name + ".js"), "utf8"), context, { filename: name + ".js" });
   }
   const { DATA, Engine, Api, Probe, Trace, Poster } = vm.runInContext("({DATA,Engine,Api,Probe,Trace,Poster})", context);
+  Api.outputTokenLimit = init.config?.output_token_limit;
   Probe.call = (payload) => rpc("probe", payload);
   Probe.paint = () => {};
   Poster.ensureButtons = () => {};
   const labels = {
     site_basic: "基础测试（四项能力）", site_ability: DATA.kinds.ability.label,
     site_logic: DATA.kinds.logic.label, site_code: DATA.kinds.code.label,
-    site_qa: DATA.kinds.qa.label, site_candy: DATA.kinds.candy.label,
-    site_relay: "中转站测试", site_trace: "模型指纹检测", site_pelican: "鹈鹕骑车测试",
+    site_qa: DATA.kinds.qa.label, site_candy: DATA.kinds.candy.label + "（能力）",
+    site_relay: "中转站功能检测", site_trace: "模型指纹（身份线索）", site_pelican: "鹈鹕骑车测试",
     site_all: "全部测试"
   };
   const descriptions = {
     site_basic: "依次运行网站基础测试页的模型能力、逻辑推理、代码能力、知识问答四项。",
     site_ability: DATA.kinds.ability.desc, site_logic: DATA.kinds.logic.desc,
-    site_code: DATA.kinds.code.desc, site_qa: DATA.kinds.qa.desc, site_candy: DATA.kinds.candy.desc,
-    site_relay: "网站中转站测试原版：协议、响应结构、模型回显、协议指纹、流式、输出控制、上下文、系统指令、工具、多模态、推理参数、用量、提示词缓存、缓存与重放，共 14 项。",
-    site_trace: "网站模型指纹检测原版：数字序列挑战、相同数字解析器和指纹库。收集 3 份有效回答，最多请求 6 次。",
+    site_code: DATA.kinds.code.desc, site_qa: DATA.kinds.qa.desc, site_candy: "能力表现测试，不判断模型身份。" + DATA.kinds.candy.desc,
+    site_relay: "仅检查接口功能，不判断换模。网站中转站测试原版：协议、响应结构、模型回显、协议头特征、流式、输出控制、上下文、系统指令、工具、多模态、推理参数、用量、提示词缓存、缓存与重放，共 14 项。",
+    site_trace: "提供疑似换模线索，不作身份认证。网站模型指纹检测原版：数字序列挑战、相同数字解析器和指纹库。收集 3 份有效回答，最多请求 6 次。",
     site_pelican: DATA.kinds.pelican.desc,
     site_all: "依次运行四项基础能力、糖果、中转站、指纹、鹈鹕骑车；每个项目保留独立结果。"
   };
@@ -110,4 +111,4 @@ async function main() {
     ability: abilityScore == null ? null : {score: abilityScore, questions: scored.reduce((sum, s) => sum + s.count, 0), judgement: Engine.judgeText(abilityScore, "detect")}
   } });
 }
-main().catch(() => { send({type:"error", message:"本站检测执行失败，请检查题目范围、接口响应或指纹有效回答数量；原始明细未公开。"}); process.exitCode=1; }).finally(() => lines.close());
+main().catch((error) => { send({type:"error", code:["output_exhausted", "empty_response"].includes(error?.code) ? error.code : "internal"}); process.exitCode=1; }).finally(() => lines.close());

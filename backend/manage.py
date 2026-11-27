@@ -92,6 +92,8 @@ def restore(archive, target):
     db = Database(target)
     with db.connect(write=True) as con:
         con.execute("DELETE FROM sessions")
+        if con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='sponsor_sessions'").fetchone():
+            con.execute("DELETE FROM sponsor_sessions")
         con.execute("UPDATE jobs SET status='interrupted',ended=?,error='备份恢复后请手动重试' WHERE status IN ('queued','running')", (now(),))
         settings = db.get("settings", "site", con)
         settings["paused"] = True

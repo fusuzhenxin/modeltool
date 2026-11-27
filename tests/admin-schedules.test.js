@@ -25,13 +25,13 @@ test("多选站点默认统一模型，即使没有共同模型也保留统一�
   assert.match(html, /已暂停/);
   const models = schedules.modelFields(stations, ["a", "b"], undefined, select, esc);
   assert.match(models, /value="shared" selected/);
-  assert.match(models, /统一使用一个模型/);
+  assert.match(models, /统一选择模型（可多选）/);
   assert.match(models, /统一检测模型/);
   assert.match(models, /shared（2\/2 家已登记）/);
   assert.match(models, /only-a（1\/2 家已登记）/);
   assert.match(models, /id="schedule-station-models"[^>]* hidden/);
   const mixed = schedules.modelFields(stations, ["a", "c"], { shared: "shared", models: { a: "only-a" } }, select, esc);
-  assert.match(mixed, /站点 C 未登记 shared/);
+  assert.match(mixed, /站点 C：未登记统一模型 shared/);
   assert.match(mixed, /value="shared" selected/);
   assert.match(mixed, /id="schedule-station-models"[^>]* hidden/);
   const separate = schedules.modelFields(stations, ["a", "c"], { mode: "separate", shared: "shared", models: { a: "only-a" } }, select, esc);
@@ -55,9 +55,9 @@ test("批量计划按站点生成独立名称、模型并共用时间和项目�
 
 test("统一模型不回退到站点默认值，列出所有未登记站点并安全显示提示", () => {
   const selection = { mode: "shared", shared: "only-c", models: { a: "only-a", b: "only-b" } };
-  assert.throws(() => schedules.build(spec, stations, ["a", "b"], selection), /站点 A、站点 B：未登记统一模型 only-c/);
-  assert.throws(() => schedules.build(spec, stations, ["a"], { ...selection, shared: "" }), /未选择/);
-  assert.match(schedules.modelHint(stations, ["a", "b"], "shared", esc), /2<\/strong> 家中转站，统一检测/);
+  assert.throws(() => schedules.build(spec, stations, ["a", "b"], selection), /站点 A：未登记统一模型 only-c；站点 B：未登记统一模型 only-c/);
+  assert.throws(() => schedules.build(spec, stations, ["a"], { ...selection, shared: "" }), /至少一个/);
+  assert.match(schedules.modelHint(stations, ["a", "b"], "shared", esc), /2<\/strong> 家中转站，将创建 <strong>2/);
   const unsafe = [{ ...stations[0], name: '<img src=x>', models: [] }];
   const hint = schedules.modelHint(unsafe, ["a"], '<script>', esc);
   assert.doesNotMatch(hint, /<img|<script>/);
@@ -109,4 +109,66 @@ test("切换方式隐藏并停用其他时间字段，避免隐藏必填项阻�
   assert.equal(schedules.timingLabel({ schedule_mode: "daily", daily_time: "20:00" }), "每天 20:00（北京时间）");
   assert.match(schedules.timingLabel({ schedule_mode: "once" }), /仅一次/);
   assert.equal(schedules.timingLabel({ interval_minutes: 360 }), "每 6 小时");
+});
+
+test("一站多模型和多站多模型按组合创建，保留各项检测与时间设置", () => {
+  const sites = stations.slice(0,2).map(s => ({...s, models:["gpt","claude","extra"]}));
+  const plans = schedules.build({...spec,schedule_mode:"daily",daily_time:"09:00"},sites,["a","b"],{mode:"shared",shared:["gpt","claude","extra"]}).schedules;
+  assert.equal(plans.length,6);
+  assert.deepEqual(Array.from(plans,p => `${p.station_id}/${p.model}`), ["a/gpt","a/claude","a/extra","b/gpt","b/claude","b/extra"]);
+  assert.equal(new Set(plans.map(p=>p.name)).size,6);
+  assert.ok(plans.every(p=>p.daily_time==="09:00" && p.kind===spec.kind && p.count===10));
+  const separate = schedules.build(spec,sites,["a","b"],{mode:"separate",shared:[],models:{a:["gpt","claude"],b:["extra"]}}).schedules;
+  assert.equal(separate.length,3);
+  assert.equal(separate[2].model,"extra");
+  const hint = schedules.selectionHint(sites,["a","b"],{mode:"shared",shared:["gpt","claude","extra"]},esc);
+  assert.match(hint,/将创建 <strong>6/);
+});
+
+test("去重所选模型，空模型、未登记组合与超出 100 条都禁止整批提交", () => {
+  assert.equal(schedules.build(spec,stations,["a"],{mode:"shared",shared:["shared","shared","only-a"]}).schedules.length,2);
+  assert.throws(()=>schedules.build(spec,stations,["a"],{mode:"separate",models:{a:[]}}),/至少一个/);
+  assert.throws(()=>schedules.build(spec,stations,["a","b"],{mode:"shared",shared:["shared","only-a"]}),/站点 B/);
+  const sites = Array.from({length:51},(_,i)=>({...stations[0],id:String(i)}));
+  assert.throws(()=>schedules.build(spec,sites,sites.map(s=>s.id),{mode:"shared",shared:["shared","only-a"]}),/102.*100/);
+  assert.equal(schedules.build(spec,sites.slice(0,50),sites.slice(0,50).map(s=>s.id),{mode:"shared",shared:["shared","only-a"]}).schedules.length,100);
+});
+
+test("重建多选控件保留明确清空的选择，失效模型显示警告而不自动换模型", () => {
+  const empty = schedules.modelFields(stations,["a"],{mode:"shared",shared:[],models:{a:[]}},select,esc);
+  assert.match(empty,/multiple required/);
+  assert.doesNotMatch(empty,/value="shared" selected>shared/);
+  assert.match(empty,/请选择至少一个/);
+  const old = schedules.modelFields(stations,["a"],{mode:"shared",shared:["removed"],models:{}},select,esc);
+  assert.match(old,/value="removed" selected/);
+  assert.match(old,/未登记统一模型 removed/);
+});
+
+test("批量手动检测按模型展开，名称和定时设置不混入运行参数", () => {
+  const runs = schedules.buildRuns({kind:"site_candy",count:3},stations,["a"],{mode:"shared",shared:["shared","only-a"]}).runs;
+  assert.equal(runs.length,2);
+  assert.deepEqual(JSON.parse(JSON.stringify(runs)),[{kind:"site_candy",count:3,station_id:"a",model:"shared"},{kind:"site_candy",count:3,station_id:"a",model:"only-a"}]);
+});
+
+test("切换模型设置停用隐藏必填多选框，并保留两种模式的所选值", () => {
+  const groups={"#schedule-shared-model":{},"#schedule-station-models":{}};
+  const fields={schedule_model_mode:{value:"separate"},schedule_model:{selectedOptions:[{value:"shared"},{value:"only-a"}]},station_model_a:{selectedOptions:[{value:"only-a"}]}};
+  const form={elements:{namedItem:n=>fields[n]},querySelector:n=>groups[n]};
+  schedules.updateModelMode(form);
+  assert.equal(groups["#schedule-shared-model"].disabled,true);
+  assert.equal(groups["#schedule-station-models"].disabled,false);
+  const selected=schedules.selection(form,stations);
+  assert.deepEqual(JSON.parse(JSON.stringify(selected.shared)),["shared","only-a"]);
+  assert.deepEqual(JSON.parse(JSON.stringify(selected.models.a)),["only-a"]);
+});
+
+test("发布方式默认待审核并在批量模型展开后保留直接公开", () => {
+  const html = schedules.publicationField({}, select);
+  assert.match(html, /value="review" selected/);
+  assert.match(html, /完成后直接公开/);
+  assert.equal(schedules.publicationLabel({publish_mode:"auto"}), "完成后直接公开");
+  const plans = schedules.build({...spec,publish_mode:"auto"},stations,["a","b"],{mode:"shared",shared:["shared"]});
+  assert.ok(plans.schedules.every(p => p.publish_mode === "auto"));
+  const runs = schedules.buildRuns({...spec,publish_mode:"review"},stations,["a"],{mode:"shared",shared:["shared","only-a"]});
+  assert.ok(runs.runs.every(p => p.publish_mode === "review"));
 });

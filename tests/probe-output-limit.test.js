@@ -4,6 +4,22 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 const path = require("node:path");
 
+test("历史协议报告改标签时保留原分数，不把空检查摘要重算成满分", () => {
+  const ctx = vm.createContext({
+    UI: { esc: value => String(value ?? ''), ring: score => `<ring>${score}</ring>` },
+    Poster: { titles: { bad: '多项功能异常' }, seconds: () => '—', count: () => '—' }
+  });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/probe.js'), 'utf8'), ctx);
+  const probe = vm.runInContext('Probe', ctx);
+  const report = {score: 43, level:'bad', title:'明显掺水', items:{}, shared:true};
+  const before = JSON.stringify(report);
+  const html = probe.reportHtml(report);
+  assert.match(html, /<ring>43<\/ring>/);
+  assert.match(html, /多项功能异常/);
+  assert.doesNotMatch(html, /明显掺水/);
+  assert.equal(JSON.stringify(report), before);
+});
+
 function client() {
   const ctx = vm.createContext({URL});
   for (const file of ["engine", "probe"]) vm.runInContext(fs.readFileSync(path.join(__dirname, "../js/" + file + ".js"), "utf8"), ctx);
@@ -145,7 +161,7 @@ test("接口异常或取消会向外传播，不能吞掉后继续请求", async
   assert.equal(requests,1);
 });
 
-test("输出控制结果不改变掺水评分，其他九项原扣分和等级规则保持一致", () => {
+test("输出控制结果不改变接口功能评分，其他九项原扣分和等级规则保持一致", () => {
   const probe=client();
   const amounts={echo:35,protocol:20,shape:15,system:15,memory:15,stream:10,tools:10,usage:8,replay:8};
   const clean=Object.fromEntries(probe.checks.map(c=>[c.id,{status:"pass",detail:"fixture"}]));
@@ -154,7 +170,7 @@ test("输出控制结果不改变掺水评分，其他九项原扣分和等级�
     assert.equal(verdict.score,100);assert.equal(verdict.level,"ok");
     assert.match(verdict.summary,/兼容性/);
     assert.doesNotMatch(verdict.summary,/输出限制都按原样生效/);
-    assert(verdict.findings.some(f=>f.text.includes("不计入掺水评分")));
+    assert(verdict.findings.some(f=>f.text.includes("不用于判断换模或降智")));
     for (const [id,amount] of Object.entries(amounts)) {
       const original=probe.evaluate({items:{...clean,[id]:{status:"fail"}}});
       const changed=probe.evaluate({items:{...clean,[id]:{status:"fail"},limit:{status:limitStatus}}});

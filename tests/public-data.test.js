@@ -35,6 +35,15 @@ test("概览请求使用精简数据，默认请求仍保留完整报告", async
   }
 });
 
+test("独立页面只请求公告与广告配置", async () => {
+  let url;
+  const ctx = vm.createContext({ URLSearchParams, location: { search: "?view=stability&id=unused" }, fetch: async (value) => { url = value; return { ok: true, json: async () => ({ mode: "live", reports: [], stations: [], announcements: [], ads: [{ placement: "hero" }] }) }; }, AbortController, setTimeout: () => 1, clearTimeout() {}, document: { querySelector: () => ({}) } });
+  vm.runInContext(source, ctx);
+  await vm.runInContext("PublicData.load(false, true)", ctx);
+  assert.equal(url, "/api/public/bootstrap?content_only=true");
+  assert.equal(vm.runInContext("PublicData.ads[0].placement", ctx), "hero");
+});
+
 test("请求未完成时明确标记加载中，禁止回退演示报告", async () => {
   let resolve;
   let calls = 0;
@@ -92,4 +101,22 @@ test("报告详情仅请求当前 ID，避免下载所有报告明细", async ()
   vm.runInContext(source, ctx);
   await vm.runInContext("PublicData.load(false)", ctx);
   assert.equal(url, "/api/public/bootstrap?report_id=report-123");
+});
+
+test("广告配置独立去重，报告请求不更新广告或签发统计凭据", async () => {
+  const requests = new Map();
+  const ctx = vm.createContext({ URLSearchParams, AbortController, setTimeout: () => 1, clearTimeout() {}, document: { querySelector: () => ({}) },
+    fetch: url => new Promise(done => { assert.equal(requests.has(url), false); requests.set(url, done); }) });
+  vm.runInContext(source, ctx);
+  const content = vm.runInContext("PublicData.loadContent()", ctx);
+  const duplicate = vm.runInContext("PublicData.loadContent()", ctx);
+  const reports = vm.runInContext("PublicData.load(true, false, true)", ctx);
+  assert.equal(requests.size, 2);
+  requests.get("/api/public/bootstrap?content_only=true")({ ok: true, json: async () => ({ mode: "live", ads: [{ id: "live-ad" }], announcements: [] }) });
+  await Promise.all([content, duplicate]);
+  assert.equal(vm.runInContext("PublicData.loading && PublicData.contentReady", ctx), true);
+  requests.get("/api/public/bootstrap?summary=true&reports_only=true")({ ok: true, json: async () => ({ mode: "live", reports: [{ id: "report" }], stations: [], ads: [], announcements: [] }) });
+  await reports;
+  assert.equal(vm.runInContext("PublicData.ads[0].id", ctx), "live-ad");
+  assert.equal(vm.runInContext("PublicData.reports[0].id", ctx), "report");
 });

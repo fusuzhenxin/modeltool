@@ -1,0 +1,264 @@
+[
+  {
+    "name": "未测指纹",
+    "section": null,
+    "expected": "untested"
+  },
+  {
+    "name": "充分指纹与宣称模型相符",
+    "section": {
+      "kind": "trace",
+      "claimed": "m",
+      "prediction": "m",
+      "known": true,
+      "method": "api",
+      "used_outputs": 3,
+      "probability": 0.95,
+      "results": [
+        {
+          "probability": 0.95
+        },
+        {
+          "probability": 0.03
+        }
+      ]
+    },
+    "model": "m",
+    "expected": "consistent"
+  },
+  {
+    "name": "充分指纹疑似模型不符",
+    "section": {
+      "kind": "trace",
+      "claimed": "m",
+      "prediction": "other",
+      "known": true,
+      "method": "api",
+      "used_outputs": 3,
+      "probability": 0.95,
+      "results": [
+        {
+          "probability": 0.95
+        },
+        {
+          "probability": 0.03
+        }
+      ]
+    },
+    "model": "m",
+    "expected": "mismatch"
+  },
+  {
+    "name": "库外模型不冒充换模",
+    "section": {
+      "kind": "trace",
+      "claimed": "m",
+      "prediction": "m",
+      "known": false,
+      "method": "api",
+      "used_outputs": 3,
+      "probability": 0.95,
+      "results": [
+        {
+          "probability": 0.95
+        },
+        {
+          "probability": 0.03
+        }
+      ]
+    },
+    "model": "m",
+    "expected": "inconclusive"
+  },
+  {
+    "name": "两份回答不判身份",
+    "section": {
+      "kind": "trace",
+      "claimed": "m",
+      "prediction": "m",
+      "known": true,
+      "method": "api",
+      "used_outputs": 2,
+      "probability": 0.95,
+      "results": [
+        {
+          "probability": 0.95
+        },
+        {
+          "probability": 0.03
+        }
+      ]
+    },
+    "model": "m",
+    "expected": "inconclusive"
+  },
+  {
+    "name": "接近候选不判身份",
+    "section": {
+      "kind": "trace",
+      "claimed": "m",
+      "prediction": "m",
+      "known": true,
+      "method": "api",
+      "used_outputs": 3,
+      "probability": 0.55,
+      "results": [
+        {
+          "probability": 0.55
+        },
+        {
+          "probability": 0.44
+        }
+      ]
+    },
+    "model": "m",
+    "expected": "inconclusive"
+  },
+  {
+    "name": "第一候选占比偏低",
+    "section": {
+      "kind": "trace",
+      "claimed": "m",
+      "prediction": "m",
+      "known": true,
+      "method": "api",
+      "used_outputs": 3,
+      "probability": 0.79,
+      "results": [
+        {
+          "probability": 0.95
+        },
+        {
+          "probability": 0.03
+        }
+      ]
+    },
+    "model": "m",
+    "expected": "inconclusive"
+  },
+  {
+    "name": "高占比但领先不足",
+    "section": {
+      "kind": "trace",
+      "claimed": "m",
+      "prediction": "m",
+      "known": true,
+      "method": "api",
+      "used_outputs": 3,
+      "probability": 0.8,
+      "results": [
+        {
+          "probability": 0.8
+        },
+        {
+          "probability": 0.65
+        }
+      ]
+    },
+    "model": "m",
+    "expected": "inconclusive"
+  },
+  {
+    "name": "缺少次位候选",
+    "section": {
+      "kind": "trace",
+      "claimed": "m",
+      "prediction": "m",
+      "known": true,
+      "method": "api",
+      "used_outputs": 3,
+      "probability": 0.95,
+      "results": []
+    },
+    "model": "m",
+    "expected": "inconclusive"
+  },
+  {
+    "name": "手动粘贴来源未验证",
+    "section": {
+      "kind": "trace",
+      "claimed": "m",
+      "prediction": "m",
+      "known": true,
+      "method": "manual",
+      "used_outputs": 3,
+      "probability": 0.95,
+      "results": [
+        {
+          "probability": 0.95
+        },
+        {
+          "probability": 0.03
+        }
+      ]
+    },
+    "model": "m",
+    "expected": "inconclusive"
+  },
+  {
+    "name": "缺少宣称模型",
+    "section": {
+      "kind": "trace",
+      "claimed": "",
+      "prediction": "m",
+      "known": true,
+      "method": "api",
+      "used_outputs": 3,
+      "probability": 0.95,
+      "results": [
+        {
+          "probability": 0.95
+        },
+        {
+          "probability": 0.03
+        }
+      ]
+    },
+    "model": "m",
+    "expected": "inconclusive"
+  },
+  {
+    "name": "布尔值不冒充候选占比",
+    "section": {
+      "kind": "trace",
+      "claimed": "m",
+      "prediction": "m",
+      "known": true,
+      "method": "api",
+      "used_outputs": 3,
+      "probability": true,
+      "results": [
+        {
+          "probability": 0.95
+        },
+        {
+          "probability": 0.03
+        }
+      ]
+    },
+    "model": "m",
+    "expected": "inconclusive"
+  },
+  {
+    "name": "报告模型与指纹宣称不一致",
+    "section": {
+      "kind": "trace",
+      "claimed": "m",
+      "prediction": "m",
+      "known": true,
+      "method": "api",
+      "used_outputs": 3,
+      "probability": 0.95,
+      "results": [
+        {
+          "probability": 0.95
+        },
+        {
+          "probability": 0.03
+        }
+      ]
+    },
+    "model": "different",
+    "expected": "inconclusive"
+  }
+]

@@ -2,6 +2,13 @@
 
 /* Batch creation stores independent schedules, using each station's own credentials. */
 const AdminSchedules = {
+  publicationLabel(plan) {
+    return plan.publish_mode === "auto" ? "完成后直接公开" : "完成后待审核";
+  },
+  publicationField(plan, select) {
+    return select("publish_mode", "报告发布方式", [["review", "完成后待审核"], ["auto", "完成后直接公开"]], plan.publish_mode || "review")
+      + '<p class="tabs-note">直接公开会发布真实检测结果，低分也会公开；未公开站点的报告保留待审核。失败、取消的任务不会生成公开报告。</p>';
+  },
   timingFields(plan, select, input, check, localValue) {
     const mode = plan.schedule_mode || "interval";
     return select("schedule_mode", "执行方式", [["interval", "按间隔重复"], ["once", "指定时间执行一次"], ["daily", "每天指定时刻"]], mode)
@@ -33,49 +40,83 @@ const AdminSchedules = {
   },
   selected(stations, ids) { return stations.filter((station) => ids.includes(station.id)); },
   stationField(stations, ids, esc, task = false) {
-    return `<div class="field"><label for="f-station_ids">中转站（可多选）</label><select id="f-station_ids" name="station_ids" multiple required>${stations.map((station) => `<option value="${esc(station.id)}" ${ids.includes(station.id) ? "selected" : ""}>${esc(station.name)}${station.has_key ? "" : "（未配置密钥）"}${station.enabled ? "" : "（已暂停）"}</option>`).join("")}</select><small>支持搜索、全选搜索结果；每个站点创建一条独立${task ? "检测任务" : "计划"}，最多一次选择 100 家。</small></div>`;
+    return `<div class="field"><label for="f-station_ids">中转站（可多选）</label><select id="f-station_ids" name="station_ids" multiple required>${stations.map((station) => `<option value="${esc(station.id)}" ${ids.includes(station.id) ? "selected" : ""}>${esc(station.name)}${station.has_key ? "" : "（未配置密钥）"}${station.enabled ? "" : "（已暂停）"}</option>`).join("")}</select><small>支持搜索、全选搜索结果；每个站点与所选模型分别创建独立${task ? "检测任务" : "计划"}，最多一次选择 100 家。</small></div>`;
   },
-  modelFields(stations, ids, previous, select, esc) {
+  modelList(value) { return [...new Set((Array.isArray(value) ? value : value ? [value] : []).filter(Boolean))]; },
+  modelSelect(name, label, options, selected, esc) {
+    return `<div class="field"><label for="f-${esc(name)}">${esc(label)}</label><select id="f-${esc(name)}" name="${esc(name)}" aria-label="${esc(label)}" multiple required>${options.map(([id,title]) => `<option value="${esc(id)}" ${selected.includes(id) ? "selected" : ""}>${esc(title)}</option>`).join("")}</select><small>支持多选、搜索、全选搜索结果与清空选择。</small></div>`;
+  },
+  selection(form, stations) {
+    const read = (name) => [...(form.elements.namedItem(name)?.selectedOptions || [])].map((option) => option.value);
+    return { mode: form.elements.namedItem("schedule_model_mode")?.value || "shared", shared: read("schedule_model"),
+      models: Object.fromEntries(stations.map((station) => [station.id, read("station_model_" + station.id)])) };
+  },
+  modelFields(stations, ids, previous, select, esc, task = false) {
     const chosen = AdminSchedules.selected(stations, ids);
-    const models = [...new Set(chosen.flatMap((station) => station.models))];
+    const saved = previous ? AdminSchedules.modelList(previous.shared) : null;
+    const models = [...new Set([...chosen.flatMap((station) => station.models), ...(saved || [])])];
     const coverage = (model) => chosen.filter((station) => station.models.includes(model)).length;
-    models.sort((a, b) => coverage(b) - coverage(a) || a.localeCompare(b));
-    const shared = models.includes(previous?.shared) ? previous.shared : models[0] || "";
+    models.sort((a,b) => coverage(b)-coverage(a) || a.localeCompare(b));
+    const shared = saved || models.slice(0,1);
     const mode = previous?.mode === "separate" ? "separate" : "shared";
-    return select("schedule_model_mode", "模型设置", [["shared", "统一使用一个模型"], ["separate", "按站点分别选择模型"]], mode)
-      + `<div id="schedule-shared-model" ${mode === "shared" ? "" : "hidden"}>${select("schedule_model", "统一检测模型", models.map((model) => [model, `${model}（${coverage(model)}/${chosen.length} 家已登记）`]), shared)}<div id="schedule-model-hint">${AdminSchedules.modelHint(stations, ids, shared, esc)}</div></div><div id="schedule-station-models" class="schedule-station-models" ${mode === "separate" ? "" : "hidden"}>${chosen.map((station) => {
-        const saved = previous?.models?.[station.id];
-        const model = station.models.includes(saved) ? saved : station.models[0];
-        return select("station_model_" + station.id, station.name, station.models.map((model) => [model, model]), model);
-      }).join("")}</div>`;
+    const fields = select("schedule_model_mode", "模型设置", [["shared", "统一选择模型（可多选）"], ["separate", "按站点分别选择模型（可多选）"]], mode)
+      + `<fieldset id="schedule-shared-model" class="schedule-model-group" ${mode === "shared" ? "" : "hidden disabled"}>${AdminSchedules.modelSelect("schedule_model", "统一检测模型（可多选）", models.map((model) => [model, `${model}（${coverage(model)}/${chosen.length} 家已登记）`]), shared, esc)}</fieldset><fieldset id="schedule-station-models" class="schedule-model-group schedule-station-models" ${mode === "separate" ? "" : "hidden disabled"}>${chosen.map((station) => {
+        const value = previous?.models?.[station.id];
+        const selected = value === undefined ? station.models.slice(0,1) : AdminSchedules.modelList(value);
+        const available = [...new Set([...station.models, ...selected])];
+        return AdminSchedules.modelSelect("station_model_" + station.id, station.name + "（模型可多选）", available.map((model) => [model, model + (station.models.includes(model) ? "" : "（本站未登记）")]), selected, esc);
+      }).join("")}</fieldset>`;
+    const perStation = Object.fromEntries(chosen.map((station) => [station.id, previous?.models?.[station.id] ?? station.models.slice(0,1)]));
+    return fields + `<div id="schedule-model-hint" data-model-task="${task}">${AdminSchedules.selectionHint(stations, ids, { mode, shared, models: perStation }, esc, task)}</div>`;
   },
-  modelHint(stations, ids, model, esc) {
+  updateModelMode(form) {
+    const mode = form.elements.namedItem("schedule_model_mode")?.value || "shared";
+    for (const [id, value] of [["schedule-shared-model", "shared"], ["schedule-station-models", "separate"]]) {
+      const group = form.querySelector("#" + id);
+      if (group) group.hidden = group.disabled = mode !== value;
+    }
+  },
+  pairs(stations, ids, selection) {
+    if (!ids.length || ids.length > 100 || new Set(ids).size !== ids.length) throw new Error("请选择 1–100 家中转站");
     const chosen = AdminSchedules.selected(stations, ids);
-    if (!chosen.length) return '<p class="schedule-model-hint">请先选择中转站。</p>';
-    const missing = chosen.filter((station) => !station.models.includes(model));
-    return missing.length
-      ? `<p class="schedule-model-hint schedule-model-warning" role="status">${missing.map((station) => esc(station.name)).join("、")} 未登记 ${esc(model)}，请先在中转站管理中识别或登记该模型，或切换为分别选择；当前不能保存。</p>`
-      : `<p class="schedule-model-hint" role="status">已选 <strong>${chosen.length}</strong> 家中转站，统一检测 <strong>${esc(model)}</strong>。</p>`;
+    if (chosen.length !== ids.length) throw new Error("中转站列表已变化，请刷新后重新选择");
+    const unified = selection.mode ? selection.mode === "shared" : AdminSchedules.modelList(selection.shared).length > 0;
+    const pairs = [], missing = [];
+    for (const station of chosen) {
+      const models = AdminSchedules.modelList(unified ? selection.shared : selection.models?.[station.id]);
+      if (!models.length) throw new Error(unified ? "请选择至少一个统一检测模型" : `${station.name}：请选择至少一个检测模型`);
+      for (const model of models) {
+        if (!station.models.includes(model)) missing.push(`${station.name}：未登记${unified ? "统一" : "检测"}模型 ${model}`);
+        else pairs.push({ station, model });
+      }
+    }
+    if (missing.length) throw new Error(missing.join("；") + "，请先登记模型或按站点分别选择");
+    if (pairs.length > 100) throw new Error(`将生成 ${pairs.length} 条，超过单批 100 条上限，请减少站点或模型数量`);
+    return pairs;
+  },
+  selectionHint(stations, ids, selection, esc, task = false) {
+    try {
+      const pairs = AdminSchedules.pairs(stations, ids, selection);
+      return `<p class="schedule-model-hint" role="status">已选 <strong>${ids.length}</strong> 家中转站，将创建 <strong>${pairs.length}</strong> 条独立${task ? "检测任务" : "计划"}（每个站点 × 每个所选模型各一条）。每条单独计入调用与 Token 用量，单批最多 100 条。</p>`;
+    } catch (error) {
+      return `<p class="schedule-model-hint schedule-model-warning" role="status">${esc(error.message)}；当前不能保存。</p>`;
+    }
+  },
+  modelHint(stations, ids, models, esc) {
+    return AdminSchedules.selectionHint(stations, ids, {mode:"shared", shared:models}, esc);
   },
   buildRuns(spec, stations, ids, selection) {
     const plans = AdminSchedules.build({ ...spec, name: "", enabled: true }, stations, ids, selection);
     return { runs: plans.schedules.map(({ name, enabled, ...run }) => run) };
   },
   build(spec, stations, ids, selection) {
-    if (!ids.length || ids.length > 100 || new Set(ids).size !== ids.length) throw new Error("请选择 1–100 家中转站");
-    const chosen = AdminSchedules.selected(stations, ids);
-    if (chosen.length !== ids.length) throw new Error("中转站列表已变化，请刷新后重新选择");
-    const unified = selection.mode ? selection.mode === "shared" : !!selection.shared;
-    if (unified) {
-      const missing = chosen.filter((station) => !station.models.includes(selection.shared));
-      if (missing.length) throw new Error(`${missing.map((station) => station.name).join("、")}：未登记统一模型 ${selection.shared || "（未选择）"}，请先登记该模型或按站点分别选择`);
-    }
-    return { schedules: chosen.map((station) => {
-      const model = unified ? selection.shared : selection.models[station.id];
-      if (!station.models.includes(model)) throw new Error(`${station.name}：请选择已登记的检测模型`);
+    const pairs = AdminSchedules.pairs(stations, ids, selection);
+    const multiModel = new Set(pairs.map(({model}) => model)).size > 1;
+    return { schedules: pairs.map(({station, model}) => {
       if (spec.enabled && (!station.enabled || !station.has_key)) throw new Error(`${station.name}：请先启用站点并配置密钥，或取消勾选「启用此检测计划」`);
-      const suffix = chosen.length > 1 ? " · " + station.name : "";
-      const name = Array.from(spec.name).slice(0, 100 - Array.from(suffix).length).join("") + suffix;
+      const labels = [...(ids.length > 1 ? [station.name] : []), ...(multiModel ? [model] : [])];
+      const suffix = labels.length ? " · " + Array.from(labels.join(" · ")).slice(0,80).join("") : "";
+      const name = Array.from(spec.name).slice(0,100-Array.from(suffix).length).join("") + suffix;
       return { ...spec, name, station_id: station.id, model };
     }) };
   }

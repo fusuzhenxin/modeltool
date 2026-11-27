@@ -24,7 +24,7 @@ const AdminSelect = (() => {
       let active = 0, visible = [];
       const sync = () => {
         const selected = [...select.selectedOptions];
-        trigger.textContent = select.multiple ? (selected.length ? `已选 ${selected.length} 个：${selected.map((o) => o.textContent).join("、")}` : "选择中转站，可多选") : selected[0]?.textContent || "暂无可选项";
+        trigger.textContent = select.multiple ? (selected.length ? `已选 ${selected.length} 个：${selected.map((o) => o.textContent).join("、")}` : "请选择，可多选") : selected[0]?.textContent || "暂无可选项";
         trigger.title = trigger.textContent; trigger.disabled = select.disabled || !select.options.length;
         if (selected.length) trigger.removeAttribute("aria-invalid");
       };

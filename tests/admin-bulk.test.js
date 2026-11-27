@@ -97,6 +97,7 @@ test("真实列表渲染在七个模块都含逐行勾选，并在翻页后保�
     document: { getElementById() { return { addEventListener() {} }; }, addEventListener() {} },
     window: { addEventListener() {} }, setInterval() {}, AdminBulk: bulk
   });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../js/report-quality.js"), "utf8"), ui);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../admin/schedules.js"), "utf8"), ui);
   const source = fs.readFileSync(path.join(__dirname, "../admin/admin.js"), "utf8")
     .replace(/  start\(\);\s+return \{ refresh: loadPage \};/, "  return { state, listContent };");
@@ -131,4 +132,23 @@ test("真实列表渲染在七个模块都含逐行勾选，并在翻页后保�
     assert.doesNotMatch(second, /data-bulk-id="row0"/);
     assert.equal(admin.state.selected.size, 2);
   }
+});
+
+
+test("批量仅修改发布方式时保留模型和时间配置", () => {
+  const changes = bulk.scheduleChanges({get:name => name === "change_publish_mode" ? "auto" : ""});
+  assert.deepEqual(JSON.parse(JSON.stringify(changes)), {publish_mode:"auto"});
+  assert.match(bulk.scheduleFields([],[],esc), /name="change_publish_mode"/);
+});
+
+test("排除失败样本须选择已核实原因和填写证据，支持恢复", () => {
+  assert.ok(bulk.actions.jobs.some(([action]) => action === "exclude"));
+  assert.ok(bulk.actions.jobs.some(([action]) => action === "restore"));
+  const form = values => ({get:name => values[name]});
+  assert.throws(() => bulk.exclusionChanges(form({})), /核查依据/);
+  assert.throws(() => bulk.exclusionChanges(form({exclusion_reason:"group_unavailable",exclusion_note:"可能吧"})), /核查依据/);
+  assert.deepEqual(JSON.parse(JSON.stringify(bulk.exclusionChanges(form({exclusion_reason:"group_unavailable",exclusion_note:"已向商家确认分组删除"})))), {exclusion_reason:"group_unavailable",note:"已向商家确认分组删除"});
+  assert.match(bulk.jobExclusion({exclusion:{active:true,reason:"group_unavailable",note:'<script>private</script>'}},esc), /已排除统计/);
+  assert.doesNotMatch(bulk.jobExclusion({exclusion:{active:true,note:'<script>private</script>'}},esc), /<script>/);
+  assert.match(bulk.explanation("jobs","exclude"), /原记录保留/);
 });

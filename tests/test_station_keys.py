@@ -130,6 +130,72 @@ class StationKeysTests(unittest.TestCase):
             self.assertTrue(seen)
             self.assertEqual(set(seen), {expected})
 
+    def test_same_station_routes_each_model_to_its_key_protocol_and_endpoint(self):
+        station = self.station([
+            {"name": "GPT", "api_key": "sk-gpt", "models": ["gpt-test"], "model_scope": "bound"},
+            {"name": "Claude", "api_key": "sk-claude", "models": ["claude-test"], "model_scope": "bound",
+             "protocol": "anthropic", "base_url": "https://claude.example/v1"},
+        ])
+        for kind in ("ability", "site_candy"):
+            for model, expected_url, secret in (("gpt-test", "https://multi.example/v1/chat/completions", "sk-gpt"),
+                                                 ("claude-test", "https://claude.example/v1/messages", "sk-claude")):
+                calls = []
+                def upstream(url, headers, payload):
+                    calls.append((url, headers))
+                    self.assertEqual(payload["model"], model)
+                    self.assertEqual("system" in payload, model == "claude-test")
+                    return self.fake(url, headers, payload)
+                self.run_job(station, model=model, kind=kind, transport=upstream)
+                self.assertTrue(calls)
+                self.assertEqual({url for url, _ in calls}, {expected_url})
+                for _, headers in calls:
+                    self.assertEqual(headers.get("x-api-key") or headers.get("Authorization"), secret if model == "claude-test" else "Bearer " + secret)
+        saved = self.db.get("stations", station["id"])
+        self.assertEqual(saved["base_url"], self.body["base_url"])
+        self.assertEqual(saved["protocol"], "openai")
+
+    def test_bound_empty_key_never_becomes_a_general_fallback(self):
+        station = self.station([{"api_key": "sk-unassigned", "model_scope": "bound"},
+                                {"api_key": "sk-gpt", "models": ["gpt-test"], "model_scope": "bound"}])
+        self.assertEqual(self.post("jobs", {"station_id": station["id"], "model": "claude-test", "kind": "site_candy"}).status_code, 409)
+        seen = []
+        def upstream(url, headers, payload):
+            seen.append(headers["Authorization"])
+            return self.fake(url, headers, payload)
+        self.run_job(station, kind="site_candy", transport=upstream)
+        self.assertEqual(set(seen), {"Bearer sk-gpt"})
+
+    def test_discovery_uses_each_keys_saved_address_and_protocol_without_overwriting_bindings(self):
+        station = self.station([{"api_key": "sk-gpt", "models": ["gpt-test"], "model_scope": "bound"},
+                                {"api_key": "sk-claude", "protocol": "anthropic", "base_url": "https://claude.example/v1",
+                                 "models": ["claude-test"], "model_scope": "bound"}])
+        before = self.db.get("stations", station["id"])
+        spec = {"station_id": station["id"], "key_id": station["api_keys"][1]["id"],
+                "base_url": "https://claude.example/v1", "protocol": "anthropic"}
+        with patch("backend.catalog.get_json", return_value={"data": [{"id": "claude-new"}]}) as upstream:
+            response = self.post("stations/discover-models", spec)
+            self.assertEqual(response.json()["models"], ["claude-new"])
+            self.assertEqual(upstream.call_args.args[0], "https://claude.example/v1/models?limit=1000")
+            self.assertEqual(upstream.call_args.args[1]["x-api-key"], "sk-claude")
+            self.assertEqual(self.post("stations/discover-models", spec | {"base_url": station["base_url"]}).status_code, 422)
+            self.assertEqual(upstream.call_count, 1)
+        self.assertEqual(self.db.get("stations", station["id"]), before)
+
+    def test_key_connection_changed_during_job_stops_before_next_request(self):
+        station = self.station([{"api_key": "sk-gpt", "models": ["gpt-test"], "model_scope": "bound"}])
+        calls = []
+        def upstream(url, headers, payload):
+            calls.append(url)
+            keys = station["api_keys"]
+            keys[0]["protocol"] = "anthropic"
+            self.assertEqual(self.edit(station, api_keys=keys).status_code, 200)
+            return self.fake(url, headers, payload)
+        response = self.post("jobs", {"station_id": station["id"], "model": "gpt-test", "kind": "site_candy", "count": 3})
+        self.assertEqual(response.status_code, 200)
+        work_once(self.db, upstream)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(self.client.get("/api/admin/jobs").json()[0]["status"], "cancelled")
+
     def test_discovery_selects_stored_or_unsaved_key_without_modifying_station(self):
         station = self.station([{"name": "A", "api_key": "sk-one"}, {"name": "B", "api_key": "sk-two"}])
         before = self.db.get("stations", station["id"])

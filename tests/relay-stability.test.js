@@ -6,6 +6,7 @@ const source = fs.readFileSync(require('node:path').join(__dirname, '../js/relay
 const esc = v => String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 function client(fetch) {
   const ctx = vm.createContext({ URL, URLSearchParams, Date, Intl, AbortController, setTimeout, clearTimeout, fetch, UI: { esc, shell: (_, html) => html } });
+  vm.runInContext(fs.readFileSync(require('node:path').join(__dirname, '../js/report-quality.js'), 'utf8'), ctx);
   vm.runInContext(source, ctx);
   return vm.runInContext('RelayStability', ctx);
 }
@@ -73,7 +74,7 @@ test('无样本使用破折号，不以百分比冒充检测结果', () => {
   assert.ok(!html.includes('>0%') && !html.includes('>100%') && !html.includes('eligible"'));
 });
 test('默认把表现好的站点提前，仍可选择异常优先，搜索内容和站点信息安全转义', () => {
-  const c = client(), a = row('<img src=x onerror=alert(1)>'), b = row('乙站', false);
+  const c = client(), a = row('<img src=x onerror=alert(1)>'), b = row('乙站');
   b.station.domain = 'b.example'; b.periods.evening.rate = 100;
   b.failed = 0; b.excluded.unknown = 0; b.failure_streak = 0;
   let html = c.render(data([a, b]), new URLSearchParams());
@@ -91,7 +92,7 @@ test('默认把表现好的站点提前，仍可选择异常优先，搜索内�
 });
 
 test('表现排序把旧记录和无有效样本放后面，不把空样本当成零风险好站', () => {
-  const c = client(), recent = row('近期站'), stale = row('旧记录站'), empty = row('无样本站', false);
+  const c = client(), recent = row('近期站'), stale = row('旧记录站', false), empty = row('无样本站', false);
   Object.assign(stale, bucket(30, 100), { last_outcome: 'completed', last_sample: data().generated_at - 86401 });
   stale.excluded.unknown = 0;
   Object.assign(empty, bucket(0), { last_sample: null, last_outcome: null });
@@ -121,6 +122,67 @@ test('表现排序综合质量信号、最近结果、完成率和采样覆盖',
   }
   assert.equal(c.compareHealth(good, good, now), 0);
 });
+
+test('少量全通过的新站进入观察区，不挤到样本充分的站点前面', () => {
+  const c = client(), veteran = row('长期采样站'), newcomer = row('新加入站', false);
+  Object.assign(newcomer, bucket(1, 100), { covered_days: 1, last_outcome: 'completed', failure_streak: 0 });
+  newcomer.excluded.unknown = 0;
+  const rows = [newcomer, veteran], before = JSON.stringify(rows);
+  const html = c.render(data(rows), new URLSearchParams());
+  const boundary = html.indexOf('data-stability-group="observing"');
+  assert.ok(html.indexOf('长期采样站') < boundary);
+  assert.ok(html.indexOf('新加入站') > boundary);
+  assert.ok(html.includes('样本充分榜<span>1 家'));
+  assert.ok(html.includes('新站观察区<span>1 家'));
+  assert.equal(JSON.stringify(rows), before);
+  Object.assign(newcomer, bucket(20, 100), { eligible: true, covered_days: 3 });
+  newcomer.periods = { day: bucket(14, 100), evening: bucket(3, 100), night: bucket(3, 100) };
+  const promoted = c.render(data(rows), new URLSearchParams());
+  assert.ok(promoted.indexOf('新加入站') < promoted.indexOf('data-stability-group="observing"'));
+  assert.ok(promoted.includes('样本充分榜<span>2 家'));
+});
+
+test('全是新站时保留正式榜空态，旧记录和无样本也不进入正式榜', () => {
+  const c = client(), old = row('旧记录站', false), empty = row('无样本站', false);
+  old.last_sample = data().generated_at - 86401;
+  Object.assign(empty, bucket(0), { last_sample: null, last_outcome: null });
+  const html = c.render(data([empty, old]), new URLSearchParams());
+  assert.ok(html.includes('样本充分榜<span>0 家'));
+  assert.ok(html.includes('暂无采样达标的站点'));
+  assert.ok(html.includes('新站观察区<span>2 家'));
+  const boundary = html.indexOf('data-stability-group="observing"');
+  assert.ok(html.indexOf('旧记录站') > boundary);
+  assert.ok(html.indexOf('无样本站') > boundary);
+});
+
+test('分区遵循搜索和异常分类，空搜索不显示两份分区空态', () => {
+  const c = client(), ranked = row('正式失败站'), observing = row('观察正常站', false);
+  Object.assign(observing, bucket(1, 100));
+  observing.excluded.unknown = 0;
+  let html = c.render(data([ranked, observing]), new URLSearchParams('focus=issues'));
+  assert.ok(html.includes('正式失败站'));
+  assert.ok(!html.includes('观察正常站'));
+  assert.ok(html.includes('新站观察区<span>0 家'));
+  html = c.render(data([ranked, observing]), new URLSearchParams('q=观察正常站'));
+  assert.ok(html.includes('样本充分榜<span>0 家'));
+  assert.ok(html.includes('新站观察区<span>1 家'));
+  html = c.render(data([ranked, observing]), new URLSearchParams('q=不存在的站点'));
+  assert.ok(html.includes('暂无符合条件的中转站'));
+  assert.ok(!html.includes('data-stability-group='));
+});
+
+test('其他观察排序合并展示，不因采样不足隐藏异常站点', () => {
+  const c = client(), ranked = row('正式普通站'), observing = row('观察异常站', false);
+  ranked.failed = 0; ranked.excluded.unknown = 0;
+  observing.quality = { protocol: { status: 'bad' } };
+  for (const sort of ['risk', 'quality', 'evening', 'slow', 'new']) {
+    const html = c.render(data([ranked, observing]), new URLSearchParams({ sort }));
+    assert.ok(!html.includes('data-stability-group='), sort);
+    assert.ok(html.includes('正式普通站') && html.includes('观察异常站'), sort);
+    if (['risk', 'quality'].includes(sort)) assert.ok(html.indexOf('观察异常站') < html.indexOf('正式普通站'));
+  }
+});
+
 test('独立读取聚合接口、不下载报告，失败可重试且不回退演示数据', async () => {
   const requests = [], c = client(async (url, options) => { requests.push([url, options]); return { ok: false }; }), r = root();
   await c.load(r, new URLSearchParams('model=m&test=t&q=private'));
@@ -240,11 +302,14 @@ test('检测完成不冒充未见掺水或未见降智，未测和结论不足�
   const c = client(), r = row();
   Object.assign(r, bucket(20, 100));
   const summary = c.qualitySummary(r);
-  assert.ok(summary.includes('未测协议'));
+  assert.ok(summary.includes('未测接口功能'));
   assert.ok(summary.includes('未测能力'));
+  assert.ok(summary.includes('未测指纹'));
   assert.ok(!summary.includes('未见信号'));
   r.quality = { protocol: { status: 'inconclusive', reports: 1, flagged: 0 } };
   assert.ok(c.qualitySummary(r).includes('结论不足'));
+  r.quality = { identity: { status: 'inconclusive', reports: 1, flagged: 0 } };
+  assert.ok(c.qualitySummary(r).includes('暂无法判断'));
 });
 
 test('公开质量信号分别着色并关联依据，范围和记录时间可见', () => {
@@ -254,7 +319,7 @@ test('公开质量信号分别着色并关联依据，范围和记录时间可�
     ability: { status: 'degraded', reports: 2, flagged: 1, inconclusive: 0, evidence: { id: '<secret>', at: 1794736800 } }
   };
   const html = c.row(r, data().generated_at);
-  for (const text of ['疑似掺水', '出现降智信号', '1/3 份', '1/2 份', '不同测试配置', '保留窗口内最严重信号', 'relays.html?id=public%26report', 'relays.html?id=%3Csecret%3E']) assert.ok(html.includes(text), text);
+  for (const text of ['部分功能异常', '出现降智信号', '1/3 份', '1/2 份', '不同测试配置', '保留窗口内最严重信号', 'relays.html?id=public%26report', 'relays.html?id=%3Csecret%3E']) assert.ok(html.includes(text), text);
   assert.ok(!html.includes('<secret>'));
   assert.ok(html.includes('stability-quality-chip warn'));
   assert.ok(html.includes('stability-quality-chip uncertain'));
@@ -275,7 +340,7 @@ test('记录明细显示真实分数、耗时、检查项和依据，未公开�
     test: '中转站测试', report: { id: 'published', protocol: 0, ability: 92, passed: 3, attention: 1 } },
     { at: 1794736800, cause: 'completed', outcome: 'completed', duration_ms: 10000 }];
   const html = c.records(r);
-  for (const value of ['协议分 /100', '能力分 /100', '>0</td>', '>92</td>', '3 项通过 · 1 项需核对', '1 分 25 秒', 'relays.html?id=published', '评分未公开']) assert.ok(html.includes(value), value);
+  for (const value of ['功能分 /100', '能力分 /100', '>0</td>', '>92</td>', '3 项通过 · 1 项需核对', '1 分 25 秒', 'relays.html?id=published', '评分未公开']) assert.ok(html.includes(value), value);
   assert.ok(html.includes('stability-record-score">—</td>'));
 });
 
@@ -290,4 +355,24 @@ test('分数趋势仅比较同配置，固定零至百分并明确单份和多�
   r.quality.protocol.scores.push({...g,latest:100});
   assert.ok(c.metrics(r).includes('多个配置，见下方分别比较'));
   assert.ok(!c.metrics(r).includes('100<small>/100'));
+});
+
+test('权限和人工排除记录不在前台明细展示，真实接口失败仍然可见', () => {
+  const c = client(), r = row();
+  r.excluded.manual = 1;
+  r.history = [
+    {at:1794736700,ended:1794736701,outcome:'configuration',cause:'http_403',duration_ms:1000,test:'中转站测试'},
+    {at:1794736710,ended:1794736711,outcome:'manual',cause:'manual',exclusion_reason:'分组已失效',duration_ms:1000,test:'中转站测试'},
+    {at:1794736720,ended:1794736721,outcome:'failed',cause:'http_503',duration_ms:1000,test:'中转站测试'}
+  ];
+  const html = c.records(r);
+  assert.ok(html.includes('HTTP 503'));
+  assert.ok(html.includes('最近 1 次'));
+  assert.ok(!html.includes('HTTP 403'));
+  assert.ok(!html.includes('不计完成率的记录'));
+  assert.ok(!html.includes('人工核查标记'));
+  assert.equal(r.history.length, 3);
+  r.calendar = {'2026-11-09':{day:{completed:0,failed:0,unknown:0,configuration:1,manual:1}}};
+  assert.ok(c.calendar(r).includes('stability-cell skipped'));
+  assert.ok(!c.calendar(r).includes('stability-cell bad'));
 });

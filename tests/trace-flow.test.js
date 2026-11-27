@@ -30,7 +30,7 @@ function client() {
     Store: { api: () => ({ baseUrl: "https://example.invalid/v1", apiKey: "test-only", modelOverride: "" }) },
     UI: { diffLabel: (value) => value, esc: (text) => String(text ?? "").replace(/[&<>"']/g, (value) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[value])), icon: () => "" }
   });
-  for (const file of ["data", "engine", "trace", "poster"]) {
+  for (const file of ["report-quality", "data", "engine", "trace", "poster"]) {
     vm.runInContext(fs.readFileSync(path.join(root, "js/" + file + ".js"), "utf8"), context, { filename: file + ".js" });
   }
   return { ...vm.runInContext("({ Trace, Api, Poster })", context), requests, storage };

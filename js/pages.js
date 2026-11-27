@@ -1,4 +1,5 @@
 (function () {
+  if (typeof location !== "undefined" && location.pathname.endsWith("/relay-apply.html")) return;
   if (window.__vdVisit) return;
   var s = document.createElement("script");
   s.src = "https://www.veridrop.cn/js/visit.js?v=20261020a";
@@ -19,7 +20,8 @@ const App = {
     const startToken = {};
     App.startToken = startToken;
     const stabilityView = page === "relays" && typeof location !== "undefined" && new URLSearchParams(location.search).get("view") === "stability";
-    const publicReady = typeof PublicData !== "undefined" && !stabilityView ? PublicData.load(page !== "relays" || typeof location === "undefined" || !new URLSearchParams(location.search).get("id")) : null;
+    const contentReady = typeof PublicData !== "undefined" ? PublicData.loadContent() : null;
+    const publicReady = stabilityView || page === "relayApply" ? contentReady : typeof PublicData !== "undefined" ? PublicData.load(page !== "relays" || typeof location === "undefined" || !new URLSearchParams(location.search).get("id"), false, true) : null;
     await Store.init();
     if (App.startToken !== startToken) return;
     UI.bind();
@@ -33,11 +35,17 @@ const App = {
     App.rush = false;
     App.runError = "";
     App.runToken = {};
-    const waitForPublic = typeof PublicData !== "undefined" && PublicData.loading && ["relays", "stations", "examples"].includes(page);
+    const waitForPublic = !stabilityView && typeof PublicData !== "undefined" && PublicData.loading && ["relays", "stations", "examples"].includes(page);
     if (waitForPublic) {
       document.getElementById("app").innerHTML = UI.shell(page,
         '<section class="panel"><div class="panel-bd" role="status" aria-live="polite"><h1>正在加载页面数据</h1><p>导航已可使用，公开数据正在读取中…</p></div></section>');
     } else App.paint(page);
+    const contentPaint = Promise.resolve(contentReady).then(() => {
+      if (App.startToken !== startToken) return;
+      const notices = document.getElementById("public-notices");
+      if (notices && typeof PublicData !== "undefined") notices.innerHTML = PublicData.notices(page === "home");
+      if (typeof Ads !== "undefined") Ads.mount(page);
+    });
     await publicReady;
     if (App.startToken !== startToken) return;
     if (waitForPublic) App.paint(page);
@@ -48,6 +56,7 @@ const App = {
       const overview = document.getElementById("home-public-overview");
       if (page === "home" && overview) overview.innerHTML = Pages.publicOverview();
     }
+    await contentPaint;
   },
   paint(page) {
     document.getElementById("app").innerHTML = Pages[page]();
@@ -56,6 +65,7 @@ const App = {
     }
     applyHead();
     if (Pages.mount && Pages.mount[page]) Pages.mount[page]();
+    if (typeof Ads !== "undefined") Ads.mount(page);
   },
   refresh() { App.start(App.page); }
 };
@@ -716,10 +726,14 @@ function relayPublicDetail(item) {
   const site = typeof PublicData !== "undefined" && PublicData.live ? PublicData.stations.find((station) => station.domain === domain) : null;
   const stationName = site?.name || item.stationName || domain;
   const relaySection = (item.sections || []).find((section) => section.kind === "relay");
-  const summary = relaySection?.summary || item.summary || "请结合下方逐项检测结果与复测记录判断。";
-  const scoreLabel = item.demo ? "模拟检测分" : item.suite === "server-v1" ? "协议检查分" : "本次检测分";
+  const summary = ReportQuality.protocolTested(item) ? "接口功能只反映协议、参数与响应行为，不判断模型是否被替换。能力与模型指纹分别查看。" : item.summary || "请结合下方逐项检测结果与复测记录判断。";
+  const scoreLabel = "接口功能分";
   const reportType = item.test_name || "中转站检测";
-  const level = relayLevel(item.level);
+  const level = relayLevel(ReportQuality.protocolLevel(item));
+  const traceSections = (item.sections || []).filter(section => section.kind === "trace");
+  const tracePrimary = traceSections.length > 0 && !ReportQuality.protocolTested(item);
+  const traceReport = traceSections.length && typeof SiteReport !== "undefined" ? SiteReport.render(traceSections, UI.esc, {model:item.model, time:item.time}) : "";
+  const otherSections = (item.sections || []).filter(section => section.kind !== "trace");
   const statuses = { pass: ["ok", "通过"], warn: ["warn", "需核对"], fail: ["bad", "未通过"], skip: ["", "不支持"], miss: ["", "未命中"], unknown: ["", "无法确认"] };
   return UI.shell("relay-public", `
     <div class="page-head report-head">
@@ -730,13 +744,16 @@ function relayPublicDetail(item) {
     <div class="report-body">
     ${localShare ? '<p class="note">当前为本地预览：分享链接和海报二维码指向本机地址，其他设备暂时无法访问；不会上传报告或发布到线上。</p>' : ""}
     ${item.demo ? `<p class="demo-notice"><strong>演示数据</strong> 域名、检测时间、分数和结果均为虚构，仅供预览页面效果，不代表实际服务。</p>` : ""}
-    <section class="panel report-overview report-tone-${level}" aria-labelledby="report-verdict-title">
-      <div class="report-overview-main"><div class="report-verdict"><span class="report-verdict-icon">${UI.icon(level === "ok" ? "shield" : "info")}</span><div><p class="report-kicker">${UI.esc(reportType)}${item.demo ? " · 演示" : ""}</p><h2 id="report-verdict-title">${UI.esc(item.title || "检测已完成")}</h2><p class="report-summary">${UI.esc(summary)}</p></div></div><div class="report-score"><span>${scoreLabel}</span><strong>${item.score == null ? "—" : UI.esc(item.score)}${item.score == null ? "" : "<small>/ 100</small>"}</strong>${item.score == null ? '<small>本次未进行协议评分</small>' : ""}</div></div>
+    ${tracePrimary ? "" : `<section class="panel report-overview report-tone-${level}" aria-labelledby="report-verdict-title">
+      <div class="report-overview-main"><div class="report-verdict"><span class="report-verdict-icon">${UI.icon(level === "ok" ? "shield" : "info")}</span><div><p class="report-kicker">${UI.esc(reportType)}${item.demo ? " · 演示" : ""}</p><h2 id="report-verdict-title">${UI.esc(ReportQuality.title(item))}</h2><p class="report-summary">${UI.esc(summary)}</p>${RelayDirectory.identityBadge(item)} ${RelayDirectory.abilityBadge(item)}</div></div><div class="report-score"><span>${scoreLabel}</span><strong>${item.score == null ? "—" : UI.esc(item.score)}${item.score == null ? "" : "<small>/ 100</small>"}</strong>${item.score == null ? '<small>本次未进行协议评分</small>' : ""}</div></div>
       <div class="report-metrics"><div>${UI.icon("list")}<span>检查项目</span><strong>${checks.length}<small>项</small></strong></div><div>${UI.icon("check")}<span>通过项目</span><strong>${passed}<small>项</small></strong></div><div class="${abnormal ? "report-metric-attention" : ""}">${UI.icon("info")}<span>异常或需核对</span><strong>${abnormal}<small>项</small></strong></div><div>${UI.icon("refresh")}<span>检测次数</span><strong>${UI.esc(item.runs || 1)}<small>次</small></strong></div></div>
-    </section>
-    <section class="panel report-information" aria-labelledby="report-info-title"><div class="report-section-heading"><h2 id="report-info-title">检测信息</h2><span>参数与结果一同留档</span></div><dl class="report-info-grid"><div><dt>${UI.icon("target")}宣称模型</dt><dd>${UI.modelChip(item.model || "")}</dd></div><div><dt>${UI.icon("clock")}检测时间</dt><dd><time>${UI.esc(item.time || "未提供")}</time></dd></div><div><dt>${UI.icon("doc")}检测类型</dt><dd>${UI.esc(reportType)}</dd></div><div class="report-conditions"><dt>${UI.icon("code")}测试条件</dt><dd>${UI.esc(item.conditions || "该记录未提供补充参数，请结合检测时间与项目判断。")}</dd></div></dl>${names ? `<div class="report-findings"><span>结果摘要</span><ul>${names}</ul></div>` : ""}<details class="report-method"><summary>${UI.icon("info")}检测说明与复测建议${UI.icon("chevron")}</summary><div>${item.summary && item.summary !== summary ? `<p>${UI.esc(item.summary)}</p>` : ""}<p>${item.protocol_tested === false ? "本次未选择中转站测试，不据能力、指纹或作品判断协议是否掺水。" : "中转站结论沿用本站原版测试，请结合逐项依据复核。"}</p><p>${UI.esc(item.retest || "这份记录只代表这一次检测。复测时保持相同接口、模型 ID 和设置，再对照逐项结果。")}</p></div></details></section>
-    ${(item.sections || []).some((section) => section.kind !== "pelican") ? '<div class="report-section-label"><h2>各项测试表现</h2><span>不同测试独立展示结果</span></div>' : ""}
-    ${typeof SiteReport === "undefined" ? "" : SiteReport.render(item.sections || [], UI.esc)}
+    </section>`}
+    ${traceReport}
+    ${traceSections.length ? '<details class="panel report-info-disclosure"><summary>检测信息与参数<span>展开查看模型、时间和测试条件</span></summary>' : ""}
+    <section class="panel report-information" aria-labelledby="report-info-title"><div class="report-section-heading"><h2 id="report-info-title">检测信息</h2><span>参数与结果一同留档</span></div><dl class="report-info-grid"><div><dt>${UI.icon("target")}宣称模型</dt><dd>${UI.modelChip(item.model || "")}</dd></div><div><dt>${UI.icon("clock")}检测时间</dt><dd><time>${UI.esc(item.time || "未提供")}</time></dd></div><div><dt>${UI.icon("doc")}检测类型</dt><dd>${UI.esc(reportType)}</dd></div><div class="report-conditions"><dt>${UI.icon("code")}测试条件</dt><dd>${UI.esc(item.conditions || "该记录未提供补充参数，请结合检测时间与项目判断。")}</dd></div></dl>${names ? `<div class="report-findings"><span>结果摘要</span><ul>${names}</ul></div>` : ""}<details class="report-method"><summary>${UI.icon("info")}检测说明与复测建议${UI.icon("chevron")}</summary><div>${item.summary && item.summary !== summary ? `<p>${UI.esc(item.summary)}</p>` : ""}<p>${item.protocol_tested === false ? "本次未选择中转站测试，不判断接口功能。糖果归能力，模型是否可能被替换请看指纹线索。" : "中转站测试只判断接口功能；不能据此确认换模或掺水，请结合指纹复测。"}</p><p>${UI.esc(item.retest || "这份记录只代表这一次检测。复测时保持相同接口、模型 ID 和设置，再对照逐项结果。")}</p></div></details></section>
+    ${traceSections.length ? '</details>' : ""}
+    ${otherSections.some(section => section.kind !== "pelican") ? '<div class="report-section-label"><h2>各项测试表现</h2><span>不同测试独立展示结果</span></div>' : ""}
+    ${typeof SiteReport === "undefined" ? "" : SiteReport.render(otherSections, UI.esc)}
     ${item.artwork?.available ? `<div class="entry-actions"><a class="btn btn-ghost" href="/api/public/reports/${encodeURIComponent(item.id)}/artwork" target="_blank" rel="noopener noreferrer">新标签页打开作品</a></div>` : ""}
     ${item.artwork ? `<article class="panel"><div class="panel-hd"><h2>鹈鹕骑车 · ${UI.esc(item.artwork.mode_name)}</h2><span>代码结构分 ${UI.esc(item.artwork.score)} / 100</span></div><div class="panel-bd"><p class="note">结构分只检查代码特征，不识别画面，不代表模型身份或是否降智。请观察长嘴、喉囊、车架和骑行关系。</p>${item.artwork.available ? `<iframe class="art-frame" sandbox="allow-scripts" referrerpolicy="no-referrer" src="/api/public/reports/${encodeURIComponent(item.id)}/artwork" title="鹈鹕骑车作品预览"></iframe>` : '<p>本次没有生成完整作品。</p>'}<ul class="example-checks">${item.artwork.checks.map((c) => `<li><span>${c.passed ? "✓" : "—"} ${UI.esc(c.name)}</span><b>${c.passed ? "+" + c.points : "0"}</b></li>`).join("")}</ul></div></article>` : ""}
     ${checks.length ? `<article class="panel relay-public report-checks mt16"><div class="panel-hd"><div><h2>逐项检测结果${item.demo ? " · 模拟" : ""}</h2><p>保留每个检查项的结果与判断依据</p></div><span>共 ${checks.length} 项</span></div><div class="table-wrap"><table class="grid"><thead><tr><th>检查项目</th><th>结果</th><th>依据说明</th></tr></thead><tbody>${checks.map((check) => { const status = statuses[check.status] || ["", "待核对"]; return `<tr><td>${UI.esc(check.name)}</td><td><span class="badge ${status[0]}">${status[1]}</span></td><td class="finding-names">${UI.esc(check.detail)}</td></tr>`; }).join("")}</tbody></table></div></article>` : ""}
@@ -929,7 +946,7 @@ const Pages = {
         <div>
           <div class="relay-kicker">优先测试</div>
           <h3>中转站测试</h3>
-          <p>测这条中转站有没有偷换模型、吞掉指令、假流式或掺水。点进去单独测试，测完给出分数和掺水报告。</p>
+          <p>检查中转接口的协议、指令、上下文、流式和参数兼容性。模型身份请单独做指纹检测，糖果题用于观察能力。</p>
         </div>
         <span class="btn btn-primary">进入测试 →</span>
       </a>
@@ -1242,7 +1259,7 @@ const Pages = {
             <li>知识问答：稳定的科学和常识事实，外加一道必须拒绝编造的问题。</li>
           </ul>
           <p>任务列表里，已完成可以看报告，进行中可以接着看进度，未开始会按原定模型开跑。报告按维度给条形分，题目可以展开看模型选项和解析。</p>
-          <p>中转站测试在基础测试页的第一个入口，点进去单独测。它看的是中转有没有偷换模型、吞掉系统指令、丢掉上下文、假流式或不给用量。测完给出诚信分和掺水报告。不支持某项能力会单独标明，不算偷偷掺水。这一项不代替上面的模型能力分。</p>
+          <p>中转站测试在基础测试页的第一个入口，点进去单独测。它检查系统指令、上下文、流式、用量等接口行为，给出功能分。模型身份单独看指纹，糖果用于能力观察。不支持某项能力会单独标明，不算偷偷掺水。这一项不代替上面的模型能力分。</p>
           <h2 id="candy">糖果测试</h2>
           <p>糖果测试专门放「看起来像某道熟题，但数字或人名被换过」的题目。默认中等、20 题。代表性的一题是黑袋糖果：</p>
           <p>苹果圆形 7、五角星 7，桃子圆形 9、五角星 6，西瓜圆形 8、五角星 4。要保证拿到「圆形苹果 + 五角星桃子」或「五角星苹果 + 圆形桃子」。</p>
@@ -1275,7 +1292,7 @@ const Pages = {
           <h3>综合分怎么计算？</h3>
           <p>基础测试占 40%，糖果测试占 35%，鹈鹕骑车占 25%。基础分要能力、逻辑、代码、问答四项都完成，而且和糖果、鹈鹕是同一个模型，才计算综合分。少一项，或者最近一次换成了另一个模型，综合分显示未检测，不会当成 0 分。</p>
           <h3>中转站检测和能力测试是一回事吗？</h3>
-          <p>不是一回事。中转站检测看接口有没有偷换模型、丢掉系统提示、截断上下文、假流式或不返回用量。不支持某项会标明不支持，不直接算作掺水。它不代替模型能力分。</p>
+          <p>不是一回事。中转站检测检查系统提示、上下文、流式与用量等接口功能；指纹提供模型身份线索；糖果和基础题归能力表现。不支持某项会标明不支持，不直接算作掺水。它不代替模型能力分。</p>
           <h3>鹈鹕骑车测的是汽车问答吗？</h3>
           <p>不是。它让模型写出一只鹈鹕骑自行车的 SVG 或 HTML，并在页面里预览和下载，用来看绘图是否稳定。</p>
           <h3>接口密钥会上传吗？</h3>
@@ -1326,7 +1343,7 @@ const Pages = {
             </ol>
           </div>
         </section>
-      </div>`);
+      </div>`, { promo: false });
   },
   tasks() {
     const query = qs();

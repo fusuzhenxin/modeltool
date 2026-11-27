@@ -397,10 +397,8 @@ const Trace = (() => {
   function resultHtml(payload) {
     if (!payload || !payload.results) return "";
     const known = payload.known === true;
-    const same = known && payload.claimed === payload.prediction;
-    const headline = known
-      ? (same ? "回答更像你请求的这个模型" : "回答更像指纹库里的另一个模型")
-      : (payload.claimed ? "所选模型不在指纹库里" : "已找到库内最接近的候选");
+    const identity = ReportQuality.fingerprint(payload);
+    const headline = identity.label;
     const resultRows = payload.results.map((item, index) => `
       <tr class="${index === 0 ? "winner" : ""}">
         <td>${index + 1}</td>
@@ -434,7 +432,7 @@ const Trace = (() => {
           <tbody>${rows}</tbody>
         </table></div>
         ${resultRows.length > 5 ? `<details class="trace-more"><summary>查看其余 ${resultRows.length - 5} 个候选</summary><div class="table-wrap"><table class="grid"><thead><tr><th>排序</th><th>候选模型</th><th>家族</th><th>库内概率</th></tr></thead><tbody>${resultRows.slice(5).join("")}</tbody></table></div></details>` : ""}
-        <div class="trace-explain"><h3>这个结果怎么理解？</h3><p>算法比较回答中的数字分布与顺序特征，不读取模型的自我介绍。未收录的模型也会有一个最接近的候选；上下文、隐藏系统提示和推理设置都可能影响结果。</p><p>复测时保持同一个模型和设置，每题新开对话。多次结果一致时，再结合协议检测和真实任务表现判断。</p>${payload.used_outputs < 3 ? `<p>本次只有 ${payload.used_outputs} 道有效回答，建议补足三题后再比较。</p>` : ""}</div>
+        <div class="trace-explain"><h3>这个结果怎么理解？</h3><p>${UI.esc(ReportQuality.identityNote)} ${UI.esc(ReportQuality.ruleNote)}</p><p>算法比较回答中的数字分布与顺序特征，不读取模型的自我介绍。未收录的模型也会有一个最接近的候选；上下文、隐藏系统提示和推理设置都可能影响结果。</p><p>复测时保持同一个模型和设置，每题新开对话。多次结果一致时，再结合协议检测和真实任务表现判断。</p>${payload.used_outputs < 3 ? `<p>本次只有 ${payload.used_outputs} 道有效回答，建议补足三题后再比较。</p>` : ""}</div>
         ${payload.shared ? `<div class="entry-actions trace-note"><a class="btn btn-primary" href="trace.html?mode=manual">检测我正在用的模型</a><a class="btn btn-ghost" href="trace.html">使用 API 自动检测</a></div>` : `<div class="entry-actions trace-note"><button class="btn btn-ghost" type="button" data-action="${payload.method === "manual" ? "reset-manual" : "retest-trace"}">${UI.icon("refresh")} ${payload.method === "manual" ? "换一组题目复测" : "用当前接口设置复测"}</button></div>`}
         <p class="trace-note">算法和指纹库来自 <a href="https://github.com/xqy2006/ModelTrace" target="_blank" rel="noopener noreferrer">ModelTrace</a>${payload.model_count ? `，库内共 ${payload.model_count} 个模型` : ""}${payload.built_at ? `，建库时间 ${UI.esc(payload.built_at)}` : ""}。${payload.method === "manual" ? "本次回答由用户粘贴，本站未核验其来源。" : ""}</p>
       </article>`;

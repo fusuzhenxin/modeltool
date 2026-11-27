@@ -13,6 +13,7 @@ from .worker import enqueue
 
 
 class ScheduleChanges(StrictModel):
+    publish_mode: Literal["review", "auto"] | None = None
     model: str | None = Field(default=None, min_length=1, max_length=200)
     interval_minutes: int | None = Field(default=None, ge=1, le=43200)
     next_run: datetime | None = None
@@ -45,6 +46,7 @@ class BulkAction(StrictModel):
     action: str = Field(min_length=1, max_length=40)
     note: str | None = Field(default=None, max_length=1500)
     changes: ScheduleChanges | None = None
+    exclusion_reason: Literal["group_unavailable", "credential_changed", "model_unavailable", "test_invalid"] | None = None
 
     @field_validator("ids")
     @classmethod
@@ -59,9 +61,9 @@ class RunBatch(StrictModel):
 
     @field_validator("runs")
     @classmethod
-    def unique_stations(cls, runs):
-        if len({run.station_id for run in runs}) != len(runs):
-            raise ValueError("同一批检测不能重复选择中转站")
+    def unique_targets(cls, runs):
+        if len({(run.station_id, run.model) for run in runs}) != len(runs):
+            raise ValueError("同一批检测不能重复选择相同中转站和模型")
         return runs
 
 
@@ -69,7 +71,7 @@ ACTIONS = {
     "reports": {"published", "draft", "rejected"},
     "stations": {"show", "hide", "enable", "disable", "delete"},
     "schedules": {"run", "enable", "disable", "delete", "edit"},
-    "jobs": {"cancel", "retry"},
+    "jobs": {"cancel", "retry", "exclude", "restore"},
     "announcements": {"enable", "disable", "pin", "unpin", "delete"},
     "ads": {"enable", "disable", "delete"},
     "proposals": {"show", "hide", "pin", "unpin", *STATUSES},
@@ -90,8 +92,13 @@ def register_bulk(app, db, session, prepare_schedule):
     def bulk_action(kind: str, spec: BulkAction, user=Depends(session)):
         if kind not in ACTIONS or spec.action not in ACTIONS[kind]:
             raise HTTPException(422, "这个模块不支持所选批量操作")
-        if spec.note is not None and kind != "reports":
+        if spec.note is not None and kind != "reports" and not (kind == "jobs" and spec.action in ("exclude", "restore")):
             raise HTTPException(422, "只有报告审核支持批量审核备注")
+        if kind == "jobs" and spec.action == "exclude":
+            if not spec.exclusion_reason or not spec.note or len(spec.note.strip()) < 5:
+                raise HTTPException(422, "请选择排除原因并填写至少 5 字的核查依据")
+        elif spec.exclusion_reason is not None:
+            raise HTTPException(422, "只有排除任务统计时可以设置排除原因")
         if (spec.changes is not None) != (kind == "schedules" and spec.action == "edit"):
             raise HTTPException(422, "批量修改定时计划必须提供修改项，其他操作不能附带修改项")
         updated, skipped, created = [], [], []
@@ -117,7 +124,12 @@ def register_bulk(app, db, session, prepare_schedule):
                     action = spec.action
                     audit = f"bulk_{kind}_{action}"
                     if kind == "jobs":
-                        if action == "cancel":
+                        if action in ("exclude", "restore"):
+                            from .job_exclusions import set_exclusion
+                            set_exclusion(db, row, action, spec.exclusion_reason, spec.note, user["username"], con)
+                            updated.append(key)
+                            continue
+                        elif action == "cancel":
                             if row["status"] not in ("queued", "running") or row["cancel"]:
                                 raise ValueError("任务已结束或已请求取消")
                             con.execute("UPDATE jobs SET cancel=1,status=CASE WHEN status='queued' THEN 'cancelled' ELSE status END,ended=CASE WHEN status='queued' THEN ? ELSE ended END WHERE id=?", (now(), key))
@@ -159,6 +171,11 @@ def register_bulk(app, db, session, prepare_schedule):
                             raise ValueError("配置未变化")
                         db.save(kind, key, data, con)
                     elif action == "delete":
+                        if kind == "ads":
+                            from .advertising import reserves, record_event
+                            if reserves(row) or row.get("received_cents") or row.get("contract_cents"):
+                                raise ValueError("已预订或有金额记录的广告请取消投放并保留账目，不能直接删除")
+                            record_event(db, key, row, None, user["username"], con, "deleted")
                         if kind == "stations":
                             in_use = con.execute("SELECT 1 FROM jobs WHERE station_id=? AND status IN ('queued','running')", (key,)).fetchone()
                             has_reports = any(r["station_id"] == key for r in db.list("reports", con))
@@ -189,6 +206,15 @@ def register_bulk(app, db, session, prepare_schedule):
                         if all(row.get(field) == value for field, value in changes.items()):
                             raise ValueError("已经是所选状态")
                         data = row | changes
+                        if kind == "ads" and action == "enable":
+                            from .advertising import validate_booking
+                            try:
+                                validate_booking(db, data, key, con)
+                            except HTTPException as exc:
+                                raise ValueError(str(exc.detail)) from exc
+                        if kind == "ads":
+                            from .advertising import record_event
+                            record_event(db, key, row, data, user["username"], con)
                         if kind == "schedules" and action == "enable":
                             try:
                                 prepare_schedule(data, con, row)

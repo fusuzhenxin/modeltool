@@ -14,7 +14,13 @@ def entries(station):
 def eligible(station, model):
     active = [key for key in entries(station) if key["enabled"] and key.get("cipher")]
     bound = [key for key in active if model in key["models"]]
-    return bound or [key for key in active if not key["models"]]
+    return bound or [key for key in active if not key["models"] and key.get("model_scope", "all") == "all"]
+
+
+def connection_for_key(station, key):
+    """Resolve a credential's endpoint/protocol without changing its saved station."""
+    return {"base_url": key.get("base_url") or station["base_url"],
+            "protocol": station["protocol"] if key.get("protocol", "inherit") == "inherit" else key["protocol"]}
 
 
 def save_keys(db, data, previous):
@@ -37,7 +43,8 @@ def save_keys(db, data, previous):
             if not cipher:
                 raise ValueError("新增 Key 需要填写密钥")
             pool.append({"id": key_id, "name": item["name"], "models": item["models"],
-                         "enabled": item["enabled"], "cipher": cipher})
+                         "enabled": item["enabled"], "cipher": cipher,
+                         **{k: item[k] for k in ("model_scope", "protocol", "base_url")}})
         # Duplicate credentials would give one Key extra weight in the rotation.
         values = [db.decrypt(key["cipher"]) for key in pool]
         if len(set(values)) != len(values):
@@ -61,7 +68,7 @@ def select_for_job(db, station, model, con):
     selected = pool[(last + 1) % len(pool)]
     cursors[model] = selected["id"]
     db.save("stations", station["id"], {k: v for k, v in station.items() if k != "id"} | {"key_cursors": cursors}, con)
-    return station | {"_selected_key": selected["id"]}
+    return station | connection_for_key(station, selected) | {"_selected_key": selected["id"]}
 
 
 def key_for_model(db, station, model):

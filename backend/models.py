@@ -103,6 +103,22 @@ class StationKey(StrictModel):
     api_key: str | None = Field(default=None, max_length=1000)
     models: list[str] = Field(default_factory=list, max_length=30)
     enabled: bool = True
+    model_scope: Literal["bound", "all"] = "all"
+    protocol: Literal["inherit", "openai", "anthropic"] = "inherit"
+    base_url: str = Field(default="", max_length=500)
+
+    @field_validator("base_url")
+    @classmethod
+    def base(cls, value):
+        return web_url(value, endpoint=True)
+
+    @field_validator("models")
+    @classmethod
+    def model_names(cls, value):
+        values = list(dict.fromkeys(v.strip() for v in value))
+        if any(not v or len(v) > 150 or any(ord(c) < 32 for c in v) for v in values):
+            raise ValueError("模型名不能为空、过长或包含控制字符")
+        return values
 
     @field_validator("api_key")
     @classmethod
@@ -172,7 +188,21 @@ class Ad(Timed):
     description: str = Field(default="", max_length=250)
     link: str = Field(min_length=8, max_length=500)
     image: str = Field(default="", max_length=500)
-    placement: Literal["hero", "banner", "footer"] = "hero"
+    placement: Literal["hero", "banner", "footer", "masthead", "left", "right", "top_bottom", "full", "inline", "dock"] = "hero"
+    side: Literal["left", "right"] = "left"
+    booking_status: Literal["draft", "reserved", "published", "paused", "cancelled"] = "published"
+    advertiser: str = Field(default="", max_length=120)
+    contact: str = Field(default="", max_length=250)
+    internal_note: str = Field(default="", max_length=2000)
+    billing_unit: Literal["day", "week", "month"] = "day"
+    contract_cents: int | None = Field(default=None, ge=0, le=10000000000)
+    received_cents: int = Field(default=0, ge=0, le=10000000000)
+
+    @model_validator(mode="after")
+    def payment(self):
+        if self.contract_cents is not None and self.received_cents > self.contract_cents:
+            raise ValueError("实收金额不能超过合同金额")
+        return self
 
     @field_validator("link")
     @classmethod
@@ -186,6 +216,7 @@ class Ad(Timed):
 
 
 class Run(StrictModel):
+    publish_mode: Literal["review", "auto"] = "review"
     station_id: str = Field(min_length=1, max_length=100)
     model: str = Field(min_length=1, max_length=150)
     kind: Literal["site_basic", "site_ability", "site_logic", "site_code", "site_qa", "site_candy", "site_relay", "site_trace", "site_pelican", "site_all", "protocol", "ability", "combined", "pelican"] = "site_basic"
@@ -239,16 +270,17 @@ class ScheduleBatch(StrictModel):
     schedules: list[Schedule] = Field(min_length=1, max_length=100)
 
     @model_validator(mode="after")
-    def unique_stations(self):
-        ids = [item.station_id for item in self.schedules]
+    def unique_targets(self):
+        ids = [(item.station_id, item.model) for item in self.schedules]
         if len(set(ids)) != len(ids):
-            raise ValueError("同一批计划不能重复选择中转站")
+            raise ValueError("同一批计划不能重复选择相同中转站和模型")
         return self
 
 
 class Settings(StrictModel):
     daily_calls: int = Field(ge=0, le=1000000)
     daily_tokens: int = Field(ge=0, le=1000000000)
+    output_token_limit: int | None = Field(default=None, ge=0, le=1048576, strict=True)
     paused: bool = False
 
 

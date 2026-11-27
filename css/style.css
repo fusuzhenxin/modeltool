@@ -2382,3 +2382,12 @@ html[data-theme="dark"] .artwork-vote-buttons .artwork-vote-fake { color: #ff9aa
 html[data-theme="dark"] .artwork-vote-buttons .artwork-vote-real[aria-pressed="true"] { color: #fff; background: #16744f; border-color: #70dfad; }
 html[data-theme="dark"] .artwork-vote-buttons .artwork-vote-fake[aria-pressed="true"] { color: #fff; background: #a83248; border-color: #ff9aab; }
 @media (max-width: 380px) { .relay-artwork-header { flex-wrap: wrap; } .artwork-votes { max-width: 100%; margin-left: auto; } }
+
+/* Enrollment uses spare space in the existing breadcrumb/title line. */
+.relay-apply-entry, .page-head .crumb .relay-apply-entry { display: inline-flex; vertical-align: middle; align-items: center; gap: 5px; margin-left: 14px; padding: 5px 10px; border: 1px solid #4056e8; border-radius: 6px; background: #4056e8; color: #fff; font-size: 13px; line-height: 18px; font-weight: 600; white-space: nowrap; flex: 0 0 auto; }
+.relay-apply-entry .ico { width: 14px; height: 14px; }
+.relay-apply-entry:hover, .page-head .crumb .relay-apply-entry:hover { border-color: #3043c8; background: #3043c8; color: #fff; }
+.relay-apply-entry:focus-visible { outline: 2px solid #4056e8; outline-offset: 3px; }
+.relay-heading-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.relay-heading-row .relay-apply-entry { margin-left: 4px; }
+@media (max-width: 540px) { .relay-apply-entry, .page-head .crumb .relay-apply-entry { margin-left: 7px; padding: 4px 8px; font-size: 12px; } }

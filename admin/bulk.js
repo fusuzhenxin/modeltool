@@ -4,8 +4,8 @@ const AdminBulk = {
   actions: {
     reports: [["published", "批量通过并公开"], ["draft", "批量撤回待审核"], ["rejected", "批量驳回"]],
     stations: [["run", "批量检测"], ["show", "批量公开"], ["hide", "批量隐藏"], ["enable", "允许检测"], ["disable", "暂停检测"], ["delete", "批量删除"]],
-    schedules: [["run", "批量立即执行"], ["edit", "批量修改模型和时间"], ["enable", "批量启用"], ["disable", "批量暂停"], ["delete", "批量删除"]],
-    jobs: [["cancel", "批量取消"], ["retry", "批量重试"]],
+    schedules: [["run", "批量立即执行"], ["edit", "批量修改模型、时间和发布方式"], ["enable", "批量启用"], ["disable", "批量暂停"], ["delete", "批量删除"]],
+    jobs: [["cancel", "批量取消"], ["retry", "批量重试"], ["exclude", "排除统计"], ["restore", "恢复统计"]],
     announcements: [["enable", "批量启用"], ["disable", "批量停用"], ["pin", "批量置顶"], ["unpin", "取消置顶"], ["delete", "批量删除"]],
     ads: [["enable", "批量启用"], ["disable", "批量停用"], ["delete", "批量删除"]],
     proposals: [["scheduled", "设为已排期"], ["testing", "设为测试中"], ["completed", "设为已完成"], ["deferred", "暂不处理"], ["collecting", "恢复征集"], ["show", "批量公开"], ["hide", "批量隐藏"], ["pin", "批量置顶"], ["unpin", "取消置顶"]]
@@ -14,13 +14,30 @@ const AdminBulk = {
     if (checked && new Set([...selected, ...ids]).size > 100) throw new Error("一次最多选择 100 条，请分批处理");
     for (const id of ids) checked ? selected.add(id) : selected.delete(id);
   },
+  exclusionFields() {
+    return '<label class="field"><span>排除原因（前台可见）</span><select name="exclusion_reason" required><option value="">请选择已核实的原因</option><option value="group_unavailable">分组已失效</option><option value="credential_changed">密钥或权限已变更</option><option value="model_unavailable">检测模型已下架</option><option value="test_invalid">检测配置无效</option></select></label><label class="field"><span>核查依据（仅后台可见）</span><textarea name="exclusion_note" minlength="5" maxlength="1500" required rows="3" placeholder="例如：商家已确认原检测分组删除，记录原任务时间和核查结果"></textarea></label>';
+  },
+  exclusionChanges(form) {
+    const exclusion_reason = String(form.get("exclusion_reason") || "");
+    const note = String(form.get("exclusion_note") || "").trim();
+    if (!["group_unavailable", "credential_changed", "model_unavailable", "test_invalid"].includes(exclusion_reason) || note.length < 5) throw new Error("请选择排除原因并填写至少 5 字的核查依据");
+    return {exclusion_reason, note};
+  },
+  jobExclusion(row, esc) {
+    const exclusion = row.exclusion;
+    if (!exclusion?.active) return "";
+    const reason = {group_unavailable:"分组已失效",credential_changed:"密钥或权限已变更",model_unavailable:"检测模型已下架",test_invalid:"检测配置无效"}[exclusion.reason] || "人工排除";
+    return `<span class="chip">已排除统计</span><span class="sub" title="${esc(exclusion.note || "")}">${esc(reason)} · 可恢复</span>`;
+  },
   scheduleFields(rows, stations, esc) {
     const sites = stations.filter((site) => rows.some((row) => row.station_id === site.id));
     const models = [...new Set(sites.flatMap((site) => site.models || []))].sort();
-    return `<div><label class="field"><span>统一模型</span><select name="change_model"><option value="">保持各计划原模型</option>${models.map((model) => `<option value="${esc(model)}">${esc(model)}（${sites.filter((site) => site.models.includes(model)).length}/${sites.length} 家支持）</option>`).join("")}</select></label><label class="field"><span>执行方式</span><select name="change_mode"><option value="">保持各计划原方式</option value="interval">按间隔重复</option><option value="once">指定时间执行一次</option><option value="daily">每天指定时刻</option></select></label><label class="field" data-bulk-timing="interval"><span>检测间隔（分钟）</span><input type="number" name="change_interval" min="1" max="43200" step="1" placeholder="留空保持原间隔"><small>360 分钟 = 6 小时；修改后重新计时。</small></label><label class="field" data-bulk-timing="date"><span>下次运行时间 / 单次执行时间</span><input type="datetime-local" name="change_next_run"><small>使用当前设备时区，留空不单独指定；暂停计划仍保持暂停。</small></label><label class="field" data-bulk-timing="daily" hidden><span>每天执行时刻（北京时间）</span><input type="time" name="change_daily_time" disabled><small>切换为每天执行时必填。</small></label></div>`;
+    return `<div><label class="field"><span>报告发布方式</span><select name="change_publish_mode"><option value="">保持各计划原方式</option><option value="review">完成后待审核</option><option value="auto">完成后直接公开</option></select></label><label class="field"><span>统一模型</span><select name="change_model"><option value="">保持各计划原模型</option>${models.map((model) => `<option value="${esc(model)}">${esc(model)}（${sites.filter((site) => site.models.includes(model)).length}/${sites.length} 家支持）</option>`).join("")}</select></label><label class="field"><span>执行方式</span><select name="change_mode"><option value="">保持各计划原方式</option value="interval">按间隔重复</option><option value="once">指定时间执行一次</option><option value="daily">每天指定时刻</option></select></label><label class="field" data-bulk-timing="interval"><span>检测间隔（分钟）</span><input type="number" name="change_interval" min="1" max="43200" step="1" placeholder="留空保持原间隔"><small>360 分钟 = 6 小时；修改后重新计时。</small></label><label class="field" data-bulk-timing="date"><span>下次运行时间 / 单次执行时间</span><input type="datetime-local" name="change_next_run"><small>使用当前设备时区，留空不单独指定；暂停计划仍保持暂停。</small></label><label class="field" data-bulk-timing="daily" hidden><span>每天执行时刻（北京时间）</span><input type="time" name="change_daily_time" disabled><small>切换为每天执行时必填。</small></label></div>`;
   },
   scheduleChanges(form) {
     const changes = {};
+    const publication = String(form.get("change_publish_mode") || "");
+    if (publication) changes.publish_mode = publication;
     const model = String(form.get("change_model") || "").trim();
     const interval = String(form.get("change_interval") || "").trim();
     const next = String(form.get("change_next_run") || "").trim();
@@ -71,6 +88,8 @@ const AdminBulk = {
     if (kind === "schedules" && action === "edit") return "只修改填写的项目。可切换执行方式，按所选方式填写时间。仅调整间隔时改为间隔重复；保持方式时填写下次时间仅调整下一次触发。未登记所选模型或配置不可用的计划会跳过并说明原因。已排队和运行中的任务不受影响。";
     if (action === "delete") return "删除后无法恢复。有关联任务、计划或报告的中转站会跳过；删除定时计划只停止后续调度，已排队的任务需到任务记录取消。";
     if (kind === "reports") return action === "published" ? "审核通过的报告会公开到中转日报与站点档案。未公开站点的报告会跳过；检测原始结果保持不变。" : "报告会从公开页面移除，原始检测结果与历史记录保留。";
+    if (kind === "jobs" && action === "exclude") return "仅处理失败、取消或中断的任务。请先确认分组、权限或检测配置问题，再填写核查依据；排除后不计入完成率、连续失败或采样资格。原记录保留，前台显示人工排除原因，之后可以恢复。";
+    if (kind === "jobs" && action === "restore") return "恢复后按原始检测结果重新统计，不会将失败改为成功，也不会重新发起请求；历史排除和恢复操作保留。";
     if (kind === "jobs") return action === "retry" ? "只重试失败、取消或中断的任务，会创建新任务并使用站点专用密钥额度；已有同站同模型的相同检测在排队或运行时会跳过。" : "只取消排队或运行中的任务；运行中的任务在当前请求结束后停止。定时计划仍会继续调度，可到定时检测中暂停。";
     if (kind === "schedules") return action === "enable" ? "按原计划的模型、检测内容和时间配置启用；站点、模型或密钥配置不完整的计划会跳过。" : "暂停后不再调度新任务，已排队或运行的任务可到任务记录中取消。";
     if (kind === "stations") return ["show", "hide"].includes(action) ? "同时影响该站点及其报告在前台的可见性，检测设置不受影响。" : "调整站点是否允许检测，前台公开状态不受影响。暂停后运行中的任务会在当前请求结束后停止。";

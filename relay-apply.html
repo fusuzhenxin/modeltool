@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="申请中转站收录，提供专用探测账号，用于稳定性、模型能力、模型指纹和中转站功能检测。">
+  <meta name="referrer" content="same-origin">
+  <title>申请中转站收录 | 大模型降智检测</title>
+  <link rel="icon" href="assets/favicon-32.png">
+  <link rel="stylesheet" href="css/style.css?v=20261125-visible-enrollment">
+  <link rel="stylesheet" href="css/relay-apply.css?v=20261125-station-applications">
+  <script>
+    try { var theme = localStorage.getItem('modeltool-theme'); if (theme === 'dark' || theme === 'light') document.documentElement.setAttribute('data-theme', theme); } catch (e) {}
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+  <noscript>请启用 JavaScript 后填写收录申请。必须提供中转站专用探测账号和密码，提交后由管理员审核。</noscript>
+  <script src="js/data.js"></script>
+  <script src="js/engine.js?v=20261123-claude-thinking-budget"></script>
+  <script src="js/store.js"></script>
+  <script src="js/ui.js?v=20261125-visible-enrollment"></script>
+  <script src="js/public-data.js?v=20261124-ad-priority"></script>
+  <script src="js/pages.js?v=20261125-station-applications"></script>
+  <script src="js/relay-apply.js?v=20261125-smtp-notifications"></script>
+  <script>App.start('relayApply');</script>
+</body>
+</html>

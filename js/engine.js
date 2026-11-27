@@ -311,7 +311,7 @@ const Api = {
     }
   },
   streamReader(onProgress) {
-    let pending = "", content = "", seen = false, done = false, dataLines = [];
+    let pending = "", content = "", seen = false, done = false, stopReason = null, dataLines = [];
     const event = () => {
       if (!dataLines.length) return;
       const raw = dataLines.join("\n"); dataLines = [];
@@ -322,6 +322,7 @@ const Api = {
       if (value.error) throw new Error("接口在生成过程中报错，请检查中转站状态后手动重试。");
       if (value.type === "message_stop") done = true;
       const choice = value.choices && value.choices[0];
+      stopReason = value.delta?.stop_reason ?? choice?.finish_reason ?? stopReason;
       if (choice && choice.finish_reason != null) done = true;
       const part = value.delta?.text ?? choice?.delta?.content ?? choice?.message?.content ?? choice?.text ?? "";
       content += Api.messageText(part);
@@ -342,7 +343,7 @@ const Api = {
       result(anthropic) {
         if (!seen && !done) throw new Error("接口没有返回有效的流式回答。");
         if (!done) throw new Error("接口在生成完成前断开，已接收内容不完整，请手动重试。");
-        return JSON.stringify(anthropic ? { content: [{ type: "text", text: content }] } : { choices: [{ message: { content } }] });
+        return JSON.stringify(anthropic ? { content: [{ type: "text", text: content }], stop_reason: stopReason } : { choices: [{ message: { content }, finish_reason: stopReason }] });
       }
     };
   },
@@ -398,13 +399,16 @@ const Api = {
     const long = !!arguments[0].long;
     const quick = !!arguments[0].quick;
     const noReasoning = !!arguments[0].noReasoning;
-    const limit = bare || long ? 8192 : 256;
+    const reasoningModel = /^claude(?:-|$)/i.test(model.trim()) || !anthropic && /^(?:gpt-[56](?:[.-]|$)|o[1-9](?:[.-]|$))/i.test(model.trim());
+    const configuredLimit = arguments[0].outputTokenLimit ?? Api.outputTokenLimit;
+    const limit = Number.isInteger(configuredLimit) && configuredLimit >= 0 ? configuredLimit : bare || long ? 8192 : reasoningModel ? 4096 : 256;
     const asked = quick ? "请直接从作品本身开始输出，不要先长时间思考。\n\n" + user : user;
     const payload = bare
       ? { model: model.trim(), max_tokens: limit, messages: [{ role: "user", content: user }] }
       : anthropic
         ? { model: model.trim(), max_tokens: limit, temperature: long ? 0.4 : 0, system, messages: [{ role: "user", content: asked }] }
         : { model: model.trim(), temperature: long ? 0.4 : 0, max_tokens: limit, messages: [{ role: "system", content: system }, { role: "user", content: asked }] };
+    if (limit === 0) delete payload.max_tokens;
     if (!bare && !anthropic && long && !noReasoning) payload.reasoning_effort = quick ? "none" : "low";
     if (long && !arguments[0].noStream) payload.stream = true;
     const state = Api.compatibilityState(baseUrl, apiKey, model);
@@ -449,7 +453,10 @@ const Api = {
     const content = anthropic
       ? Api.messageText((data && data.content) || [])
       : Api.messageText((data && data.choices && data.choices[0] && ((data.choices[0].message && data.choices[0].message.content) || data.choices[0].text)) || "");
-    if (!String(content).trim()) throw new Error("接口没有返回回答");
+    if (!String(content).trim()) {
+      const exhausted = data?.stop_reason === "max_tokens" || data?.choices?.[0]?.finish_reason === "length";
+      throw Object.assign(new Error(exhausted ? "输出额度已耗尽，未生成文本答案；请提高单次输出 Token 上限后重试。" : "接口没有返回回答"), { code: exhausted ? "output_exhausted" : "empty_response" });
+    }
     return String(content).trim();
   },
   prompt(item) {

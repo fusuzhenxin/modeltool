@@ -10,3 +10,4 @@ __pycache__/
 *.key
 setup.token
 .local/
+output/

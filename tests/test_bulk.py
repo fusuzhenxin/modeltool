@@ -183,7 +183,7 @@ class BulkTests(unittest.TestCase):
 
     def test_timed_content_status_and_pins_preserve_content_and_timing(self):
         announcement = self.post("announcements", {"title": "通知", "content": "原始正文", "enabled": False, "starts_at": "2030-01-01T10:00:00+08:00", "order": -9, "background_color": "#ffaaaa"}).json()["id"]
-        ad = self.post("ads", {"name": "广告配置", "title": "标题", "link": "https://ad.example", "enabled": False}).json()["id"]
+        ad = self.post("ads", {"name": "广告配置", "title": "标题", "link": "https://ad.example", "enabled": False, "booking_status": "draft"}).json()["id"]
         old = self.db.get("announcements", announcement)
         self.bulk("announcements", "enable", [announcement])
         self.bulk("announcements", "pin", [announcement])
@@ -229,21 +229,21 @@ class BulkTests(unittest.TestCase):
         with self.db.connect() as con:
             rows = [dict(row) for row in con.execute("SELECT * FROM jobs ORDER BY created")]
             self.assertEqual([r["model"] for r in rows], ["m2", "m1"])
-            self.assertEqual(json.loads(rows[0]["config"]), {k: run[k] for k in ["kind", "count", "candy_count", "pelican_mode", "difficulty"]})
+            self.assertEqual(json.loads(rows[0]["config"]), {**{k: run[k] for k in ["kind", "count", "candy_count", "pelican_mode", "difficulty"]}, "publish_mode": "review"})
             self.assertTrue(all(row["status"] == "queued" for row in rows))
             self.assertEqual(con.execute("SELECT COUNT(*) FROM usage").fetchone()[0], 0)
 
     def test_bulk_assets_are_served(self):
-        self.assertIn("/admin/bulk.js?v=20261119-schedule-modes", self.client.get("/admin/").text)
+        self.assertIn("/admin/bulk.js?v=20261123-sample-exclusions", self.client.get("/admin/").text)
         self.assertEqual(self.client.get("/admin/bulk.js").status_code, 200)
 
     def test_job_list_scores_match_linked_reports_without_raw_measurements(self):
         site = self.station()
         fixtures = [
-            ("site_relay", {"score": 0}, [{"label": "中转站", "value": 0}]),
+            ("site_relay", {"score": 0}, [{"label": "接口功能", "value": 0}]),
             ("site_basic", {"score": None, "ability": {"score": 82.5}}, [{"label": "能力", "value": 82.5}]),
             ("site_candy", {"score": None, "ability": {"score": 60}}, [{"label": "糖果", "value": 60}]),
-            ("site_all", {"score": 100, "ability": {"score": 90}, "artwork": {"score": 70, "html": "private artwork"}}, [{"label": "中转站", "value": 100}, {"label": "能力", "value": 90}, {"label": "作品结构", "value": 70}]),
+            ("site_all", {"score": 100, "ability": {"score": 90}, "artwork": {"score": 70, "html": "private artwork"}}, [{"label": "接口功能", "value": 100}, {"label": "能力", "value": 90}, {"label": "作品结构", "value": 70}]),
             ("site_trace", {"score": None}, []),
         ]
         expected = {}

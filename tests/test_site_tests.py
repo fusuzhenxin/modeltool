@@ -127,6 +127,164 @@ class SiteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
         self.assertIn("余额不足", response.text)
 
+    def test_output_limit_settings_validate_preserve_and_reset(self):
+        base={"daily_calls":1000,"daily_tokens":1000000,"paused":False}
+        for value in (-1,1048577,True,1.5):
+            self.assertEqual(self.client.put("/api/admin/settings",headers=self.headers,json=base|{"output_token_limit":value}).status_code,422)
+        for value in (0,16384,None):
+            self.assertEqual(self.client.put("/api/admin/settings",headers=self.headers,json=base|{"output_token_limit":value}).status_code,200)
+            self.assertEqual(self.client.get("/api/admin/settings").json()["output_token_limit"],value)
+            self.client.put("/api/admin/settings",headers=self.headers,json=base)
+            self.assertEqual(self.client.get("/api/admin/settings").json()["output_token_limit"],value)
+
+    def test_unlimited_and_custom_output_reach_engine_and_snapshot_job(self):
+        for value in (0,16384):
+            self.client.put("/api/admin/settings",headers=self.headers,json={"daily_calls":1000,"daily_tokens":1000000,"output_token_limit":value,"paused":False})
+            queued=self.post("jobs",{"station_id":self.station["id"],"model":"fixture-model","kind":"site_candy","count":3}).json()
+            # Settings changes affect new tasks, not work already queued.
+            self.client.put("/api/admin/settings",headers=self.headers,json={"daily_calls":1000,"daily_tokens":1000000,"output_token_limit":64,"paused":False})
+            def reply(url,headers,payload):
+                if value==0:
+                    self.assertNotIn("max_tokens",payload)
+                    self.assertNotIn("max_completion_tokens",payload)
+                else:self.assertEqual(payload["max_tokens"],value)
+                data=self.fake(url,headers,payload);data["usage"]=None
+                return data
+            self.assertTrue(work_once(self.db,reply))
+            with self.db.connect() as con:
+                saved=dict(con.execute("SELECT * FROM jobs WHERE id=?",(queued["id"],)).fetchone())
+                reserved=con.execute("SELECT SUM(tokens) FROM usage WHERE job_id=?",(queued["id"],)).fetchone()[0]
+            self.assertEqual(saved["status"],"done",saved)
+            self.assertEqual(json.loads(saved["config"])["output_token_limit"],value)
+            self.assertEqual(reserved,3*((value or 8192)+2048))
+            result=self.db.get("reports",saved["report_id"])["result"]
+            self.assertEqual(result["ability"]["score"],100)
+            self.assertIn("本站不设上限" if value==0 else "16384 Token",result["conditions"])
+
+    def test_unlimited_does_not_override_protocol_output_checks(self):
+        self.client.put("/api/admin/settings",headers=self.headers,json={"daily_calls":1000,"daily_tokens":1000000,"output_token_limit":0,"paused":False})
+        result=self.run_test("site_relay")["result"]
+        self.assertEqual(result["sections"][0]["outputControl"]["attempts"][0]["cap"],32)
+        self.assertTrue(any(p.get("max_completion_tokens")==32 for p in self.calls))
+
+    def test_batch_tasks_apply_single_output_policy_and_keep_duplicate_guard(self):
+        self.client.put("/api/admin/settings",headers=self.headers,json={"daily_calls":1000,"daily_tokens":1000000,"output_token_limit":0,"paused":False})
+        run={"station_id":self.station["id"],"model":"fixture-model","kind":"site_candy","count":3}
+        batch=self.post("jobs/batch",{"runs":[run]})
+        self.assertEqual(batch.status_code,200,batch.text)
+        self.assertEqual(self.post("jobs",run).status_code,409)
+        self.assertTrue(work_once(self.db,self.fake))
+        self.assertTrue(all("max_tokens" not in p and "max_completion_tokens" not in p for p in self.calls))
+        with self.db.connect() as con:
+            saved=con.execute("SELECT config,status FROM jobs WHERE id=?",(batch.json()["ids"][0],)).fetchone()
+        self.assertEqual(saved["status"],"done")
+        self.assertEqual(json.loads(saved["config"])["output_token_limit"],0)
+
+    def test_scheduled_tasks_snapshot_unlimited_output(self):
+        self.client.put("/api/admin/settings",headers=self.headers,json={"daily_calls":1000,"daily_tokens":1000000,"output_token_limit":0,"paused":False})
+        plan=self.post("schedules",{"name":"无上限定时检测","station_id":self.station["id"],"model":"fixture-model","kind":"site_candy","count":3,"schedule_mode":"once","first_run":"2099-01-01T00:00:00Z"})
+        self.assertEqual(plan.status_code,200,plan.text)
+        schedule=self.db.get("schedules",plan.json()["id"])
+        schedule["next_run"]=0
+        self.db.save("schedules",plan.json()["id"],schedule)
+        self.assertTrue(work_once(self.db,self.fake))
+        self.assertTrue(self.calls)
+        self.assertTrue(all("max_tokens" not in p and "max_completion_tokens" not in p for p in self.calls))
+        with self.db.connect() as con:
+            job=con.execute("SELECT config,status FROM jobs WHERE schedule_id=?",(plan.json()["id"],)).fetchone()
+        self.assertEqual(job["status"],"done")
+        self.assertEqual(json.loads(job["config"])["output_token_limit"],0)
+
+    def test_upstream_gateway_errors_are_failed_instead_of_cancelled(self):
+        from backend.stability import outcome
+        for status in (502, 503):
+            queued = self.post("jobs", {"station_id": self.station["id"], "model": "fixture-model", "kind": "site_candy"}).json()
+            self.assertTrue(work_once(self.db, lambda *_: {"status": status, "text": '{"error":{"type":"upstream_error","message":"sk-site-secret"}}', "headers": {}}))
+            with self.db.connect() as con:
+                saved = dict(con.execute("SELECT * FROM jobs WHERE id=?", (queued["id"],)).fetchone())
+            self.assertEqual(saved["status"], "failed")
+            self.assertEqual(saved["error"], f"接口返回 HTTP {status}")
+            self.assertEqual(outcome(saved), "upstream")
+            self.assertFalse(saved["report_id"])
+            self.assertNotIn("sk-site-secret", saved["error"])
+
+    def test_pelican_missing_model_is_failed_with_configuration_guidance(self):
+        from backend.request_errors import MESSAGES
+        from backend.stability import outcome
+        queued = self.post("jobs", {"station_id": self.station["id"], "model": "fixture-model", "kind": "site_pelican"}).json()
+        calls = []
+        def unavailable(*args):
+            calls.append(args)
+            return {"status": 404, "text": '{"error":{"type":"model_not_found","message":"sk-site-secret"}}', "headers": {}}
+        self.assertTrue(work_once(self.db, unavailable))
+        with self.db.connect() as con:
+            saved = dict(con.execute("SELECT * FROM jobs WHERE id=?", (queued["id"],)).fetchone())
+        self.assertEqual(saved["status"], "failed")
+        self.assertEqual(saved["error"], MESSAGES["model"])
+        self.assertEqual(outcome(saved), "configuration")
+        self.assertEqual(len(calls), 1)
+        self.assertFalse(saved["report_id"])
+
+    def test_claude_candy_default_budget_leaves_room_for_final_answer(self):
+        station = self.db.get("stations", self.station["id"])
+        station.update(protocol="anthropic", models=["claude-sonnet-5"])
+        self.db.save("stations", self.station["id"], station)
+        queued = self.post("jobs", {"station_id": self.station["id"], "model": "claude-sonnet-5", "kind": "site_candy", "count": 3}).json()
+        def thinking_model(url, headers, payload):
+            self.assertTrue(url.endswith("/messages"))
+            self.assertEqual(payload["max_tokens"], 4096)
+            data = self.fake(url, headers, payload)
+            return {"content": [{"type": "thinking", "thinking": "private"}, {"type": "text", "text": data["choices"][0]["message"]["content"]}], "stop_reason": "end_turn", "usage": {"input_tokens": 267, "output_tokens": 1935}}
+        self.assertTrue(work_once(self.db, thinking_model))
+        with self.db.connect() as con:
+            saved = dict(con.execute("SELECT * FROM jobs WHERE id=?", (queued["id"],)).fetchone())
+        self.assertEqual(saved["status"], "done", saved)
+        result = self.db.get("reports", saved["report_id"])["result"]
+        self.assertEqual(result["ability"]["score"], 100)
+        self.assertEqual(result["request_count"], 3)
+
+    def test_thinking_exhaustion_is_safe_configuration_error_without_retry(self):
+        from backend.request_errors import MESSAGES
+        from backend.stability import outcome
+        station = self.db.get("stations", self.station["id"])
+        station.update(protocol="anthropic", models=["claude-sonnet-5"])
+        self.db.save("stations", self.station["id"], station)
+        self.client.put("/api/admin/settings", headers=self.headers, json={"daily_calls": 1000, "daily_tokens": 1000000, "output_token_limit": 256, "paused": False})
+        queued = self.post("jobs", {"station_id": self.station["id"], "model": "claude-sonnet-5", "kind": "site_candy", "count": 5}).json()
+        calls = []
+        def exhausted(url, headers, payload):
+            calls.append(payload)
+            self.assertEqual(payload["max_tokens"], 256)
+            return {"content": [{"type": "thinking", "thinking": "sk-site-secret"}], "stop_reason": "max_tokens", "usage": {"input_tokens": 267, "output_tokens": 256}}
+        self.assertTrue(work_once(self.db, exhausted))
+        with self.db.connect() as con:
+            saved = dict(con.execute("SELECT * FROM jobs WHERE id=?", (queued["id"],)).fetchone())
+            usage = con.execute("SELECT tokens,actual FROM usage WHERE job_id=?", (queued["id"],)).fetchone()
+        self.assertEqual(saved["status"], "failed")
+        self.assertEqual(saved["error"], MESSAGES["output_exhausted"])
+        self.assertEqual(outcome(saved), "configuration")
+        self.assertEqual(tuple(usage), (523, 1))
+        self.assertEqual(len(calls), 1)
+        self.assertFalse(saved["report_id"])
+
+    def test_reasoning_choice_budget_is_reserved_and_grading_stays_original(self):
+        station = self.db.get("stations", self.station["id"])
+        station["models"] = ["gpt-6-astra"]
+        self.db.save("stations", self.station["id"], station)
+        queued = self.post("jobs", {"station_id": self.station["id"], "model": "gpt-6-astra", "kind": "site_candy", "count": 5}).json()
+        def no_usage(url, headers, payload):
+            self.assertEqual(payload["max_tokens"], 4096)
+            response = self.fake(url, headers, payload)
+            response["usage"] = None
+            return response
+        self.assertTrue(work_once(self.db, no_usage))
+        with self.db.connect() as con:
+            saved = dict(con.execute("SELECT * FROM jobs WHERE id=?", (queued["id"],)).fetchone())
+            reserved = con.execute("SELECT SUM(tokens) FROM usage WHERE job_id=?", (queued["id"],)).fetchone()[0]
+        self.assertEqual(saved["status"], "done", saved)
+        self.assertEqual(reserved, 5 * (4096 + 2048))
+        self.assertEqual(self.db.get("reports", saved["report_id"])["result"]["ability"]["score"], 100)
+
     def test_all_single_choices_use_original_questions_and_grading(self):
         for kind in ("site_ability", "site_logic", "site_code", "site_qa", "site_candy"):
             with self.subTest(kind=kind):
@@ -362,12 +520,13 @@ class SiteTests(unittest.TestCase):
                 self.assertNotIn("location", stream["headers"])
                 self.assertEqual(len(received), 10)
                 self.assertTrue(all(path == "/v1/chat/completions" and host == f"site-fixture.example:{server.server_port}" for path, host in received))
-                for status in (302, 401):
+                from backend.request_errors import RequestIssue
+                from backend.runner import RunStopped
+                for status, exception in ((302, RunStopped), (401, RequestIssue), (502, RequestIssue), (503, RequestIssue)):
                     response_status[0] = status
-                    from backend.runner import RunStopped
-                    with self.assertRaises(RunStopped):
+                    with self.assertRaises(exception):
                         post_exchange(station["base_url"] + "/chat/completions", {}, {"model": "fixture-model", "messages": [{"role": "user", "content": "hello"}], "max_tokens": 256})
-                self.assertEqual(len(received), 12)
+                self.assertEqual(len(received), 14)
         finally:
             server.shutdown(); server.server_close(); thread.join(timeout=3)
 

@@ -12,7 +12,7 @@ from functools import lru_cache
 from urllib.parse import urlsplit
 
 from .core import ROOT, TZ
-from .request_errors import error_issue, stream_error
+from .request_errors import RequestIssue, error_issue, stream_error
 from .runner import RunStopped, endpoint, reserve, resolve_public
 from chat_stream import LONG_TIMEOUT
 
@@ -54,7 +54,8 @@ def bridge(init, exchange=None):
             if message["type"] == "result":
                 return message["result"]
             if message["type"] != "request":
-                raise RunStopped(message.get("message", "本站检测执行失败"))
+                code = message.get("code")
+                raise RequestIssue(code if code in ("output_exhausted", "empty_response") else "internal")
             requests += 1
             if exchange is None or requests > 200:
                 raise RunStopped("本站检测请求数量超出范围")
@@ -100,7 +101,7 @@ def post_exchange(url, headers, payload, timeout=120):
             body = response.read(65536)
             issue = error_issue(response.status, body)
             if issue or response.status in (401, 403, 429) or response.status >= 500:
-                raise issue or RunStopped(f"接口返回 HTTP {response.status}，任务已停止，请检查后手动重试")
+                raise issue or RequestIssue("http_" + str(response.status))
             return {"status": response.status, "text": body.decode("utf-8", "replace"), "headers": {}, "elapsedMs": round((time.monotonic() - started) * 1000), "error": ""}
         if 300 <= response.status < 400:
             raise RunStopped("接口发生重定向，任务已停止，请核对接口地址")
@@ -135,17 +136,19 @@ def run_site_suite(db, job, station, transport=None):
     secrets = sorted({variant for item in entries(station) for raw in [db.decrypt(item["cipher"])]
                       for variant in (json.dumps(raw)[1:-1], json.dumps(raw, ensure_ascii=False)[1:-1], raw) if variant}, key=len, reverse=True)
     def exchange(payload, mode):
-        limit = payload.get("max_completion_tokens", payload.get("max_tokens", 256))
-        if payload.get("model") != job["model"] or not isinstance(limit, int) or not 1 <= limit <= 8192:
+        limit = payload.get("max_completion_tokens", payload.get("max_tokens"))
+        unlimited = mode == "chat" and config.get("output_token_limit") == 0 and limit is None
+        maximum = 8192 if mode == "probe" else 1048576
+        if payload.get("model") != job["model"] or not unlimited and (type(limit) is not int or not 1 <= limit <= maximum):
             raise RunStopped("检测请求参数不合法")
-        usage_id = reserve(db, job, station, token_cap=limit + 2048)
+        usage_id = reserve(db, job, station, token_cap=(8192 if unlimited else limit) + 2048)
         headers = {"x-api-key": key, "anthropic-version": "2023-06-01"} if station["protocol"] == "anthropic" else {"Authorization": "Bearer " + key}
         if transport:
             response = transport(endpoint(station), headers, payload)
             if not isinstance(response, dict) or "status" not in response:
                 response = {"status": 200, "json": response, "text": json.dumps(response), "headers": {}, "elapsedMs": 0, "error": ""}
         else:
-            response = post_exchange(endpoint(station), headers, payload, timeout=LONG_TIMEOUT if limit > 256 else 45)
+            response = post_exchange(endpoint(station), headers, payload, timeout=LONG_TIMEOUT if unlimited or limit > 256 else 45)
         # Scrub before JS analysis, private report storage, or any error path.
         def scrub(value):
             if isinstance(value, dict):
@@ -163,7 +166,9 @@ def run_site_suite(db, job, station, transport=None):
         issue = stream_error(response.get("text", ""))
         if issue:
             raise issue
-        if response["status"] in (401, 403, 429) or response["status"] >= 500 or 300 <= response["status"] < 400 or response["status"] <= 0:
+        if response["status"] in (401, 403, 429) or response["status"] >= 500:
+            raise RequestIssue("http_" + str(response["status"]))
+        if 300 <= response["status"] < 400 or response["status"] <= 0:
             raise RunStopped(f"接口返回 HTTP {response['status']}，任务已停止")
         if "json" not in response:
             try:
@@ -220,13 +225,14 @@ def report_from_site(result, config, model):
         "level": "normal" if measured["judgement"]["level"] == "ok" else "degraded", "judgement": measured["judgement"],
         "summary": "本站原版题库与评分。" + measured["judgement"]["desc"] + "各模块独立展示；未使用旧版五题参考基线。"}
     findings = [s["name"] + "：" + (s.get("judgement", {}).get("title") or s.get("title") or (s.get("prediction_name", "") + "（候选相似度，不能证明模型身份）" if s["kind"] == "trace" else "代码结构分 " + str(s.get("score")))) for s in sections]
-    return {"kind": config["kind"], "suite": "site-original-v1", "test_name": result["name"], "model": model,
+    from .report_quality import normalize_report
+    return normalize_report({"kind": config["kind"], "suite": "site-original-v1", "test_name": result["name"], "model": model,
             "time": datetime.now(TZ).strftime("%Y-%m-%d %H:%M"), "protocol_tested": bool(relay),
             "level": relay["level"] if relay else "unknown", "score": relay["score"] if relay else None,
             "title": relay["title"] if relay else result["name"] + "已完成", "runs": 1,
             "summary": "调用本站原有题库和检测代码；基础能力、糖果、中转站、指纹与作品分别展示结果。",
-            "conditions": "本站原版检测 / " + {"easy": "简单", "medium": "中等", "hard": "困难"}[config["difficulty"]] + " / 单选题请求 temperature=0、max_tokens=256；指纹与作品 max_tokens=8192。" + " ".join(result.get("compatibility", [])),
+            "conditions": "本站原版检测 / " + {"easy": "简单", "medium": "中等", "hard": "困难"}[config["difficulty"]] + " / 单次输出：" + ("本站不设上限，跟随接口默认。" if config.get("output_token_limit") == 0 else str(config["output_token_limit"]) + " Token。" if config.get("output_token_limit") is not None else "按模型与项目适配（单选题 256 或 4096 Token；指纹与作品 8192 Token）。") + "单选题请求 temperature=0；中转站协议检查保留各项固定参数。" + " ".join(result.get("compatibility", [])),
             "compatibility": result.get("compatibility", []),
             "retest": "采用本站原版流程。指纹最多 6 次收集 3 份有效回答；作品参数兼容重试沿用前台。鉴权、网络或预算错误会停止任务。",
             "findings": findings, "checks": checks, "ability": ability, "sections": sections,
-            **({"artwork": artwork} if artwork else {}), "raw": result["raw"], "request_count": result["calls"]}
+            **({"artwork": artwork} if artwork else {}), "raw": result["raw"], "request_count": result["calls"]})

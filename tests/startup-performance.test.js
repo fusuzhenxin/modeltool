@@ -8,8 +8,8 @@ const pages = fs.readFileSync(path.join(root, "js/pages.js"), "utf8");
 const publicSource = fs.readFileSync(path.join(root, "js/public-data.js"), "utf8");
 const turn = () => new Promise(setImmediate);
 
-function client() {
-  let resolve;
+function client({ manualContent = false } = {}) {
+  let resolve, resolveContent;
   const writes = [], mounted = [];
   const overview = { innerHTML: "loading" }, notices = {};
   const element = { set innerHTML(value) { writes.push(value); } };
@@ -20,7 +20,9 @@ function client() {
       querySelector: (selector) => selector.includes("modeltool-backend") ? {} : null,
       getElementById: (id) => ({ app: element, "home-public-overview": overview, "public-notices": notices })[id] || null
     },
-    URLSearchParams, fetch: () => new Promise((done) => { resolve = done; }),
+    URLSearchParams, fetch: (url) => url.includes("content_only=true")
+      ? manualContent ? new Promise(done => { resolveContent = done; }) : Promise.resolve({ ok: true, json: async () => ({ mode: "live", ads: [], announcements: [] }) })
+      : new Promise((done) => { resolve = done; }),
     AbortController, setTimeout: () => 1, clearTimeout() {}, clearInterval() {}, applyHead() {}
   });
   vm.runInContext(publicSource, ctx);
@@ -33,17 +35,26 @@ function client() {
     mount: Object.fromEntries(["home", "setup", "relays"].map((page) => [page, () => mounted.push(page)]))
   });
   ctx.RelayDirectory = { overview: () => "real public overview" };
-  return { ctx, writes, mounted, overview, notices, finish: (response) => resolve(response || { status: 200, ok: true, json: async () => ({ mode: "live", reports: [], stations: [] }) }) };
+  return { ctx, writes, mounted, overview, notices,
+    finishContent: response => resolveContent(response || { ok: true, json: async () => ({ mode: "live", ads: [], announcements: [] }) }),
+    finish: (response) => resolve(response || { status: 200, ok: true, json: async () => ({ mode: "live", reports: [], stations: [] }) }) };
 }
 
-test("稳定性观察独立加载，不等待全站报告或下载作品数据", async () => {
-  const c = client();
+test("稳定性观察先挂载统计，赞助配置返回后独立展示且不重建页面", async () => {
+  const c = client({ manualContent: true });
   c.ctx.location = { search: "?view=stability" };
-  c.ctx.fetch = () => { throw new Error("不应请求 bootstrap"); };
-  await vm.runInContext('App.start("relays")', c.ctx);
+  const ads = [];
+  c.ctx.Ads = { mount: () => ads.push(vm.runInContext("PublicData.ads.length", c.ctx)) };
+  const startup = vm.runInContext('App.start("relays")', c.ctx);
+  await turn();
   assert.deepEqual(c.writes, ["reports:ready"]);
   assert.deepEqual(c.mounted, ["relays"]);
-  assert.equal(vm.runInContext("PublicData.pending", c.ctx), null);
+  assert.deepEqual(ads, [0]);
+  c.finishContent({ ok: true, json: async () => ({ mode: "live", reports: [], stations: [], announcements: [], ads: [{ placement: "hero" }, { placement: "footer" }] }) });
+  await startup;
+  assert.deepEqual(ads, [0, 2]);
+  assert.deepEqual(c.writes, ["reports:ready"]);
+  assert.deepEqual(c.mounted, ["relays"]);
 });
 
 test("慢接口未返回时首页与状态组件已经挂载，数据返回仅更新统计", async () => {
@@ -103,4 +114,36 @@ test("接口失败保留可用首页，并显示失败提示而非零统计", as
   assert.match(c.overview.innerHTML, /暂时无法加载/);
   assert.match(c.notices.innerHTML, /当前不显示检测统计/);
   assert.doesNotMatch(c.overview.innerHTML, /real public overview/);
+});
+
+test("广告先于慢报告显示，报告完成不会清空或重新挂载广告", async () => {
+  const c = client({ manualContent: true });
+  const ads = [];
+  c.ctx.Ads = { mount: () => ads.push(vm.runInContext("PublicData.ads.length", c.ctx)) };
+  const startup = vm.runInContext('App.start("home")', c.ctx);
+  await turn();
+  c.finishContent({ ok: true, json: async () => ({ mode: "live", ads: [{ placement: "hero" }], announcements: [] }) });
+  await turn();
+  assert.equal(vm.runInContext("PublicData.loading", c.ctx), true);
+  assert.deepEqual(ads, [0, 1]);
+  assert.deepEqual(c.writes, ["homepage:loading"]);
+  c.finish(); await startup;
+  assert.deepEqual(ads, [0, 1]);
+  assert.equal(vm.runInContext("PublicData.ads.length", c.ctx), 1);
+  assert.equal(c.overview.innerHTML, "real public overview");
+});
+
+test("报告故障不阻止广告和公告独立显示，表单不重建", async () => {
+  const c = client({ manualContent: true });
+  const ads = [];
+  c.ctx.Ads = { mount: () => ads.push(vm.runInContext("PublicData.ads.length", c.ctx)) };
+  const startup = vm.runInContext('App.start("setup")', c.ctx);
+  await turn();
+  c.finish({ status: 503, ok: false });
+  await turn();
+  c.finishContent({ ok: true, json: async () => ({ mode: "live", ads: [{ placement: "hero" }], announcements: [] }) });
+  await startup;
+  assert.deepEqual(c.writes, ["editable form"]);
+  assert.deepEqual(ads, [0, 1]);
+  assert.equal(vm.runInContext("PublicData.contentReady && PublicData.failed", c.ctx), true);
 });

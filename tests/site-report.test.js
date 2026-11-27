@@ -5,6 +5,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 const ctx = vm.createContext({});
 vm.runInContext(fs.readFileSync(path.join(__dirname, "../js/site-report.js"), "utf8"), ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname, "../js/report-quality.js"), "utf8"), ctx);
 const renderer = vm.runInContext("SiteReport", ctx);
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[c]));
 
@@ -19,16 +20,40 @@ test("原版试题明细展示打乱后的选项和正确答案，并转义题�
 
 test("指纹仅展示候选、有效份数和库外提示，不把作品或候选概率算作能力得分", () => {
   const html = renderer.render([{kind:"trace", name:"模型指纹检测", prediction_name:"<model>", probability:.75, used_outputs:2, known:false, built_at:"2026-11-09", model_count:20, results:[{display_name:"<candidate>", probability:.75, profile_similarity:.8}]}, {kind:"pelican", name:"作品", score:100, html:"<script>alert(1)</script>"}], esc);
-  assert.match(html, /最接近：<strong>&lt;model&gt;<\/strong> · 75.00%/);
+  assert.match(html, /<h2>&lt;model&gt;<\/h2>/);
+  assert.match(html, /第一候选占比<\/span><strong>75.00<small>%/);
   assert.match(html, /宣称模型不在指纹库内/);
   assert.match(html, /有效回答不足 3 份/);
   assert.match(html, /&lt;candidate&gt;/);
   assert.doesNotMatch(html, /100|<script>|能力表现正常/);
 });
 
+test("纯指纹报告首先展示身份线索，参数默认收起且不展示无关协议零项统计", () => {
+  const section={kind:'trace',name:'模型指纹',claimed:'claimed',prediction:'claimed',prediction_name:'候选模型',known:true,probability:.9666,runner_up:.0146,used_outputs:3,results:[{display_name:'候选模型',probability:.9666,profile_similarity:.8717}]};
+  const html=publicReport({id:'fingerprint',domain:'relay.example',model:'claimed',time:'2026-11-24 12:00',protocol_tested:false,sections:[section],checks:[],conditions:'temperature=0'});
+  assert.ok(html.indexOf('fingerprint-report')<html.indexOf('report-information'));
+  for (const value of ['fingerprint-consistent','指纹相符','96.66','87.17']) assert.ok(html.includes(value));
+  assert.match(html,/<details class="panel report-info-disclosure">/);
+  assert.doesNotMatch(html,/report-score|report-metrics|各项测试表现/);
+  assert.match(html,/temperature=0/);
+  assert.match(html,/候选占比不等于模型身份准确率/);
+  assert.equal((html.match(/aria-label="模型指纹结果"/g)||[]).length,1);
+});
+
+test("混合报告保留协议分和其他测试，异常数值不进入可视宽度或被冒充百分比", () => {
+  const trace={kind:'trace',name:'指纹',prediction_name:'未知',probability:Infinity,used_outputs:1,known:false,results:[{display_name:'<script>bad</script>',probability:'0%;color:red',profile_similarity:NaN}]};
+  const html=publicReport({id:'mixed',domain:'relay.example',model:'unknown',protocol_tested:true,level:'ok',score:100,checks:[],sections:[trace,{kind:'basic',name:'基础能力',score:85,items:[],count:0}]});
+  assert.match(html,/report-score/);
+  assert.match(html,/基础能力/);
+  assert.match(html,/85 \/ 100/);
+  assert.match(html,/fingerprint-inconclusive/);
+  assert.match(html,/&lt;script&gt;bad&lt;\/script&gt;/);
+  assert.doesNotMatch(html,/width:NaN|width:Infinity|color:red|<script>/);
+});
+
 function publicReport(item) {
   const page = vm.createContext({ URL, URLSearchParams, Date });
-  for (const file of ["data", "ui", "relay-public", "relay-directory", "site-report"]) {
+  for (const file of ["report-quality", "data", "ui", "relay-public", "relay-directory", "site-report"]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "../js/" + file + ".js"), "utf8"), page);
   }
   vm.runInContext("UI.shell = (_, body) => body", page);

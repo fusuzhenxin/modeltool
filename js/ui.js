@@ -165,8 +165,14 @@ const UI = {
       ["works", "works.html", "HTML鹈鹕作品"],
       ["prompts", "prompts.html", "提示词库"]
     ].map(([id, href, label]) => id === "relay-public"
-      ? `<details class="nav-group"><summary aria-label="展开中转日报菜单"><a href="relays.html" class="nav-group-link ${["relay-public", "relay-stability", "relay-artworks", "examples", "proposals"].includes(active) ? "active" : ""}">中转日报</a>${UI.icon("chevron")}</summary><div class="nav-group-menu">${[["relay-public", "relays.html", "中转日报", "chart"], ["relay-stability", "relays.html?view=stability", "稳定性观察", "chart"], ["relay-artworks", "relays.html?view=artworks", "中转站鹈鹕作品", "car"], ["examples", "examples.html", "检测案例", "doc"], ["proposals", "proposals.html", "收录提案", "chat"]].map(([key, url, text, icon]) => `<a href="${url}"${active === key ? ' class="active" aria-current="page"' : ""}>${UI.icon(icon)}<span>${text}</span>${UI.icon("arrow")}</a>`).join("")}</div></details>`
+      ? `<details class="nav-group"><summary aria-label="展开中转日报菜单"><a href="relays.html" class="nav-group-link ${["relay-public", "relay-stability", "relay-artworks", "examples", "proposals", "relay-apply"].includes(active) ? "active" : ""}">中转日报</a>${UI.icon("chevron")}</summary><div class="nav-group-menu">${[["relay-public", "relays.html", "中转日报", "chart"], ["relay-stability", "relays.html?view=stability", "稳定性观察", "chart"], ["relay-artworks", "relays.html?view=artworks", "中转站鹈鹕作品", "car"], ["examples", "examples.html", "检测案例", "doc"], ["proposals", "proposals.html", "收录提案", "chat"], ["relay-apply", "relay-apply.html", "申请收录检测", "send"]].map(([key, url, text, icon]) => `<a href="${url}"${active === key ? ' class="active" aria-current="page"' : ""}>${UI.icon(icon)}<span>${text}</span>${UI.icon("arrow")}</a>`).join("")}</div></details>`
       : `<a href="${href}" class="${active === id ? "active" : ""}">${label}</a>`).join("");
+    const applyEntry = ["relay-public", "relay-stability", "relay-artworks", "examples", "proposals", "relay"].includes(active)
+      ? `<a class="relay-apply-entry" href="relay-apply.html">${UI.icon("send")}申请收录检测</a>` : "";
+    if (applyEntry) {
+      if (/<div class="crumb">/.test(body)) body = body.replace(/(<div class="crumb">[\s\S]*?)(<\/div>)/, (_, crumb, end) => crumb + applyEntry + end);
+      else body = body.replace(/<h1\b[^>]*>[\s\S]*?<\/h1>/, heading => `<div class="relay-heading-row">${heading}${applyEntry}</div>`);
+    }
     const cfg = Store.api();
     let apiLabel = "接口设置";
     if (cfg.baseUrl && cfg.apiKey) {
@@ -183,7 +189,7 @@ const UI = {
         <svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
       </a>
     </div>`;
-    const promo = body.indexOf("hero-promo") >= 0 || body.indexOf("veridrop-banner") >= 0 ? "" : `<div class="page-promo">${UI.veridropCard()}</div>`;
+    const promo = options.promo === false || body.indexOf("hero-promo") >= 0 || body.indexOf("veridrop-banner") >= 0 ? "" : `<div class="page-promo">${UI.veridropCard()}</div>`;
     const content = promo && /^\s*<div class="page-head(?:\s|")/.test(body)
       ? `<div class="page-intro-layout">${promo}${body}</div>`
       : promo + body;

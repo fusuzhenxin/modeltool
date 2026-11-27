@@ -15,7 +15,7 @@ function directory(search = "", publicData) {
     },
     relayPublicDetail: (row) => "detail:" + row.id
   });
-  for (const file of ["relay-public", "relay-directory"]) vm.runInContext(fs.readFileSync(path.join(__dirname, "../js", file + ".js"), "utf8"), context);
+  for (const file of ["report-quality", "relay-public", "relay-directory"]) vm.runInContext(fs.readFileSync(path.join(__dirname, "../js", file + ".js"), "utf8"), context);
   return vm.runInContext("({ directory: RelayDirectory, reports: RELAY_PUBLIC })", context);
 }
 
@@ -194,6 +194,24 @@ test("作品与原版非协议测试不覆盖既有协议结论，未测能力�
   assert.equal(d.group([group.reports[0]])[0].level, "unknown");
 });
 
+test("协议通过不等于没有掺水，指纹线索独立汇总和筛选", () => {
+  const { directory: d } = directory();
+  const rows = [{domain:'a.example', model:'m', level:'ok', time:'2026-11-24 12:00'},
+    {domain:'a.example', model:'m', kind:'site_candy', protocol_tested:false, ability:{score:100,level:'normal'}},
+    {domain:'a.example', model:'m', kind:'site_trace', protocol_tested:false, sections:[{
+      kind:'trace', known:true, claimed:'m', prediction:'other', used_outputs:3, probability:.95,
+      results:[{probability:.95},{probability:.03}]
+    }]}];
+  const group = d.group(rows)[0];
+  assert.equal(group.level, 'ok');
+  assert.equal(group.identity_status, 'mismatch');
+  assert.equal(d.matches(group, 'mismatch'), true);
+  assert.equal(d.matches(group, 'consistent'), false);
+  assert.match(d.identityBadge(group), /疑似模型不符/);
+  assert.doesNotMatch(d.badge(group.level), /未见掺水/);
+  assert.match(d.identityBadge(rows[0]), /未测指纹/);
+});
+
 test("首页观察面板每站只取当天最新报告，保留统计与演示标识", () => {
   const { directory: d } = directory();
   d.today = () => "2026-11-08";
@@ -212,7 +230,7 @@ test("没有能力测试不视为正常或降智，未知协议不进入未见�
   const { directory: d } = directory();
   const group = d.group([
     { domain: "API.EXAMPLE", level: "ok", time: "2026-11-08 10:00" },
-    { domain: "api.example", time: "2026-11-08 12:00" }
+    { domain: "api.example", level: "unknown", time: "2026-11-08 12:00" }
   ])[0];
   assert.equal(group.domain, "api.example");
   assert.equal(group.level, "unknown");
@@ -235,7 +253,7 @@ test("切换日期只显示当天报告，日期无数据有空状态", () => {
 test("筛选站点分类不隐藏当天全部报告，图表和站点都可跳转", () => {
   const { directory: d } = directory("?date=2026-11-08&category=bad");
   const html = d.page();
-  assert.match(html, /明显掺水的中转站/);
+  assert.match(html, /多项功能异常的中转站/);
   assert.equal((html.match(/class="panel relay-station-card"/g) || []).length, 3);
   assert.match(html, /id=demo-caution-gpt/);
   assert.match(html, /全部报告/);
@@ -330,7 +348,7 @@ test("后台空报告不回退演示，目录仍展示已登记的未测站点",
   assert.equal(d.rows().length, 0);
   const page = d.stationsPage();
   assert.match(page, /新站/);
-  assert.match(page, /结论不足/);
+  assert.match(page, /未测指纹/);
   assert.doesNotMatch(page, /api\.clearstream\.example/);
   assert.match(page, /\/media\/logo.webp/);
   assert.match(d.stationPage([], "new.example", "2026-11-08"), /还没有公开报告/);
